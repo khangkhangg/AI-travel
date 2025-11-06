@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:api": "playwright test tests/api",
+    "test:e2e": "playwright test tests/e2e",
+    "test:report": "playwright show-report"
   },
   "repository": {
     "type": "git",
@@ -20,11 +26,12 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.79.0",
-    "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "autoprefixer": "^10.4.21",
     "date-fns": "^4.1.0",
+    "ics": "^3.8.1",
+    "jspdf": "^3.0.3",
     "lucide-react": "^0.552.0",
     "next": "^16.0.1",
     "openai": "^6.8.1",
@@ -36,5 +43,9 @@
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
     "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.10.0"
   }
 }
