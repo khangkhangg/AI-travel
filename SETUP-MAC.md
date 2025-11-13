@@ -1,6 +1,27 @@
-# 🚀 Quick Setup for Mac (3 Steps)
+# 🚀 Quick Setup for Mac (1-3 Steps)
 
-## Prerequisites (One-Time Install)
+## ⚡ One-Line Install (Easiest!)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/AI-travel/main/install.sh | bash
+```
+
+**Replace `YOUR_USERNAME` with your GitHub username!**
+
+Then just:
+```bash
+cd ai-travel
+nano .env          # Add API keys
+./start.sh         # Start app
+```
+
+Visit: **http://localhost:2002** 🎉
+
+---
+
+## 🔧 Manual Setup (3 Steps)
+
+### Prerequisites (One-Time Install)
 
 ```bash
 brew install orbstack node
@@ -8,11 +29,11 @@ brew install orbstack node
 
 ---
 
-## 3-Step Setup
-
-### **Step 1: Run Auto-Setup**
+### **Step 1: Clone & Run Setup**
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/AI-travel.git
+cd ai-travel
 ./setup.sh
 ```
 
@@ -44,22 +65,22 @@ nano .env
 ./start.sh
 ```
 
-Visit: **http://localhost:3000** 🎉
+Visit: **http://localhost:2002** 🎉
 
 ---
 
-## Quick Commands
+## 📱 Quick Commands
 
 | Command | What it does |
 |---------|-------------|
 | `./setup.sh` | First-time setup |
-| `./start.sh` | Start the app |
+| `./start.sh` | Start the app on port 2002 |
 | `./test.sh` | Run all tests |
 | `./stop.sh` | Stop everything |
 
 ---
 
-## Testing
+## 🧪 Testing
 
 ```bash
 # Run all tests
@@ -73,7 +94,7 @@ npm run test:ui       # Interactive mode
 
 ---
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Can't connect to database
 
@@ -86,10 +107,10 @@ npm run test:ui       # Interactive mode
 ### Port already in use
 
 ```bash
-# Kill process on port 3000
-lsof -ti:3000 | xargs kill -9
+# Kill process on port 2002
+lsof -ti:2002 | xargs kill -9
 
-# Or port 5432
+# Or port 5432 (PostgreSQL)
 lsof -ti:5432 | xargs kill -9
 ```
 
@@ -103,7 +124,7 @@ docker rm ai-travel-db
 
 ---
 
-## Getting API Keys
+## 🔑 Getting API Keys
 
 ### Supabase (FREE - Required)
 
@@ -131,7 +152,7 @@ docker rm ai-travel-db
 
 ---
 
-## Example .env File
+## 📝 Example .env File
 
 ```bash
 # Database (already set by setup.sh)
@@ -149,16 +170,43 @@ ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=AIza...
 
 # App config (already set)
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:2002
 NODE_ENV=development
+PORT=2002
 ```
 
 ---
 
-## Full Setup Example
+## 🎬 Full Setup Example
+
+### Using One-Liner:
 
 ```bash
-# 1. First time setup
+# 1. Install everything
+curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/AI-travel/main/install.sh | bash
+
+# 2. Navigate and configure
+cd ai-travel
+nano .env
+# Add your Supabase and OpenAI keys
+# Save: Ctrl+O, Enter, Ctrl+X
+
+# 3. Start
+./start.sh
+
+# Visit http://localhost:2002
+
+# 4. In another terminal, run tests
+cd ai-travel
+./test.sh
+```
+
+### Using Manual Setup:
+
+```bash
+# 1. Clone and setup
+git clone https://github.com/YOUR_USERNAME/AI-travel.git
+cd ai-travel
 ./setup.sh
 
 # 2. Edit API keys
@@ -169,7 +217,7 @@ nano .env
 # 3. Start app
 ./start.sh
 
-# Visit http://localhost:3000
+# Visit http://localhost:2002
 
 # 4. In another terminal, run tests
 ./test.sh
@@ -177,7 +225,13 @@ nano .env
 
 ---
 
-## What Each Script Does
+## 📚 What Each Script Does
+
+### `install.sh` (One-Line Installer)
+- Checks prerequisites (Docker, Node, Git)
+- Clones repository
+- Runs full setup
+- Provides next steps
 
 ### `setup.sh`
 - Starts PostgreSQL in Docker
@@ -190,7 +244,7 @@ nano .env
 - Checks if database is running
 - Starts database if needed
 - Checks if API keys are configured
-- Starts Next.js dev server
+- Starts Next.js dev server on port 2002
 
 ### `test.sh`
 - Ensures database is running
@@ -203,41 +257,115 @@ nano .env
 
 ---
 
-## Video Tutorial
+## 🌐 Accessing the App
 
-### Terminal Recording
+After starting with `./start.sh`, visit:
 
+- **Main App**: http://localhost:2002
+- **Discover**: http://localhost:2002/discover
+- **Admin**: http://localhost:2002/admin
+
+---
+
+## 🎯 Quick Reference
+
+### Installation
 ```bash
-# Complete setup in 3 commands:
+# One-liner (easiest)
+curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/AI-travel/main/install.sh | bash
 
-# 1. Setup (takes 2-3 minutes)
+# Manual
+git clone https://github.com/YOUR_USERNAME/AI-travel.git
+cd ai-travel
 ./setup.sh
+```
 
-# 2. Add keys (takes 5 minutes to get keys)
-nano .env
+### Daily Use
+```bash
+./start.sh         # Start app (port 2002)
+./test.sh          # Run tests
+./stop.sh          # Stop services
+```
 
-# 3. Start
-./start.sh
+### Troubleshooting
+```bash
+./stop.sh && ./start.sh     # Restart
+docker rm ai-travel-db      # Delete database
+lsof -ti:2002 | xargs kill  # Kill port 2002
 ```
 
 ---
 
-## Need Help?
+## 📊 What You Get
 
-Check the full documentation:
-- **README.md** - Complete guide
-- **TESTING.md** - Testing details
-- **QUICKSTART.md** - Detailed setup
+✅ PostgreSQL running in Docker
+✅ All dependencies installed
+✅ Database with all tables
+✅ Test suite ready (40+ tests)
+✅ App running on **port 2002**
 
-Or open an issue on GitHub!
+**Total time: ~10 minutes** (including getting API keys)
 
 ---
 
-## Summary
+## 🎓 Full Documentation
 
-✅ **3 simple scripts**
-✅ **All automation included**
-✅ **Just add API keys and go**
-✅ **Takes ~10 minutes total**
+See these files for more details:
+- **README.md** - Complete guide
+- **TESTING.md** - Testing details
+- **QUICKSTART.md** - Detailed setup
+- **FEATURES.md** - All features
 
-Enjoy! 🎉
+---
+
+## 💡 Tips
+
+### Change Port (if needed)
+
+Edit `.env`:
+```bash
+PORT=3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### Run on Different Port (one-time)
+
+```bash
+PORT=3000 ./start.sh
+```
+
+### Use with VS Code
+
+```bash
+code .
+```
+
+Then use integrated terminal to run scripts.
+
+---
+
+## 🎉 Summary
+
+**One-liner install:**
+```bash
+curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/AI-travel/main/install.sh | bash
+cd ai-travel && nano .env && ./start.sh
+```
+
+**Manual install:**
+```bash
+./setup.sh && nano .env && ./start.sh
+```
+
+**That's it! Just 3 commands to get running on port 2002.** 🚀
+
+---
+
+## ❓ Need Help?
+
+1. Check troubleshooting section above
+2. Check full documentation in `README.md`
+3. Check test documentation in `TESTING.md`
+4. Open an issue on GitHub
+
+**Enjoy building!** 🎉

@@ -57,8 +57,9 @@ ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
 
 # App Config (already set)
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:2002
 NODE_ENV=development
+PORT=2002
 EOF
 fi
 
@@ -73,4 +74,6 @@ echo "   2. Get OpenAI key: https://platform.openai.com"
 echo ""
 echo "   Run: nano .env"
 echo ""
-echo "🚀 Then start app: npm run dev"
+echo "🚀 Then start app: ./start.sh"
+echo ""
+echo "   App will run on: http://localhost:2002"

@@ -46,7 +46,22 @@ An intelligent, social travel planning platform powered by multiple AI models. G
 
 ## Quick Start
 
-### Prerequisites
+### ⚡ One-Line Install (Mac)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/khangkhangg/AI-travel/main/install.sh | bash
+cd ai-travel && nano .env && ./start.sh
+```
+
+Visit **http://localhost:2002** 🎉
+
+See [INSTALL.md](INSTALL.md) for details.
+
+---
+
+### Manual Setup
+
+#### Prerequisites
 
 - Node.js 18+ and npm
 - PostgreSQL 14+
@@ -102,7 +117,7 @@ psql ai_travel < lib/db/schema.sql
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:2002](http://localhost:2002) in your browser.
 
 ## Deployment to Hetzner VPS
 
@@ -206,7 +221,7 @@ server {
     server_name yourdomain.com www.yourdomain.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:2002;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';

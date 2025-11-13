@@ -35,6 +35,8 @@ if grep -q "your-key-here" .env || grep -q "your-project.supabase.co" .env; then
 fi
 
 echo "✅ Database running"
-echo "🌐 Starting dev server..."
+echo "🌐 Starting dev server on port 2002..."
 echo ""
-npm run dev
+echo "🎉 App will be available at: http://localhost:2002"
+echo ""
+PORT=2002 npm run dev

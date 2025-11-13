@@ -13,7 +13,7 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'http://localhost:2002',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -27,8 +27,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
+    command: 'PORT=2002 npm run dev',
+    url: 'http://localhost:2002',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },
