@@ -5,9 +5,10 @@ import { createEvents, EventAttributes } from 'ics';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format') || 'ical';
@@ -18,7 +19,7 @@ export async function GET(
        FROM trips t
        LEFT JOIN users u ON t.user_id = u.id
        WHERE t.id = $1`,
-      [params.id]
+      [id]
     );
 
     if (tripResult.rows.length === 0) {
@@ -31,7 +32,7 @@ export async function GET(
     const isOwner = user && trip.user_id === user.id;
     const isCollaborator = user ? (await query(
       'SELECT id FROM trip_collaborators WHERE trip_id = $1 AND user_id = $2',
-      [params.id, user.id]
+      [id, user.id]
     )).rows.length > 0 : false;
     const isPublic = trip.visibility === 'public';
 
@@ -44,7 +45,7 @@ export async function GET(
       `SELECT * FROM itinerary_items
        WHERE trip_id = $1
        ORDER BY day_number, order_index`,
-      [params.id]
+      [id]
     );
 
     const items = itemsResult.rows;
@@ -53,7 +54,7 @@ export async function GET(
       // Generate iCalendar format
       const events: EventAttributes[] = [];
 
-      items.forEach((item) => {
+      items.forEach((item: any) => {
         const startDate = new Date(trip.start_date);
         startDate.setDate(startDate.getDate() + (item.day_number - 1));
 
@@ -111,7 +112,7 @@ export async function GET(
       }
 
       // Update export flag
-      await query('UPDATE trips SET is_exported = true WHERE id = $1', [params.id]);
+      await query('UPDATE trips SET is_exported = true WHERE id = $1', [id]);
 
       return new NextResponse(value, {
         headers: {

@@ -4,9 +4,10 @@ import { query } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
 
     // Get trip details
@@ -24,7 +25,7 @@ export async function GET(
        LEFT JOIN users u ON t.user_id = u.id
        LEFT JOIN ai_models m ON t.ai_model_id = m.id
        WHERE t.id = $1`,
-      [params.id]
+      [id]
     );
 
     if (tripResult.rows.length === 0) {
@@ -45,7 +46,7 @@ export async function GET(
     // Increment view count
     await query(
       'UPDATE trips SET views_count = views_count + 1 WHERE id = $1',
-      [params.id]
+      [id]
     );
 
     // Get itinerary items
@@ -53,7 +54,7 @@ export async function GET(
       `SELECT * FROM itinerary_items
        WHERE trip_id = $1
        ORDER BY day_number, order_index`,
-      [params.id]
+      [id]
     );
 
     // Get collaborators
@@ -62,7 +63,7 @@ export async function GET(
        FROM trip_collaborators tc
        JOIN users u ON tc.user_id = u.id
        WHERE tc.trip_id = $1`,
-      [params.id]
+      [id]
     );
 
     return NextResponse.json({
@@ -84,9 +85,10 @@ export async function GET(
 // PATCH update trip
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -99,7 +101,7 @@ export async function PATCH(
     const permissionCheck = await query(
       `SELECT tc.role FROM trip_collaborators tc
        WHERE tc.trip_id = $1 AND tc.user_id = $2 AND tc.role IN ('owner', 'editor')`,
-      [params.id, user.id]
+      [id, user.id]
     );
 
     if (permissionCheck.rows.length === 0) {
@@ -125,7 +127,7 @@ export async function PATCH(
     }
 
     updates.push(`updated_at = NOW()`);
-    values.push(params.id);
+    values.push(id);
 
     const result = await query(
       `UPDATE trips SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
@@ -145,9 +147,10 @@ export async function PATCH(
 // DELETE trip
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -156,7 +159,7 @@ export async function DELETE(
     // Only owner can delete
     const result = await query(
       `DELETE FROM trips WHERE id = $1 AND user_id = $2 RETURNING id`,
-      [params.id, user.id]
+      [id, user.id]
     );
 
     if (result.rows.length === 0) {

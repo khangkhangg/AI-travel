@@ -4,8 +4,9 @@ import { query, getClient } from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const client = await getClient();
 
   try {
@@ -19,7 +20,7 @@ export async function POST(
     // Toggle like
     const existingLike = await client.query(
       'SELECT id FROM trip_likes WHERE trip_id = $1 AND user_id = $2',
-      [params.id, user.id]
+      [id, user.id]
     );
 
     let liked = true;
@@ -28,12 +29,12 @@ export async function POST(
       // Unlike
       await client.query(
         'DELETE FROM trip_likes WHERE trip_id = $1 AND user_id = $2',
-        [params.id, user.id]
+        [id, user.id]
       );
 
       await client.query(
         'UPDATE trips SET likes_count = likes_count - 1 WHERE id = $1',
-        [params.id]
+        [id]
       );
 
       liked = false;
@@ -41,19 +42,19 @@ export async function POST(
       // Like
       await client.query(
         'INSERT INTO trip_likes (trip_id, user_id) VALUES ($1, $2)',
-        [params.id, user.id]
+        [id, user.id]
       );
 
       await client.query(
         'UPDATE trips SET likes_count = likes_count + 1 WHERE id = $1',
-        [params.id]
+        [id]
       );
     }
 
     // Get updated count
     const countResult = await client.query(
       'SELECT likes_count FROM trips WHERE id = $1',
-      [params.id]
+      [id]
     );
 
     await client.query('COMMIT');

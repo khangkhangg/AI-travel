@@ -3,15 +3,16 @@ import { query } from '@/lib/db';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { is_active } = body;
 
     await query(
       `UPDATE ai_models SET is_active = $1, updated_at = NOW() WHERE id = $2`,
-      [is_active, params.id]
+      [is_active, id]
     );
 
     return NextResponse.json({ success: true });

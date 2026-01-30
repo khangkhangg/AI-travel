@@ -11,9 +11,10 @@ const InviteSchema = z.object({
 // GET collaborators
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -29,7 +30,7 @@ export async function GET(
        JOIN users u ON tc.user_id = u.id
        WHERE tc.trip_id = $1
        ORDER BY tc.joined_at ASC`,
-      [params.id]
+      [id]
     );
 
     return NextResponse.json({ collaborators: result.rows });
@@ -45,9 +46,10 @@ export async function GET(
 // POST invite collaborator
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,7 +62,7 @@ export async function POST(
     const permissionCheck = await query(
       `SELECT tc.role FROM trip_collaborators tc
        WHERE tc.trip_id = $1 AND tc.user_id = $2 AND tc.role IN ('owner', 'editor')`,
-      [params.id, user.id]
+      [id, user.id]
     );
 
     if (permissionCheck.rows.length === 0) {
@@ -91,7 +93,7 @@ export async function POST(
        VALUES ($1, $2, $3)
        ON CONFLICT (trip_id, user_id) DO UPDATE SET role = EXCLUDED.role
        RETURNING *`,
-      [params.id, inviteeId, input.role]
+      [id, inviteeId, input.role]
     );
 
     return NextResponse.json({ collaborator: result.rows[0] }, { status: 201 });
@@ -115,9 +117,10 @@ export async function POST(
 // DELETE remove collaborator
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -134,7 +137,7 @@ export async function DELETE(
     const permissionCheck = await query(
       `SELECT tc.role FROM trip_collaborators tc
        WHERE tc.trip_id = $1 AND tc.user_id = $2 AND tc.role = 'owner'`,
-      [params.id, user.id]
+      [id, user.id]
     );
 
     if (permissionCheck.rows.length === 0) {
@@ -149,7 +152,7 @@ export async function DELETE(
       `DELETE FROM trip_collaborators
        WHERE trip_id = $1 AND user_id = $2 AND role != 'owner'
        RETURNING id`,
-      [params.id, collaboratorId]
+      [id, collaboratorId]
     );
 
     if (result.rows.length === 0) {

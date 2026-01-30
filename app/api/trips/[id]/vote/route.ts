@@ -10,8 +10,9 @@ const VoteSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const client = await getClient();
 
   try {
@@ -30,7 +31,7 @@ export async function POST(
       `SELECT t.id FROM trips t
        LEFT JOIN trip_collaborators tc ON t.id = tc.trip_id
        WHERE t.id = $1 AND (t.user_id = $2 OR tc.user_id = $2)`,
-      [params.id, user.id]
+      [id, user.id]
     );
 
     if (tripCheck.rows.length === 0) {
@@ -88,9 +89,10 @@ export async function POST(
 // GET vote counts for trip
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const result = await query(
       `SELECT
         ii.id as itinerary_item_id,
@@ -100,7 +102,7 @@ export async function GET(
        LEFT JOIN item_votes iv ON ii.id = iv.itinerary_item_id
        WHERE ii.trip_id = $1
        GROUP BY ii.id`,
-      [params.id]
+      [id]
     );
 
     return NextResponse.json({ votes: result.rows });

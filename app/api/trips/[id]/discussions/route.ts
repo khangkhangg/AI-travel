@@ -12,9 +12,10 @@ const DiscussionSchema = z.object({
 // GET discussions for a trip
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const result = await query(
       `SELECT
         d.*,
@@ -26,16 +27,16 @@ export async function GET(
        LEFT JOIN users u ON d.user_id = u.id
        WHERE d.trip_id = $1
        ORDER BY d.created_at ASC`,
-      [params.id]
+      [id]
     );
 
     // Build threaded structure
     const discussions = result.rows;
     const threaded = discussions
-      .filter(d => !d.parent_id)
-      .map(parent => ({
+      .filter((d: any) => !d.parent_id)
+      .map((parent: any) => ({
         ...parent,
-        replies: discussions.filter(d => d.parent_id === parent.id)
+        replies: discussions.filter((d: any) => d.parent_id === parent.id)
       }));
 
     return NextResponse.json({ discussions: threaded });
@@ -51,9 +52,10 @@ export async function GET(
 // POST new discussion/comment
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -67,7 +69,7 @@ export async function POST(
       `SELECT t.id FROM trips t
        LEFT JOIN trip_collaborators tc ON t.id = tc.trip_id
        WHERE t.id = $1 AND (t.user_id = $2 OR tc.user_id = $2 OR t.visibility = 'public')`,
-      [params.id, user.id]
+      [id, user.id]
     );
 
     if (tripCheck.rows.length === 0) {
@@ -79,7 +81,7 @@ export async function POST(
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
       [
-        params.id,
+        id,
         user.id,
         input.content,
         input.parentId || null,
@@ -108,9 +110,10 @@ export async function POST(
 // DELETE discussion
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -128,7 +131,7 @@ export async function DELETE(
       `DELETE FROM discussions
        WHERE id = $1 AND user_id = $2 AND trip_id = $3
        RETURNING id`,
-      [discussionId, user.id, params.id]
+      [discussionId, user.id, id]
     );
 
     if (result.rows.length === 0) {

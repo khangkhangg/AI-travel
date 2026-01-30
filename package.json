@@ -26,6 +26,7 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.79.0",
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "autoprefixer": "^10.4.21",
@@ -33,6 +34,7 @@
     "ics": "^3.8.1",
     "jspdf": "^3.0.3",
     "lucide-react": "^0.552.0",
+    "nanoid": "^5.1.6",
     "next": "^16.0.1",
     "openai": "^6.8.1",
     "pg": "^8.16.3",
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.1",
-    "@types/node": "^24.10.0"
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.16.0"
   }
 }

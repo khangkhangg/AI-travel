@@ -3,8 +3,9 @@ import { query, getClient } from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const client = await getClient();
 
   try {
@@ -16,7 +17,7 @@ export async function POST(
     // Set new default
     await client.query(
       'UPDATE ai_models SET is_default = true WHERE id = $1',
-      [params.id]
+      [id]
     );
 
     await client.query('COMMIT');

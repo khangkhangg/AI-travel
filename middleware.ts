@@ -30,10 +30,29 @@ export async function middleware(request: NextRequest) {
   // Refresh session if expired
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Protected routes
-  if (!user && request.nextUrl.pathname.startsWith('/admin')) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // Protected routes - exclude admin routes (has its own auth)
+  const pathname = request.nextUrl.pathname;
+
+  // Admin routes use custom cookie-based auth
+  if (pathname.startsWith('/admin')) {
+    // Allow login page without auth
+    if (pathname === '/admin/login') {
+      return supabaseResponse;
+    }
+
+    // Check for admin session cookie
+    const adminSession = request.cookies.get('admin_session');
+    if (!adminSession?.value) {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+
+    return supabaseResponse;
   }
+
+  // Other protected routes use Supabase auth
+  // if (!user && pathname.startsWith('/protected')) {
+  //   return NextResponse.redirect(new URL('/login', request.url));
+  // }
 
   return supabaseResponse;
 }

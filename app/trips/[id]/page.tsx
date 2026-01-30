@@ -204,8 +204,8 @@ export default function TripDetailPage() {
     );
   }
 
-  const days = trip.itinerary_items
-    ? [...new Set(trip.itinerary_items.map((item: any) => item.day_number))]
+  const days: number[] = trip.itinerary_items
+    ? Array.from(new Set(trip.itinerary_items.map((item: any) => item.day_number as number)))
     : [];
 
   const activitiesForDay = trip.itinerary_items
