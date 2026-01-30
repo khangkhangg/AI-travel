@@ -42,6 +42,23 @@ interface Traveler {
   phone?: string;
 }
 
+interface HotelResult {
+  placeId: string;
+  name: string;
+  rating: number;
+  userRatingsTotal: number;
+  priceLevel?: number;
+  vicinity: string;
+  photos?: string[];
+  location: { lat: number; lng: number };
+  types: string[];
+  mapsUrl: string;
+}
+
+interface SelectedHotels {
+  [day: number]: HotelResult;
+}
+
 export default function HomePage() {
   const [chatPrompt, setChatPrompt] = useState<string>('');
   const [mobileChat, setMobileChat] = useState(false);
@@ -53,6 +70,7 @@ export default function HomePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | undefined>();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [selectedHotels, setSelectedHotels] = useState<SelectedHotels>({});
 
   const handleSearch = useCallback((query: string) => {
     setChatPrompt(query);
@@ -108,6 +126,16 @@ export default function HomePage() {
 
   const handleTravelersChange = useCallback((newTravelers: Traveler[]) => {
     setTravelers(newTravelers);
+  }, []);
+
+  const handleHotelSelect = useCallback((day: number, hotel: HotelResult | null) => {
+    setSelectedHotels(prev => {
+      if (hotel === null) {
+        const { [day]: removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [day]: hotel };
+    });
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -252,8 +280,10 @@ export default function HomePage() {
               travelers={travelers}
               destination={tripContext?.destination}
               duration={tripContext?.duration}
+              selectedHotels={selectedHotels}
               onItineraryChange={handleItineraryChange}
               onTravelersChange={handleTravelersChange}
+              onHotelSelect={handleHotelSelect}
               onSave={handleSave}
               onShare={handleShare}
               onLogin={handleLogin}
@@ -297,6 +327,8 @@ export default function HomePage() {
           <div className="h-full">
             <ChatPanel
               initialPrompt={chatPrompt}
+              parentItinerary={itinerary}
+              selectedHotels={selectedHotels}
               onConversationStart={handleConversationStart}
               onContextUpdate={handleContextUpdate}
               onItineraryGenerated={handleItineraryGenerated}
@@ -352,6 +384,8 @@ export default function HomePage() {
               <div className="flex-1 overflow-hidden px-2">
                 <ChatPanel
                   initialPrompt={chatPrompt}
+                  parentItinerary={itinerary}
+                  selectedHotels={selectedHotels}
                   onConversationStart={handleConversationStart}
                   onContextUpdate={handleContextUpdate}
                   onItineraryGenerated={handleItineraryGenerated}

@@ -33,6 +33,9 @@ import {
   Baby,
   GripVertical,
   ChevronRight,
+  ExternalLink,
+  Star,
+  Loader2,
 } from 'lucide-react';
 
 interface ItineraryActivity {
@@ -61,13 +64,20 @@ interface Traveler {
   phone?: string;
 }
 
+interface SelectedHotels {
+  [day: number]: HotelResult;
+}
+
 interface ItineraryDisplayProps {
   itinerary: ItineraryDay[];
   travelers: Traveler[];
   destination?: string;
   duration?: string;
+  budget?: string;
+  selectedHotels?: SelectedHotels;
   onItineraryChange?: (itinerary: ItineraryDay[]) => void;
   onTravelersChange?: (travelers: Traveler[]) => void;
+  onHotelSelect?: (day: number, hotel: HotelResult | null) => void;
   onSave?: () => void;
   onShare?: () => void;
   onLogin?: () => void;
@@ -76,20 +86,45 @@ interface ItineraryDisplayProps {
   shareUrl?: string;
 }
 
-// Suggested hotels based on destination
-const getSuggestedHotels = (destination?: string) => [
-  { name: `${destination || 'City'} Grand Hotel`, rating: 4.8, price: 180, type: 'Luxury' },
-  { name: `${destination || 'Downtown'} Boutique Inn`, rating: 4.6, price: 120, type: 'Boutique' },
-  { name: `Backpacker's ${destination || 'Central'} Hostel`, rating: 4.4, price: 45, type: 'Budget' },
+interface HotelResult {
+  placeId: string;
+  name: string;
+  rating: number;
+  userRatingsTotal: number;
+  priceLevel?: number;
+  vicinity: string;
+  photos?: string[];
+  location: { lat: number; lng: number };
+  types: string[];
+  mapsUrl: string;
+}
+
+interface DayHotels {
+  day: number;
+  location: string;
+  hotels: HotelResult[];
+  loading: boolean;
+}
+
+const BUDGET_OPTIONS = [
+  { value: 'budget', label: 'Budget', icon: '💰' },
+  { value: 'moderate', label: 'Moderate', icon: '💵' },
+  { value: 'comfortable', label: 'Comfortable', icon: '💎' },
+  { value: 'luxury', label: 'Luxury', icon: '👑' },
 ];
+
+const PRICE_LABELS = ['Free', '$', '$$', '$$$', '$$$$'];
 
 export default function ItineraryDisplay({
   itinerary,
   travelers,
   destination,
   duration,
+  budget = 'moderate',
+  selectedHotels = {},
   onItineraryChange,
   onTravelersChange,
+  onHotelSelect,
   onSave,
   onShare,
   onLogin,
@@ -109,6 +144,10 @@ export default function ItineraryDisplay({
   const [showHotels, setShowHotels] = useState(false);
   const [showFloatingCost, setShowFloatingCost] = useState(false);
   const costSummaryRef = useRef<HTMLDivElement>(null);
+  const [selectedBudget, setSelectedBudget] = useState(budget);
+  const [dayHotels, setDayHotels] = useState<DayHotels[]>([]);
+  const [loadingHotels, setLoadingHotels] = useState(false);
+  const [expandedHotelDay, setExpandedHotelDay] = useState<number | null>(null);
 
   // Scroll detection for floating cost summary
   useEffect(() => {
@@ -123,6 +162,63 @@ export default function ItineraryDisplay({
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Get primary location for each day from activities
+  const getDayLocation = (day: ItineraryDay): string => {
+    // Find first activity with a location, or use destination
+    const activityWithLocation = day.activities.find(a => a.location);
+    if (activityWithLocation?.location) {
+      return activityWithLocation.location;
+    }
+    return destination || '';
+  };
+
+  // Fetch hotels when showHotels is toggled or budget changes
+  useEffect(() => {
+    if (!showHotels) return;
+
+    const fetchHotelsForDays = async () => {
+      setLoadingHotels(true);
+
+      const newDayHotels: DayHotels[] = [];
+
+      for (const day of itinerary) {
+        const location = getDayLocation(day) || destination || '';
+        if (!location) continue;
+
+        try {
+          const res = await fetch(
+            `/api/hotels/search?location=${encodeURIComponent(location)}&budget=${selectedBudget}`
+          );
+          const data = await res.json();
+
+          newDayHotels.push({
+            day: day.day,
+            location,
+            hotels: data.hotels || [],
+            loading: false,
+          });
+        } catch (error) {
+          newDayHotels.push({
+            day: day.day,
+            location,
+            hotels: [],
+            loading: false,
+          });
+        }
+      }
+
+      setDayHotels(newDayHotels);
+      setLoadingHotels(false);
+
+      // Auto-expand first day
+      if (newDayHotels.length > 0) {
+        setExpandedHotelDay(newDayHotels[0].day);
+      }
+    };
+
+    fetchHotelsForDays();
+  }, [showHotels, selectedBudget, itinerary, destination]);
 
   // Calculate total cost
   const totalCost = itinerary.reduce((total, day) => {
@@ -348,7 +444,6 @@ export default function ItineraryDisplay({
 
   const adults = travelers.filter(t => !t.isChild);
   const children = travelers.filter(t => t.isChild);
-  const suggestedHotels = getSuggestedHotels(destination);
 
   // Calculate cost breakdown percentages for visual bar
   const totalForBar = Object.values(costsByCategory).reduce((a, b) => a + b, 0) || 1;
@@ -523,71 +618,81 @@ export default function ItineraryDisplay({
             {/* Cost Breakdown Details */}
             <div className="p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {Object.entries(costsByCategory).map(([type, cost]) => (
-                <div key={type} className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                  <div className={`w-11 h-11 rounded-xl ${getActivityColor(type)} flex items-center justify-center`}>
+                <div key={type} className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div className={`w-8 h-8 rounded-lg ${getActivityColor(type)} flex items-center justify-center`}>
                     {getCategoryIcon(type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-500 truncate">{getCategoryLabel(type)}</p>
-                    <p className="font-bold text-gray-900 text-lg">${cost.toFixed(0)}</p>
+                    <p className="text-[10px] text-gray-500 truncate leading-tight">{getCategoryLabel(type)}</p>
+                    <p className="font-bold text-gray-900 text-sm">${cost.toFixed(0)}</p>
                   </div>
                 </div>
               ))}
 
               {/* Travelers Card */}
               <div
-                className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-dashed border-teal-200 cursor-pointer hover:border-teal-400 hover:from-teal-100 hover:to-cyan-100 transition-all group"
+                className="flex items-center gap-2 cursor-pointer group"
                 onClick={() => setShowAddTraveler(true)}
               >
-                {travelers.length > 0 ? (
-                  <div className="flex-1 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {/* Adults as avatar circles with initials */}
-                      <div className="flex items-center">
-                        <div className="flex -space-x-2">
-                          {adults.slice(0, 4).map((adult, idx) => (
+                {/* Card content */}
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-dashed border-teal-200 group-hover:border-teal-400 group-hover:from-teal-100 group-hover:to-cyan-100 transition-all">
+                  {travelers.length > 0 ? (
+                    <>
+                      {/* Adults section */}
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex -space-x-1.5">
+                          {adults.slice(0, 2).map((adult) => (
                             <div
                               key={adult.id}
-                              className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-xs font-bold border-2 border-white shadow-sm"
+                              className="w-7 h-7 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-[9px] font-bold border-2 border-white shadow-sm"
                               title={adult.name}
                             >
                               {getInitials(adult.name)}
                             </div>
                           ))}
-                          {adults.length > 4 && (
-                            <div className="w-9 h-9 rounded-full bg-teal-200 flex items-center justify-center text-teal-700 text-xs font-bold border-2 border-white shadow-sm">
-                              +{adults.length - 4}
+                          {adults.length > 2 && (
+                            <div className="w-7 h-7 rounded-full bg-teal-200 flex items-center justify-center text-teal-700 text-[9px] font-bold border-2 border-white">
+                              +{adults.length - 2}
                             </div>
                           )}
                         </div>
-                        <span className="ml-2 text-sm font-medium text-teal-700">{adults.length} adult{adults.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      {/* Children */}
-                      {children.length > 0 && (
-                        <div className="flex items-center gap-2 pl-3 border-l border-teal-200">
-                          <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shadow-sm">
-                            <span className="text-base">👶</span>
-                          </div>
-                          <span className="text-sm font-medium text-amber-700">{children.length} kid{children.length !== 1 ? 's' : ''}</span>
+                        <div className="text-xs leading-tight">
+                          <span className="font-bold text-teal-700">{adults.length}</span>
+                          <span className="text-teal-600 ml-0.5">adult{adults.length !== 1 ? 's' : ''}</span>
                         </div>
-                      )}
-                    </div>
-                    <Plus className="w-5 h-5 text-teal-400 group-hover:text-teal-600 transition-colors" />
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 text-white flex items-center justify-center shadow-md">
-                        <Users className="w-5 h-5" />
                       </div>
-                      <div>
-                        <p className="text-xs text-teal-600">Travelers</p>
-                        <p className="font-bold text-teal-700 text-lg">Add travelers</p>
+
+                      {/* Divider */}
+                      <div className="h-5 w-px bg-teal-200" />
+
+                      {/* Kids section */}
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center">
+                          <span className="text-xs">👶</span>
+                        </div>
+                        <div className="text-xs leading-tight">
+                          <span className="font-bold text-amber-700">{children.length}</span>
+                          <span className="text-amber-600 ml-0.5">kid{children.length !== 1 ? 's' : ''}</span>
+                        </div>
                       </div>
-                    </div>
-                    <Plus className="w-5 h-5 text-teal-400 group-hover:text-teal-600 transition-colors" />
-                  </div>
-                )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 text-white flex items-center justify-center shadow-sm">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div className="text-xs">
+                        <span className="text-teal-600">Add</span>
+                        <span className="font-bold text-teal-700 ml-1">travelers</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Plus icon outside card */}
+                <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center group-hover:bg-teal-200 transition-colors">
+                  <Plus className="w-3.5 h-3.5 text-teal-600" />
+                </div>
               </div>
             </div>
           </div>
@@ -695,7 +800,7 @@ export default function ItineraryDisplay({
             </div>
           )}
 
-          {/* Hotel Suggestions */}
+          {/* Hotel Suggestions - By Day */}
           <div className="mb-6">
             <button
               onClick={() => setShowHotels(!showHotels)}
@@ -707,24 +812,168 @@ export default function ItineraryDisplay({
                 </div>
                 <div className="text-left">
                   <h3 className="font-bold text-gray-900">Where to Stay</h3>
-                  <p className="text-sm text-gray-500">Recommended hotels in {destination || 'your destination'}</p>
+                  <p className="text-sm text-gray-500">Hotels by day based on your itinerary locations</p>
                 </div>
               </div>
               {showHotels ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
             </button>
 
             {showHotels && (
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {suggestedHotels.map((hotel, idx) => (
-                  <div key={idx} className="p-4 bg-white rounded-xl border border-gray-100 hover:shadow-md transition-all">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs px-2 py-1 bg-violet-100 text-violet-700 rounded-full font-medium">{hotel.type}</span>
-                      <span className="text-xs text-gray-500">★ {hotel.rating}</span>
-                    </div>
-                    <h4 className="font-semibold text-gray-900 mb-1">{hotel.name}</h4>
-                    <p className="text-teal-600 font-bold">${hotel.price}<span className="text-gray-400 font-normal text-sm">/night</span></p>
+              <div className="mt-3 bg-white rounded-xl border border-gray-100 overflow-hidden">
+                {/* Budget Filter */}
+                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                  <p className="text-xs text-gray-500 mb-2">Filter by budget preference</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {BUDGET_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setSelectedBudget(opt.value)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          selectedBudget === opt.value
+                            ? 'bg-violet-600 text-white'
+                            : 'bg-white text-gray-600 border border-gray-200 hover:border-violet-300'
+                        }`}
+                      >
+                        {opt.icon} {opt.label}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {/* Loading State */}
+                {loadingHotels && (
+                  <div className="p-8 text-center">
+                    <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Finding hotels near your destinations...</p>
+                  </div>
+                )}
+
+                {/* Hotels by Day */}
+                {!loadingHotels && dayHotels.length > 0 && (
+                  <div className="divide-y divide-gray-100">
+                    {dayHotels.map((dayData) => (
+                      <div key={dayData.day}>
+                        {/* Day Header */}
+                        <button
+                          onClick={() => setExpandedHotelDay(expandedHotelDay === dayData.day ? null : dayData.day)}
+                          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg text-white flex items-center justify-center text-sm font-bold ${
+                              selectedHotels[dayData.day] ? 'bg-green-600' : 'bg-violet-600'
+                            }`}>
+                              {selectedHotels[dayData.day] ? '✓' : dayData.day}
+                            </div>
+                            <div className="text-left">
+                              <p className="font-medium text-gray-900">Day {dayData.day}</p>
+                              {selectedHotels[dayData.day] ? (
+                                <p className="text-xs text-green-600 flex items-center gap-1 font-medium">
+                                  <Hotel className="w-3 h-3" />
+                                  {selectedHotels[dayData.day].name}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-gray-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {dayData.location}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {selectedHotels[dayData.day] ? (
+                              <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                                Hotel selected
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">{dayData.hotels.length} options</span>
+                            )}
+                            <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${
+                              expandedHotelDay === dayData.day ? 'rotate-90' : ''
+                            }`} />
+                          </div>
+                        </button>
+
+                        {/* Hotels for this day */}
+                        {expandedHotelDay === dayData.day && (
+                          <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {dayData.hotels.map((hotel) => {
+                              const isSelected = selectedHotels[dayData.day]?.placeId === hotel.placeId;
+                              return (
+                                <div
+                                  key={hotel.placeId}
+                                  className={`p-4 rounded-xl border-2 transition-all ${
+                                    isSelected
+                                      ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-200'
+                                      : 'border-gray-100 bg-gray-50 hover:border-violet-200 hover:shadow-md'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-1">
+                                      {isSelected && (
+                                        <span className="text-xs px-2 py-0.5 bg-violet-600 text-white rounded-full font-medium">
+                                          ✓ Selected
+                                        </span>
+                                      )}
+                                      {hotel.priceLevel !== undefined && !isSelected && (
+                                        <span className="text-xs px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full font-medium">
+                                          {PRICE_LABELS[hotel.priceLevel] || '$'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 text-amber-500">
+                                      <Star className="w-3 h-3 fill-current" />
+                                      <span className="text-xs font-medium">{hotel.rating.toFixed(1)}</span>
+                                      <span className="text-xs text-gray-400">({hotel.userRatingsTotal})</span>
+                                    </div>
+                                  </div>
+                                  <h4 className={`font-semibold mb-1 ${isSelected ? 'text-violet-700' : 'text-gray-900'}`}>
+                                    {hotel.name}
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mb-3 line-clamp-1">{hotel.vicinity}</p>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => onHotelSelect?.(dayData.day, isSelected ? null : hotel)}
+                                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                        isSelected
+                                          ? 'bg-violet-200 text-violet-700 hover:bg-violet-300'
+                                          : 'bg-violet-600 text-white hover:bg-violet-700'
+                                      }`}
+                                    >
+                                      {isSelected ? 'Deselect' : 'Select'}
+                                    </button>
+                                    <a
+                                      href={hotel.mapsUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="p-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                                      title="View on Google Maps"
+                                    >
+                                      <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {dayData.hotels.length === 0 && (
+                              <div className="col-span-2 text-center py-4 text-gray-500 text-sm">
+                                No hotels found for this location
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* No hotels found */}
+                {!loadingHotels && dayHotels.length === 0 && (
+                  <div className="p-8 text-center text-gray-500">
+                    <Hotel className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm">No destinations found in your itinerary</p>
+                    <p className="text-xs text-gray-400 mt-1">Add locations to your activities to see hotel suggestions</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

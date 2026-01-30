@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Send,
   Bot,
@@ -21,6 +23,9 @@ import {
   MessageSquare,
   Sparkles,
   Moon,
+  Hotel,
+  Star,
+  MapPin,
 } from 'lucide-react';
 
 interface Message {
@@ -60,8 +65,27 @@ interface TripContext {
   locationPreference?: string;
 }
 
+interface HotelResult {
+  placeId: string;
+  name: string;
+  rating: number;
+  userRatingsTotal: number;
+  priceLevel?: number;
+  vicinity: string;
+  photos?: string[];
+  location: { lat: number; lng: number };
+  types: string[];
+  mapsUrl: string;
+}
+
+interface SelectedHotels {
+  [day: number]: HotelResult;
+}
+
 interface ChatPanelProps {
   initialPrompt?: string;
+  parentItinerary?: ItineraryDay[];
+  selectedHotels?: SelectedHotels;
   onItineraryGenerated?: (itinerary: ItineraryDay[]) => void;
   onConversationStart?: () => void;
   onContextUpdate?: (context: TripContext) => void;
@@ -75,6 +99,30 @@ const smartTags = [
   { label: 'Swap days', icon: RefreshCw, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
   { label: 'Weather plan', icon: Sun, color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200' },
 ];
+
+// Check if an activity is actually a cost summary item (not a real activity)
+function isCostSummaryItem(time: string, title: string): boolean {
+  const lowerTime = time.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+
+  // Patterns that indicate this is a summary/budget item, not an actual activity
+  const summaryPatterns = [
+    /accommodation\s*\(\d+\s*nights?\)/i,
+    /food\s*[&and]*\s*drink\s*\(\d+\s*days?\)/i,
+    /activities\s*\([^)]+\)/i,
+    /local\s*transport/i,
+    /miscellaneous/i,
+    /souvenirs/i,
+    /estimated\s*total/i,
+    /budget\s*breakdown/i,
+    /total\s*cost/i,
+    /per\s*person\s*cost/i,
+    /family\s*of\s*\d+/i,
+  ];
+
+  const combinedText = `${lowerTime} ${lowerTitle}`;
+  return summaryPatterns.some(pattern => pattern.test(combinedText));
+}
 
 // Parse itinerary from AI response markdown
 function parseItineraryFromResponse(response: string): ItineraryDay[] {
@@ -103,11 +151,43 @@ function parseItineraryFromResponse(response: string): ItineraryDay[] {
       const timeOrPeriod = actMatch[1].trim();
       let title = actMatch[2].trim().replace(/\*+/g, '');
 
-      // Extract cost from title (patterns like "$25", "$25 per person", "($50)")
+      // Skip cost summary items - they're not real activities
+      if (isCostSummaryItem(timeOrPeriod, title)) {
+        return;
+      }
+
+      // Extract cost from title - improved logic
       let cost: number | undefined;
-      const costMatch = title.match(/\$(\d+(?:,\d{3})*(?:\.\d{2})?)/);
-      if (costMatch) {
-        cost = parseFloat(costMatch[1].replace(',', ''));
+
+      // First, look for explicit "Total for day: ~$X" or "Total: $X" patterns (total before amount)
+      const totalBeforeMatch = title.match(/total(?:\s+for\s+day)?[:\s]*~?\$(\d+(?:,\d{3})*(?:\.\d{2})?)/i);
+      if (totalBeforeMatch) {
+        cost = parseFloat(totalBeforeMatch[1].replace(',', ''));
+      } else {
+        // Check for "~$X total" pattern (amount before total)
+        const totalAfterMatch = title.match(/~?\$(\d+(?:,\d{3})*(?:\.\d{2})?)\s*total/i);
+        if (totalAfterMatch) {
+          // This is just a single item total, look for other costs in the string
+          // Find all dollar amounts and sum them (excluding the "X total" part)
+          const allCosts = [...title.matchAll(/(?<!~)\$(\d+(?:,\d{3})*(?:\.\d{2})?)/g)];
+          if (allCosts.length > 1) {
+            // Sum all found costs except ones followed by "total"
+            const cleanTitle = title.replace(/~?\$\d+(?:,\d{3})*(?:\.\d{2})?\s*total/gi, '');
+            const remainingCosts = [...cleanTitle.matchAll(/\$(\d+(?:,\d{3})*(?:\.\d{2})?)/g)];
+            if (remainingCosts.length > 0) {
+              cost = remainingCosts.reduce((sum, match) => sum + parseFloat(match[1].replace(',', '')), 0);
+            }
+          }
+          if (cost === undefined) {
+            cost = parseFloat(totalAfterMatch[1].replace(',', ''));
+          }
+        } else {
+          // No total pattern found - sum all dollar amounts
+          const allCosts = [...title.matchAll(/~?\$(\d+(?:,\d{3})*(?:\.\d{2})?)/g)];
+          if (allCosts.length > 0) {
+            cost = allCosts.reduce((sum, match) => sum + parseFloat(match[1].replace(',', '')), 0);
+          }
+        }
       }
 
       // Determine activity type
@@ -248,7 +328,7 @@ function getMissingSuggestions(context: TripContext, hasItinerary: boolean): { l
   return suggestions.slice(0, 4); // Max 4 suggestions at a time
 }
 
-export default function ChatPanel({ initialPrompt, onItineraryGenerated, onConversationStart, onContextUpdate }: ChatPanelProps) {
+export default function ChatPanel({ initialPrompt, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -261,7 +341,7 @@ export default function ChatPanel({ initialPrompt, onItineraryGenerated, onConve
   const [isTyping, setIsTyping] = useState(false);
   const [itinerary, setItinerary] = useState<ItineraryDay[] | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'itinerary' | 'packages'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'journey' | 'packages'>('chat');
   const [tripContext, setTripContext] = useState<TripContext>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -426,7 +506,7 @@ export default function ChatPanel({ initialPrompt, onItineraryGenerated, onConve
       <div className="flex border-b border-gray-100">
         {[
           { id: 'chat', label: 'Chat', icon: MessageSquare },
-          { id: 'itinerary', label: 'Itinerary', icon: Calendar, badge: itinerary?.length },
+          { id: 'journey', label: 'Your Journey', icon: MapPin, badge: (parentItinerary || itinerary)?.length },
           { id: 'packages', label: 'Packages', icon: Package },
         ].map((tab) => (
           <button
@@ -475,7 +555,24 @@ export default function ChatPanel({ initialPrompt, onItineraryGenerated, onConve
                       ? 'bg-teal-600 text-white rounded-br-md'
                       : 'bg-gray-100 text-gray-800 rounded-bl-md'
                   }`}>
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    {message.role === 'user' ? (
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                    ) : (
+                      <div className="text-sm leading-relaxed prose prose-sm prose-gray max-w-none
+                        prose-headings:text-gray-900 prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-2
+                        prose-h1:text-base prose-h2:text-sm prose-h3:text-sm
+                        prose-p:my-1.5 prose-p:text-gray-700
+                        prose-strong:text-teal-700 prose-strong:font-semibold
+                        prose-ul:my-1.5 prose-ul:pl-4 prose-li:my-0.5
+                        prose-ol:my-1.5 prose-ol:pl-4
+                        prose-hr:my-3 prose-hr:border-gray-300
+                        prose-table:my-2 prose-table:text-xs prose-table:border-collapse
+                        prose-th:bg-teal-50 prose-th:text-teal-800 prose-th:px-2 prose-th:py-1 prose-th:border prose-th:border-gray-200 prose-th:font-semibold
+                        prose-td:px-2 prose-td:py-1 prose-td:border prose-td:border-gray-200
+                        [&>*:first-child]:mt-0">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -554,65 +651,116 @@ export default function ChatPanel({ initialPrompt, onItineraryGenerated, onConve
           </div>
         )}
 
-        {activeTab === 'itinerary' && (
-          <div className="h-full overflow-y-auto p-4">
-            {itinerary && itinerary.length > 0 ? (
-              <div className="space-y-5">
-                {itinerary.map((day) => (
-                  <div key={day.day}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-sm shadow-md">
-                        {day.day}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="font-bold text-gray-900">Day {day.day}</span>
-                        {day.title && (
-                          <p className="text-sm text-teal-600 truncate">{day.title}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="ml-4 border-l-2 border-teal-100 pl-4 space-y-2">
-                      {day.activities.map((activity, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group"
-                        >
-                          <div className={`w-7 h-7 rounded-lg flex-shrink-0 ${getActivityColor(activity.type)} flex items-center justify-center`}>
-                            {getActivityIcon(activity.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 text-xs text-gray-500 mb-0.5">
-                              <Clock className="w-3 h-3" />
-                              <span>{activity.time}</span>
+        {activeTab === 'journey' && (
+          <div className="h-full flex flex-col">
+            {/* Use parentItinerary if available, otherwise fall back to internal itinerary */}
+            {(() => {
+              const displayItinerary = parentItinerary || itinerary;
+              return displayItinerary && displayItinerary.length > 0 ? (
+                <>
+                  {/* Horizontal Scroll Daily View */}
+                  <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-hide">
+                    <div className="flex gap-4 p-4 h-full" style={{ minWidth: 'max-content' }}>
+                      {displayItinerary.map((day) => {
+                        const selectedHotel = selectedHotels[day.day];
+                        return (
+                          <div
+                            key={day.day}
+                            className="w-64 flex-shrink-0 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full"
+                          >
+                            {/* Day Header */}
+                            <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-4 text-white">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xl font-bold">Day {day.day}</span>
+                                <span className="px-2 py-0.5 bg-white/20 rounded-full text-xs">
+                                  {day.activities.length} activities
+                                </span>
+                              </div>
+                              <p className="text-sm text-teal-100 truncate">{day.title}</p>
                             </div>
-                            <p className="font-medium text-sm text-gray-800">{activity.title}</p>
-                            {activity.description && (
-                              <p className="text-xs text-gray-500 mt-1">{activity.description}</p>
+
+                            {/* Selected Hotel - At the Top */}
+                            {selectedHotel ? (
+                              <div className="p-3 border-b border-gray-100 bg-violet-50">
+                                <div className="flex items-start gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-violet-600 text-white flex items-center justify-center flex-shrink-0">
+                                    <Hotel className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-violet-600 font-medium mb-0.5">Staying at</p>
+                                    <p className="font-semibold text-gray-900 text-sm truncate">{selectedHotel.name}</p>
+                                    <div className="flex items-center gap-1 text-xs text-amber-500 mt-0.5">
+                                      <Star className="w-3 h-3 fill-current" />
+                                      <span>{selectedHotel.rating.toFixed(1)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-3 border-b border-gray-100 bg-gray-50">
+                                <div className="flex items-center gap-2 text-gray-400">
+                                  <Hotel className="w-4 h-4" />
+                                  <span className="text-xs">No hotel selected</span>
+                                </div>
+                              </div>
                             )}
-                          </div>
-                          {activity.cost && (
-                            <div className="flex items-center gap-1 text-xs text-teal-600 font-semibold flex-shrink-0">
-                              <DollarSign className="w-3 h-3" />
-                              {activity.cost}
+
+                            {/* Activities */}
+                            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                              {day.activities.map((activity, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-start gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-teal-200 transition-colors"
+                                >
+                                  <div className={`w-6 h-6 rounded-md flex-shrink-0 ${getActivityColor(activity.type)} flex items-center justify-center`}>
+                                    {getActivityIcon(activity.type)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                                      <Clock className="w-2.5 h-2.5" />
+                                      {activity.time}
+                                    </p>
+                                    <p className="font-medium text-xs text-gray-800 line-clamp-2">{activity.title}</p>
+                                  </div>
+                                  {activity.cost !== undefined && activity.cost > 0 && (
+                                    <span className="text-[10px] font-bold text-teal-600">${activity.cost}</span>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                          )}
-                        </div>
-                      ))}
+
+                            {/* Day Total */}
+                            <div className="p-3 bg-gray-50 border-t border-gray-100">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-500">Day total</span>
+                                <span className="font-bold text-teal-600">
+                                  ${day.activities.reduce((sum, a) => sum + (a.cost || 0), 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mb-4">
-                  <Calendar className="w-8 h-8 text-teal-500" />
+
+                  {/* Scroll hint */}
+                  <div className="p-2 text-center text-xs text-gray-400 border-t border-gray-100">
+                    ← Swipe to see all days →
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center py-8 px-4">
+                  <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mb-4">
+                    <MapPin className="w-8 h-8 text-teal-500" />
+                  </div>
+                  <h4 className="font-bold text-gray-900 mb-2">Your journey awaits</h4>
+                  <p className="text-sm text-gray-500 max-w-[200px]">
+                    Start chatting to plan your personalized trip with hotels and activities
+                  </p>
                 </div>
-                <h4 className="font-bold text-gray-900 mb-2">No itinerary yet</h4>
-                <p className="text-sm text-gray-500 max-w-[200px]">
-                  Start chatting to generate your personalized trip plan
-                </p>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
