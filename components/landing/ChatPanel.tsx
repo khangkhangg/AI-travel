@@ -94,12 +94,12 @@ interface ChatPanelProps {
 }
 
 const smartTags = [
-  { label: '+1 day', icon: Plus, color: 'bg-teal-100 text-teal-700 hover:bg-teal-200' },
-  { label: '-1 day', icon: Minus, color: 'bg-rose-100 text-rose-700 hover:bg-rose-200' },
-  { label: 'More food', icon: Utensils, color: 'bg-amber-100 text-amber-700 hover:bg-amber-200' },
-  { label: 'Sightseeing', icon: Camera, color: 'bg-violet-100 text-violet-700 hover:bg-violet-200' },
-  { label: 'Swap days', icon: RefreshCw, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200' },
-  { label: 'Weather plan', icon: Sun, color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200' },
+  { label: '+1 day', icon: Plus, color: 'bg-teal-100 text-teal-700 hover:bg-teal-200', needsInput: true, placeholder: 'What activities to add? e.g., beach day, city tour, rest day', prefix: 'Add one more day to the trip with: ' },
+  { label: '-1 day', icon: Minus, color: 'bg-rose-100 text-rose-700 hover:bg-rose-200', needsInput: true, placeholder: 'Which day to remove? e.g., day 3, or the shopping day', prefix: 'Remove from the itinerary: ' },
+  { label: 'More food', icon: Utensils, color: 'bg-amber-100 text-amber-700 hover:bg-amber-200', needsInput: true, placeholder: 'What cuisine? e.g., local street food, fine dining, seafood', prefix: 'Add more food experiences to the trip: ' },
+  { label: 'Sightseeing', icon: Camera, color: 'bg-violet-100 text-violet-700 hover:bg-violet-200', needsInput: true, placeholder: 'What to see? e.g., historical sites, viewpoints, landmarks', prefix: 'Add more sightseeing activities: ' },
+  { label: 'Swap days', icon: RefreshCw, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200', needsInput: true, placeholder: 'e.g., swap day 2 with day 3, or move beach day to day 1', prefix: 'Please adjust the itinerary: ' },
+  { label: 'Weather plan', icon: Sun, color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200', needsInput: true, placeholder: 'Weather concern? e.g., rainy day backup, too hot, indoor alternatives', prefix: 'Adjust the plan for weather: ' },
 ];
 
 // Check if an activity is actually a cost summary item (not a real activity)
@@ -244,9 +244,23 @@ function extractTripContext(messages: Message[]): TripContext {
   const context: TripContext = {};
   const allText = messages.map(m => m.content).join(' ').toLowerCase();
 
+  // Common phrases that should NOT be detected as destinations
+  const excludedPhrases = [
+    'get started', 'start', 'begin', 'help', 'know', 'see', 'go', 'do',
+    'plan', 'travel', 'visit somewhere', 'somewhere', 'anywhere', 'explore',
+    'the world', 'your trip', 'my trip', 'a trip', 'this trip', 'our trip',
+    'you', 'me', 'us', 'them', 'it', 'that', 'this', 'here', 'there',
+  ];
+
   // Extract destination
   const destMatch = allText.match(/(?:to|visit|in|going to)\s+([A-Z][a-zA-Z\s]+?)(?:\.|,|!|\?|for|with|\s+is)/i);
-  if (destMatch) context.destination = destMatch[1].trim();
+  if (destMatch) {
+    const potentialDest = destMatch[1].trim().toLowerCase();
+    // Only set destination if it's not an excluded phrase
+    if (!excludedPhrases.some(phrase => potentialDest === phrase || potentialDest.startsWith(phrase + ' '))) {
+      context.destination = destMatch[1].trim();
+    }
+  }
 
   // Extract duration
   const durationMatch = allText.match(/(\d+)\s*(?:day|night)/i);
@@ -261,9 +275,27 @@ function extractTripContext(messages: Message[]): TripContext {
   if (allText.includes('culture') || allText.includes('museum') || allText.includes('history')) types.push('culture');
   if (types.length > 0) context.travelType = types;
 
-  // Extract budget
-  const budgetMatch = allText.match(/\$\s*(\d+[\d,]*)/);
-  if (budgetMatch) context.budget = budgetMatch[0];
+  // Extract budget - prioritize "estimated total" or "total cost" patterns from AI
+  const totalPatterns = [
+    /estimated\s+total[:\s]*\$?\s*(\d+[\d,]*)/i,
+    /total\s+(?:cost|budget|estimate)[:\s]*\$?\s*(\d+[\d,]*)/i,
+    /budget[:\s]*\$?\s*(\d+[\d,]*)/i,
+    /\$\s*(\d+[\d,]*)\s*(?:total|estimated|budget)/i,
+  ];
+
+  for (const pattern of totalPatterns) {
+    const match = allText.match(pattern);
+    if (match) {
+      context.budget = `$${match[1]}`;
+      break;
+    }
+  }
+
+  // Fallback: any dollar amount if no total pattern found
+  if (!context.budget) {
+    const budgetMatch = allText.match(/\$\s*(\d+[\d,]*)/);
+    if (budgetMatch) context.budget = budgetMatch[0];
+  }
 
   // Extract number of travelers
   const travelersMatch = allText.match(/(\d+)\s*(?:people|person|travelers|traveler)/i);
@@ -312,7 +344,7 @@ function getMissingSuggestions(context: TripContext, hasItinerary: boolean): { l
     suggestions.push({ label: 'Budget', prompt: 'What\'s your budget for this trip?', icon: '💰' });
   }
   if (!context.travelers && !context.adults) {
-    suggestions.push({ label: 'Who\'s going?', prompt: 'How many people are traveling?', icon: '👥' });
+    suggestions.push({ label: 'How many people?', prompt: 'How many people are traveling?', icon: '👥' });
   }
   if (context.travelers && !context.adults) {
     suggestions.push({ label: 'Adults?', prompt: 'How many adults in the group?', icon: '🧑' });
@@ -334,7 +366,7 @@ function getMissingSuggestions(context: TripContext, hasItinerary: boolean): { l
 const commandOptions = [
   { id: 'location', label: 'Location', icon: '📍', placeholder: 'Where do you want to go?', prefix: 'I want to visit ' },
   { id: 'duration', label: 'Duration', icon: '📅', placeholder: 'How many days?', prefix: "I'm planning a ", suffix: ' day trip' },
-  { id: 'budget', label: 'Budget', icon: '💰', placeholder: 'What\'s your budget?', prefix: 'My budget is $' },
+  { id: 'budget', label: 'Budget', icon: '💰', placeholder: 'What\'s your budget?', prefix: 'My budget is $', adjustPrefix: 'Please adjust the trip plan to fit a budget of $', adjustPlaceholder: 'Enter new budget amount' },
   { id: 'travelers', label: 'Travelers', icon: '👥', placeholder: 'How many people?', prefix: "We're ", suffix: ' people traveling' },
 ];
 
@@ -356,6 +388,9 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [activeCommand, setActiveCommand] = useState<typeof commandOptions[0] | null>(null);
   const [commandInput, setCommandInput] = useState('');
+  const [isAdjustingBudget, setIsAdjustingBudget] = useState(false);
+  const [activeSmartTag, setActiveSmartTag] = useState<typeof smartTags[0] | null>(null);
+  const [smartTagInput, setSmartTagInput] = useState('');
   const [collectedInfo, setCollectedInfo] = useState<{
     location?: string;
     duration?: string;
@@ -367,7 +402,19 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
   const commandMenuRef = useRef<HTMLDivElement>(null);
 
   // Get dynamic suggestion prompts based on missing info
-  const suggestionPrompts = getMissingSuggestions(tripContext, itinerary !== null && itinerary.length > 0);
+  // Filter out suggestions that duplicate the command options (Location, Duration, Budget, Travelers)
+  const suggestionPrompts = getMissingSuggestions(tripContext, itinerary !== null && itinerary.length > 0)
+    .filter(s => {
+      // Don't show "Where to?" - we already have "Location" tag in command options
+      if (s.label === 'Where to?') return false;
+      // Don't show "How long?" - we already have "Duration" tag in command options
+      if (s.label === 'How long?') return false;
+      // Don't show "Budget" - we already have "Budget" tag in command options
+      if (s.label === 'Budget') return false;
+      // Don't show "How many people?" - we already have "Travelers" tag in command options
+      if (s.label === 'How many people?') return false;
+      return true;
+    });
 
   // Handle input change - detect "/" for command menu
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -398,6 +445,12 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
     setActiveCommand(command);
     setInput('');
     setCommandInput('');
+    // Check if budget is being adjusted (already has a value)
+    if (command.id === 'budget' && (collectedInfo.budget || tripContext.budget)) {
+      setIsAdjustingBudget(true);
+    } else {
+      setIsAdjustingBudget(false);
+    }
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
@@ -407,6 +460,40 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
     setActiveCommand(null);
     setInput('');
     setCommandInput('');
+    setIsAdjustingBudget(false);
+  };
+
+  // Handle smart tag click
+  const handleSmartTagClick = (tag: typeof smartTags[0]) => {
+    if ('needsInput' in tag && tag.needsInput) {
+      // Enter input mode for this tag
+      setActiveSmartTag(tag);
+      setSmartTagInput('');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    } else {
+      // Direct send
+      handleSendMessage(tag.label);
+    }
+  };
+
+  // Submit smart tag with user input
+  const submitSmartTag = () => {
+    if (!activeSmartTag || !smartTagInput.trim()) return;
+
+    const tag = activeSmartTag as any;
+    const message = tag.prefix
+      ? tag.prefix + smartTagInput.trim()
+      : `${tag.label}: ${smartTagInput.trim()}`;
+
+    setActiveSmartTag(null);
+    setSmartTagInput('');
+    handleSendMessage(message);
+  };
+
+  // Cancel smart tag input
+  const cancelSmartTag = () => {
+    setActiveSmartTag(null);
+    setSmartTagInput('');
   };
 
   // Submit command value
@@ -416,18 +503,25 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
     // Store collected info
     setCollectedInfo(prev => ({
       ...prev,
-      [activeCommand.id]: commandInput.trim()
+      [activeCommand.id]: activeCommand.id === 'budget' ? `$${commandInput.trim()}` : commandInput.trim()
     }));
 
     // Build message from command
-    let message = activeCommand.prefix + commandInput.trim();
-    if (activeCommand.suffix) message += activeCommand.suffix;
+    let message: string;
+    if (isAdjustingBudget && activeCommand.id === 'budget' && 'adjustPrefix' in activeCommand) {
+      // Use adjust prefix for budget changes
+      message = (activeCommand as any).adjustPrefix + commandInput.trim();
+    } else {
+      message = activeCommand.prefix + commandInput.trim();
+      if (activeCommand.suffix) message += activeCommand.suffix;
+    }
 
     // Reset command state
     setShowCommandMenu(false);
     setActiveCommand(null);
     setCommandInput('');
     setInput('');
+    setIsAdjustingBudget(false);
 
     // Send the message
     handleSendMessage(message);
@@ -556,6 +650,22 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
       if (title && title.length > 2 && title.length < 60) {
         options.push({
           label: `Option ${match[1]}`,
+          value: title,
+          type: 'option'
+        });
+      }
+    }
+
+    // Match lettered options like "A. Destination" or "**A. Destination**"
+    const letteredMatches = [...content.matchAll(/\*?\*?([A-C])\.\s*\*?\*?\s*([A-Z][a-zA-Z\s,&()]+?)(?:\*?\*?)(?:\n|$)/g)];
+    for (const match of letteredMatches) {
+      const letter = match[1];
+      const title = match[2].trim().replace(/\*+/g, '').trim();
+      if (title && title.length > 2 && title.length < 60) {
+        // Convert letter to number for Option label
+        const optionNum = letter.charCodeAt(0) - 'A'.charCodeAt(0) + 1;
+        options.push({
+          label: `Option ${optionNum}`,
           value: title,
           type: 'option'
         });
@@ -925,7 +1035,7 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
                   {smartTags.map((tag, index) => (
                     <button
                       key={index}
-                      onClick={() => handleSendMessage(tag.label)}
+                      onClick={() => handleSmartTagClick(tag)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${tag.color}`}
                     >
                       <tag.icon className="w-3 h-3" />
@@ -1013,14 +1123,16 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
               {activeCommand && (
                 <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-teal-50 rounded-xl border border-teal-200">
                   <span className="text-lg">{activeCommand.icon}</span>
-                  <span className="text-teal-700 font-medium text-sm">{activeCommand.label}:</span>
+                  <span className="text-teal-700 font-medium text-sm">
+                    {isAdjustingBudget ? 'Adjust Budget' : activeCommand.label}:
+                  </span>
                   <input
                     ref={inputRef}
                     type="text"
                     value={commandInput}
                     onChange={(e) => setCommandInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={activeCommand.placeholder}
+                    placeholder={isAdjustingBudget && 'adjustPlaceholder' in activeCommand ? (activeCommand as any).adjustPlaceholder : activeCommand.placeholder}
                     autoFocus
                     className="flex-1 bg-transparent border-none outline-none text-sm text-gray-800 placeholder-teal-400"
                   />
@@ -1040,8 +1152,75 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
                 </div>
               )}
 
+              {/* Smart Tag Input Mode (e.g., Swap days, +1 day, etc.) */}
+              {activeSmartTag && (
+                <div className={`mb-2 flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                  activeSmartTag.label === '+1 day' ? 'bg-teal-50 border-teal-200' :
+                  activeSmartTag.label === '-1 day' ? 'bg-rose-50 border-rose-200' :
+                  activeSmartTag.label === 'More food' ? 'bg-amber-50 border-amber-200' :
+                  activeSmartTag.label === 'Sightseeing' ? 'bg-violet-50 border-violet-200' :
+                  activeSmartTag.label === 'Swap days' ? 'bg-blue-50 border-blue-200' :
+                  'bg-cyan-50 border-cyan-200'
+                }`}>
+                  <activeSmartTag.icon className={`w-4 h-4 ${
+                    activeSmartTag.label === '+1 day' ? 'text-teal-600' :
+                    activeSmartTag.label === '-1 day' ? 'text-rose-600' :
+                    activeSmartTag.label === 'More food' ? 'text-amber-600' :
+                    activeSmartTag.label === 'Sightseeing' ? 'text-violet-600' :
+                    activeSmartTag.label === 'Swap days' ? 'text-blue-600' :
+                    'text-cyan-600'
+                  }`} />
+                  <span className={`font-medium text-sm ${
+                    activeSmartTag.label === '+1 day' ? 'text-teal-700' :
+                    activeSmartTag.label === '-1 day' ? 'text-rose-700' :
+                    activeSmartTag.label === 'More food' ? 'text-amber-700' :
+                    activeSmartTag.label === 'Sightseeing' ? 'text-violet-700' :
+                    activeSmartTag.label === 'Swap days' ? 'text-blue-700' :
+                    'text-cyan-700'
+                  }`}>{activeSmartTag.label}:</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={smartTagInput}
+                    onChange={(e) => setSmartTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && smartTagInput.trim()) {
+                        submitSmartTag();
+                        e.preventDefault();
+                      } else if (e.key === 'Escape') {
+                        cancelSmartTag();
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder={'placeholder' in activeSmartTag ? (activeSmartTag as any).placeholder : 'Enter details...'}
+                    autoFocus
+                    className="flex-1 bg-transparent border-none outline-none text-sm text-gray-800 placeholder-gray-400"
+                  />
+                  <button
+                    onClick={submitSmartTag}
+                    disabled={!smartTagInput.trim()}
+                    className={`p-1.5 rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                      activeSmartTag.label === '+1 day' ? 'bg-teal-600 hover:bg-teal-700' :
+                      activeSmartTag.label === '-1 day' ? 'bg-rose-600 hover:bg-rose-700' :
+                      activeSmartTag.label === 'More food' ? 'bg-amber-600 hover:bg-amber-700' :
+                      activeSmartTag.label === 'Sightseeing' ? 'bg-violet-600 hover:bg-violet-700' :
+                      activeSmartTag.label === 'Swap days' ? 'bg-blue-600 hover:bg-blue-700' :
+                      'bg-cyan-600 hover:bg-cyan-700'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={cancelSmartTag}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
               {/* Regular Input */}
-              {!activeCommand && (
+              {!activeCommand && !activeSmartTag && (
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
