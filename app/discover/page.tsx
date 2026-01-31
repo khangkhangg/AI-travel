@@ -1,303 +1,500 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Filter, Heart, Eye, MapPin, Calendar, Users, TrendingUp } from 'lucide-react';
-import { format } from 'date-fns';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Search,
+  MapPin,
+  Calendar,
+  Users,
+  Copy,
+  Eye,
+  ArrowLeft,
+  Filter,
+  Globe,
+  Sparkles,
+  ChevronDown,
+} from 'lucide-react';
+import { Itinerary, UserSummary } from '@/lib/types/user';
 
-interface Trip {
-  id: string;
-  title: string;
-  start_date: string;
-  end_date: string;
-  num_people: number;
-  city: string;
-  travel_type: string[];
-  total_cost: number;
-  likes_count: number;
-  views_count: number;
-  created_at: string;
-  owner_name: string | null;
-  owner_email: string;
-  owner_avatar: string | null;
-  ai_model_name: string;
-  activities_count: number;
-  preview: any;
+const INTERESTS = [
+  { id: 'food', label: 'Food & Dining', emoji: '🍜' },
+  { id: 'culture', label: 'Culture', emoji: '🏛️' },
+  { id: 'nature', label: 'Nature', emoji: '🌿' },
+  { id: 'adventure', label: 'Adventure', emoji: '🎢' },
+  { id: 'nightlife', label: 'Nightlife', emoji: '🌙' },
+  { id: 'shopping', label: 'Shopping', emoji: '🛍️' },
+  { id: 'relaxation', label: 'Relaxation', emoji: '🧘' },
+  { id: 'history', label: 'History', emoji: '📜' },
+];
+
+// Extended itinerary type for list views
+interface ItineraryWithMeta extends Itinerary {
+  collaboratorCount?: number;
 }
 
 export default function DiscoverPage() {
+  return (
+    <Suspense fallback={<DiscoverLoading />}>
+      <DiscoverContent />
+    </Suspense>
+  );
+}
+
+function DiscoverLoading() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="animate-spin w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full" />
+    </div>
+  );
+}
+
+function DiscoverContent() {
   const router = useRouter();
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const searchParams = useSearchParams();
+
+  const [itineraries, setItineraries] = useState<ItineraryWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState({
-    city: '',
-    travelType: '',
-    sortBy: 'recent'
+  const [total, setTotal] = useState(0);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState({
+    start: searchParams.get('startDate') || '',
+    end: searchParams.get('endDate') || '',
   });
+  const [groupSize, setGroupSize] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchTrips();
-  }, [page, filters]);
-
-  const fetchTrips = async () => {
+  const fetchItineraries = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '12',
-        ...(filters.city && { city: filters.city }),
-        ...(filters.travelType && { travelType: filters.travelType }),
-        sortBy: filters.sortBy
-      });
+      const params = new URLSearchParams();
+      if (searchQuery) params.set('destination', searchQuery);
+      if (dateRange.start) params.set('startDate', dateRange.start);
+      if (dateRange.end) params.set('endDate', dateRange.end);
 
-      const response = await fetch(`/api/discover?${params}`);
+      const response = await fetch(`/api/itineraries?${params.toString()}`);
       const data = await response.json();
 
-      setTrips(data.trips || []);
-      setTotalPages(data.pagination?.totalPages || 1);
-    } catch (error) {
-      console.error('Failed to fetch trips:', error);
+      if (response.ok) {
+        // Client-side filtering for interests (can be moved to API later)
+        let filtered = data.itineraries;
+        if (selectedInterests.length > 0) {
+          filtered = filtered.filter((i: ItineraryWithMeta) =>
+            selectedInterests.some((interest) => i.interests?.includes(interest))
+          );
+        }
+        if (groupSize) {
+          filtered = filtered.filter((i: ItineraryWithMeta) => i.groupSize >= groupSize);
+        }
+        setItineraries(filtered);
+        setTotal(data.total);
+      }
+    } catch (err) {
+      console.error('Failed to fetch itineraries:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery, dateRange, selectedInterests, groupSize]);
 
-  const handleLike = async (tripId: string) => {
+  useEffect(() => {
+    fetchItineraries();
+  }, [fetchItineraries]);
+
+  const handleClone = async (id: string) => {
     try {
-      const response = await fetch(`/api/trips/${tripId}/like`, {
-        method: 'POST'
+      const response = await fetch(`/api/itineraries/${id}/clone`, {
+        method: 'POST',
       });
 
-      if (response.ok) {
-        // Refresh trips
-        fetchTrips();
+      if (response.status === 401) {
+        router.push('/?signin=true');
+        return;
       }
-    } catch (error) {
-      console.error('Failed to like trip:', error);
+
+      const data = await response.json();
+      if (response.ok) {
+        router.push(`/itinerary/${data.itinerary.id}`);
+      }
+    } catch (err) {
+      console.error('Failed to clone:', err);
     }
   };
 
-  const travelTypes = [
-    'Fun', 'Sightseeing', 'Museum', 'Adventure', 'Beach',
-    'Food Tour', 'Shopping', 'Nightlife', 'Nature', 'Culture', 'Relaxation'
-  ];
+  const toggleInterest = (interest: string) => {
+    setSelectedInterests((prev) =>
+      prev.includes(interest)
+        ? prev.filter((i) => i !== interest)
+        : [...prev, interest]
+    );
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setSelectedInterests([]);
+    setDateRange({ start: '', end: '' });
+    setGroupSize(null);
+  };
+
+  const hasActiveFilters =
+    searchQuery ||
+    selectedInterests.length > 0 ||
+    dateRange.start ||
+    dateRange.end ||
+    groupSize;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Discover Amazing Trips</h1>
-          <p className="text-gray-600 mt-2">
-            Browse and get inspired by trips created by travelers around the world
-          </p>
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Link href="/" className="text-gray-600 hover:text-gray-800">
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="font-bold text-gray-900">Discover Itineraries</h1>
+                <p className="text-xs text-gray-500">
+                  {total} public itineraries to inspire your next trip
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/trip/new"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+            >
+              <Sparkles className="w-4 h-4" />
+              Create Your Own
+            </Link>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* City search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+      {/* Search & Filters Bar */}
+      <div className="bg-white border-b border-gray-100 py-4">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by city..."
-                value={filters.city}
-                onChange={(e) => setFilters({ ...filters, city: e.target.value })}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by destination (e.g., Tokyo, Japan)"
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-100 border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none"
               />
             </div>
 
-            {/* Travel type filter */}
-            <select
-              value={filters.travelType}
-              onChange={(e) => setFilters({ ...filters, travelType: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Types</option>
-              {travelTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-
-            {/* Sort by */}
-            <select
-              value={filters.sortBy}
-              onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="recent">Most Recent</option>
-              <option value="popular">Most Popular</option>
-              <option value="likes">Most Liked</option>
-            </select>
-
-            {/* Apply button */}
+            {/* Filter Toggle */}
             <button
-              onClick={() => fetchTrips()}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center space-x-2"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-colors ${
+                showFilters || hasActiveFilters
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              }`}
             >
-              <Filter className="w-4 h-4" />
-              <span>Apply Filters</span>
+              <Filter className="w-5 h-5" />
+              Filters
+              {hasActiveFilters && (
+                <span className="px-1.5 py-0.5 text-xs bg-emerald-500 text-white rounded-full">
+                  {selectedInterests.length + (dateRange.start ? 1 : 0) + (groupSize ? 1 : 0)}
+                </span>
+              )}
+              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
+          </div>
+
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium text-gray-900">Filter by</h3>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm text-emerald-600 hover:text-emerald-700"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* Interests */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-600 mb-2">
+                  Trip Type
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {INTERESTS.map((interest) => (
+                    <button
+                      key={interest.id}
+                      onClick={() => toggleInterest(interest.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                        selectedInterests.includes(interest.id)
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300'
+                      }`}
+                    >
+                      <span>{interest.emoji}</span>
+                      {interest.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Date Range & Group Size */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Traveling after
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-emerald-300 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Traveling before
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-emerald-300 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Group size (min)
+                  </label>
+                  <select
+                    value={groupSize || ''}
+                    onChange={(e) => setGroupSize(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-emerald-300 focus:outline-none"
+                  >
+                    <option value="">Any</option>
+                    <option value="1">Solo (1)</option>
+                    <option value="2">Couple (2+)</option>
+                    <option value="4">Group (4+)</option>
+                    <option value="8">Large Group (8+)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Results */}
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse"
+              >
+                <div className="h-48 bg-gray-200" />
+                <div className="p-5 space-y-3">
+                  <div className="h-6 bg-gray-200 rounded w-3/4" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2" />
+                  <div className="h-4 bg-gray-200 rounded w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : itineraries.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {itineraries.map((itinerary) => (
+              <ItineraryCard
+                key={itinerary.id}
+                itinerary={itinerary}
+                onClone={() => handleClone(itinerary.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-16">
+            <Globe className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              No itineraries found
+            </h3>
+            <p className="text-gray-500 mb-6">
+              {hasActiveFilters
+                ? 'Try adjusting your filters or search terms'
+                : 'Be the first to share your travel plans!'}
+            </p>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-emerald-600 hover:text-emerald-700 font-medium"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function ItineraryCard({
+  itinerary,
+  onClone,
+}: {
+  itinerary: ItineraryWithMeta;
+  onClone: () => void;
+}) {
+  const formatDateRange = () => {
+    if (!itinerary.startDate && !itinerary.endDate) return null;
+    const start = itinerary.startDate
+      ? new Date(itinerary.startDate).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        })
+      : '';
+    const end = itinerary.endDate
+      ? new Date(itinerary.endDate).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : '';
+    return start && end ? `${start} - ${end}` : start || end;
+  };
+
+  const destination = [itinerary.destinationCity, itinerary.destinationCountry]
+    .filter(Boolean)
+    .join(', ');
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow group">
+      {/* Cover Image */}
+      <div className="relative h-48 bg-gradient-to-br from-emerald-400 to-teal-500">
+        {/* Destination Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute bottom-4 left-4 right-4">
+          <h3 className="text-xl font-bold text-white line-clamp-2 mb-1">
+            {itinerary.title}
+          </h3>
+          {destination && (
+            <p className="text-white/90 text-sm flex items-center gap-1">
+              <MapPin className="w-4 h-4" />
+              {destination}
+            </p>
+          )}
+        </div>
+
+        {/* Marketplace Badge */}
+        {itinerary.visibility === 'marketplace' && (
+          <div className="absolute top-3 right-3 px-2 py-1 bg-amber-500 text-white text-xs font-medium rounded-full">
+            Open to offers
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="p-5">
+        {/* Author */}
+        <div className="flex items-center gap-3 mb-3">
+          {itinerary.user?.avatarUrl ? (
+            <img
+              src={itinerary.user.avatarUrl}
+              alt=""
+              className="w-8 h-8 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+              <span className="text-sm font-medium text-emerald-600">
+                {itinerary.user?.fullName?.[0] || '?'}
+              </span>
+            </div>
+          )}
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              {itinerary.user?.fullName || 'Anonymous'}
+            </p>
+            {formatDateRange() && (
+              <p className="text-xs text-gray-500 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {formatDateRange()}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Trip Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-white rounded-xl shadow-sm p-6 animate-pulse">
-                <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-              </div>
-            ))}
-          </div>
-        ) : trips.length === 0 ? (
-          <div className="text-center py-12">
-            <TrendingUp className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No trips found</h3>
-            <p className="text-gray-600">Try adjusting your filters or check back later</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {trips.map((trip) => (
-              <div
-                key={trip.id}
-                className="bg-white rounded-xl shadow-sm hover:shadow-lg transition overflow-hidden cursor-pointer"
-                onClick={() => router.push(`/trips/${trip.id}`)}
-              >
-                {/* Card header */}
-                <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-4 text-white">
-                  <h3 className="text-xl font-bold mb-2 line-clamp-2">{trip.title}</h3>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <div className="flex items-center space-x-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {format(new Date(trip.start_date), 'MMM d')} - {format(new Date(trip.end_date), 'MMM d')}
-                      </span>
-                    </div>
-                    {trip.city && (
-                      <div className="flex items-center space-x-1">
-                        <MapPin className="w-4 h-4" />
-                        <span>{trip.city}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+        {/* Description */}
+        {itinerary.description && (
+          <p className="text-sm text-gray-600 line-clamp-2 mb-4">
+            {itinerary.description}
+          </p>
+        )}
 
-                {/* Card body */}
-                <div className="p-4">
-                  {/* Travel types */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {trip.travel_type.slice(0, 3).map((type, i) => (
-                      <span
-                        key={i}
-                        className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
-                      >
-                        {type}
-                      </span>
-                    ))}
-                    {trip.travel_type.length > 3 && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
-                        +{trip.travel_type.length - 3} more
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 mb-4 text-sm text-gray-600">
-                    <div className="flex items-center space-x-1">
-                      <Users className="w-4 h-4" />
-                      <span>{trip.num_people}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Eye className="w-4 h-4" />
-                      <span>{trip.views_count}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Heart className="w-4 h-4" />
-                      <span>{trip.likes_count}</span>
-                    </div>
-                  </div>
-
-                  {/* Cost */}
-                  {trip.total_cost && (
-                    <div className="text-lg font-bold text-green-600 mb-4">
-                      ${trip.total_cost.toLocaleString()} total
-                    </div>
-                  )}
-
-                  {/* Creator */}
-                  <div className="flex items-center space-x-2 pt-4 border-t border-gray-200">
-                    {trip.owner_avatar ? (
-                      <img
-                        src={trip.owner_avatar}
-                        alt={trip.owner_name || trip.owner_email}
-                        className="w-8 h-8 rounded-full"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-semibold">
-                        {(trip.owner_name || trip.owner_email).charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">
-                        {trip.owner_name || trip.owner_email}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {format(new Date(trip.created_at), 'MMM d, yyyy')}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card footer */}
-                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-xs text-gray-600">
-                    {trip.activities_count} activities
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleLike(trip.id);
-                    }}
-                    className="text-red-500 hover:text-red-600 transition"
-                  >
-                    <Heart className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+        {/* Interests Tags */}
+        {itinerary.interests && itinerary.interests.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-4">
+            {itinerary.interests.slice(0, 3).map((interest) => {
+              const info = INTERESTS.find((i) => i.id === interest);
+              return (
+                <span
+                  key={interest}
+                  className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full"
+                >
+                  {info?.emoji} {info?.label || interest}
+                </span>
+              );
+            })}
+            {itinerary.interests.length > 3 && (
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">
+                +{itinerary.interests.length - 3}
+              </span>
+            )}
           </div>
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center space-x-2 mt-8">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <span className="text-gray-600">
-              Page {page} of {totalPages}
+        {/* Stats & Actions */}
+        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            <span className="flex items-center gap-1">
+              <Eye className="w-4 h-4" />
+              {itinerary.viewCount}
             </span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            <span className="flex items-center gap-1">
+              <Copy className="w-4 h-4" />
+              {itinerary.cloneCount}
+            </span>
+            {itinerary.groupSize > 1 && (
+              <span className="flex items-center gap-1">
+                <Users className="w-4 h-4" />
+                {itinerary.groupSize}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/itinerary/${itinerary.id}`}
+              className="px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
             >
-              Next
+              View
+            </Link>
+            <button
+              onClick={onClone}
+              className="px-3 py-1.5 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              Clone
             </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

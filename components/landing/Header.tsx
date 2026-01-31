@@ -1,12 +1,69 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Compass, Menu, X, Map, Heart, User, Sparkles } from 'lucide-react';
+import { Compass, Menu, X, Map, Heart, User, Sparkles, LogOut, Settings, BookMarked, FileText, ChevronDown } from 'lucide-react';
+import AuthModal from '@/components/auth/AuthModal';
+import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const signInButtonRef = useRef<HTMLButtonElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const supabase = createBrowserSupabaseClient();
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      setIsLoadingUser(false);
+    };
+
+    checkUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isUserMenuOpen]);
+
+  const handleSignOut = async () => {
+    setIsUserMenuOpen(false);
+    await supabase.auth.signOut();
+    setUser(null);
+    router.refresh();
+  };
+
+  const handleMenuItemClick = (path: string) => {
+    setIsUserMenuOpen(false);
+    router.push(path);
+  };
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-lg border-b border-emerald-100">
@@ -47,14 +104,135 @@ export default function Header() {
 
           {/* Right side */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <button className="hidden md:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 transition-colors">
+            <button
+              onClick={() => router.push('/guide/register')}
+              className="hidden md:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 transition-colors"
+            >
               <Sparkles className="w-4 h-4" />
               <span>Become Creator</span>
             </button>
 
-            <button className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold text-sm hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-md shadow-emerald-200 hover:shadow-lg">
-              Sign In
-            </button>
+            {/* Auth Section */}
+            <div className="relative" ref={userMenuRef}>
+              {isLoadingUser ? (
+                <div className="w-20 h-10 bg-gray-100 rounded-xl animate-pulse" />
+              ) : user ? (
+                <>
+                  {/* User Avatar Button */}
+                  <button
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-emerald-50 transition-colors"
+                  >
+                    {user.user_metadata?.avatar_url ? (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt=""
+                        className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-100"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center ring-2 ring-emerald-100">
+                        <span className="text-sm font-semibold text-white">
+                          {(user.user_metadata?.full_name || user.email || 'U')[0].toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[100px] truncate">
+                      {user.user_metadata?.full_name || user.email?.split('@')[0]}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isUserMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      {/* User Info Header */}
+                      <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-100">
+                        <p className="font-semibold text-gray-900 truncate">
+                          {user.user_metadata?.full_name || 'Traveler'}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      </div>
+
+                      {/* Menu Items */}
+                      <div className="py-2">
+                        <button
+                          onClick={() => handleMenuItemClick('/profile')}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                            <Settings className="w-4 h-4 text-emerald-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Edit Profile</p>
+                            <p className="text-xs text-gray-500">Manage your account</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => handleMenuItemClick('/my-trips')}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                            <BookMarked className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">My Trips</p>
+                            <p className="text-xs text-gray-500">View saved itineraries</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => handleMenuItemClick('/my-curated')}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                            <FileText className="w-4 h-4 text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">My Curated Itineraries</p>
+                            <p className="text-xs text-gray-500">Itineraries you created</p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Sign Out */}
+                      <div className="border-t border-gray-100 py-2">
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-red-50 transition-colors group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-red-100 flex items-center justify-center transition-colors">
+                            <LogOut className="w-4 h-4 text-gray-500 group-hover:text-red-600 transition-colors" />
+                          </div>
+                          <p className="text-sm font-medium text-gray-700 group-hover:text-red-600 transition-colors">Sign Out</p>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    ref={signInButtonRef}
+                    onClick={() => setIsAuthModalOpen(!isAuthModalOpen)}
+                    className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-xl font-semibold text-sm hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-md shadow-emerald-200 hover:shadow-lg"
+                  >
+                    Sign In
+                  </button>
+                  <AuthModal
+                    isOpen={isAuthModalOpen}
+                    onClose={() => setIsAuthModalOpen(false)}
+                    anchorRef={signInButtonRef as React.RefObject<HTMLElement>}
+                    onAuthSuccess={async () => {
+                      setIsAuthModalOpen(false);
+                      // Refresh user state
+                      const { data: { user } } = await supabase.auth.getUser();
+                      setUser(user);
+                    }}
+                  />
+                </>
+              )}
+            </div>
 
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}

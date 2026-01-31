@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Compass, Menu, X, Map, Heart, User, Home, Calendar, MessageCircle, Sparkles, MapPin, Star, Users } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Home, Calendar, MessageCircle, User, Compass } from 'lucide-react';
+import Header from '@/components/landing/Header';
 import HeroSection from '@/components/landing/HeroSection';
 import TripCategories from '@/components/landing/TripCategories';
 import PopularDestinations from '@/components/landing/PopularDestinations';
+import CuratedItineraries from '@/components/landing/CuratedItineraries';
+import MarketplaceItineraries from '@/components/landing/MarketplaceItineraries';
 import GlassCTA from '@/components/landing/GlassCTA';
 import ChatPanel from '@/components/landing/ChatPanel';
 import ItineraryDisplay from '@/components/landing/ItineraryDisplay';
+import AuthModal from '@/components/auth/AuthModal';
+import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
 
 interface TripContext {
   destination?: string;
@@ -62,7 +67,6 @@ interface SelectedHotels {
 export default function HomePage() {
   const [chatPrompt, setChatPrompt] = useState<string>('');
   const [mobileChat, setMobileChat] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
   const [tripContext, setTripContext] = useState<TripContext | null>(null);
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
@@ -71,6 +75,99 @@ export default function HomePage() {
   const [shareUrl, setShareUrl] = useState<string | undefined>();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedHotels, setSelectedHotels] = useState<SelectedHotels>({});
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingAutoSave, setPendingAutoSave] = useState(false);
+
+  // Check auth state and restore pending session on mount
+  useEffect(() => {
+    const supabase = createBrowserSupabaseClient();
+
+    // Check current auth state
+    const checkAuthAndRestoreSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        setIsLoggedIn(true);
+
+        // Check for pending trip session to restore
+        const savedSession = localStorage.getItem('pendingTripSession');
+        if (savedSession) {
+          try {
+            const sessionData = JSON.parse(savedSession);
+            // Check if session is less than 1 hour old
+            if (Date.now() - sessionData.timestamp < 60 * 60 * 1000) {
+              // Restore the session data
+              if (sessionData.itinerary?.length > 0) {
+                setItinerary(sessionData.itinerary);
+              }
+              if (sessionData.travelers?.length > 0) {
+                setTravelers(sessionData.travelers);
+              }
+              if (sessionData.tripContext) {
+                setTripContext(sessionData.tripContext);
+              }
+              if (sessionData.selectedHotels) {
+                setSelectedHotels(sessionData.selectedHotels);
+              }
+              if (sessionData.chatPrompt) {
+                setChatPrompt(sessionData.chatPrompt);
+              }
+              // Flag to auto-save after state is restored
+              setPendingAutoSave(true);
+            }
+            // Clear the pending session
+            localStorage.removeItem('pendingTripSession');
+          } catch (error) {
+            console.error('Error restoring session:', error);
+            localStorage.removeItem('pendingTripSession');
+          }
+        }
+      }
+    };
+
+    checkAuthAndRestoreSession();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Auto-save when pending and itinerary is ready
+  useEffect(() => {
+    if (pendingAutoSave && itinerary.length > 0 && isLoggedIn) {
+      setPendingAutoSave(false);
+      // Small delay to ensure all state is settled, then save
+      const timer = setTimeout(async () => {
+        setIsSaving(true);
+        try {
+          const response = await fetch('/api/trips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              destination: tripContext?.destination,
+              duration: tripContext?.duration,
+              itinerary,
+              travelers,
+            }),
+          });
+          const data = await response.json();
+          if (data.shareUrl) {
+            setShareUrl(data.shareUrl);
+          }
+        } catch (error) {
+          console.error('Auto-save error:', error);
+        } finally {
+          setIsSaving(false);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingAutoSave, itinerary, isLoggedIn, tripContext, travelers]);
 
   const handleSearch = useCallback((query: string) => {
     setChatPrompt(query);
@@ -169,90 +266,48 @@ export default function HomePage() {
     // URL will be set by handleSave
   }, [shareUrl, handleSave]);
 
-  const handleLogin = useCallback(() => {
-    // Trigger login modal or redirect
-    window.location.href = '/login';
-  }, []);
+  const handleLoginToSave = useCallback(() => {
+    // Store session data to localStorage before showing auth modal
+    // This allows us to restore the session after successful registration/login
+    const sessionData = {
+      itinerary,
+      travelers,
+      tripContext,
+      selectedHotels,
+      chatPrompt,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem('pendingTripSession', JSON.stringify(sessionData));
+    setShowAuthModal(true);
+  }, [itinerary, travelers, tripContext, selectedHotels, chatPrompt]);
+
+  // Handle successful authentication - restore session and auto-save
+  const handleAuthSuccess = useCallback(async () => {
+    setShowAuthModal(false);
+    setIsLoggedIn(true);
+
+    // Restore session data from localStorage and auto-save
+    const savedSession = localStorage.getItem('pendingTripSession');
+    if (savedSession) {
+      try {
+        const sessionData = JSON.parse(savedSession);
+        // Check if session is less than 1 hour old
+        if (Date.now() - sessionData.timestamp < 60 * 60 * 1000) {
+          // Session still valid - auto-save the trip
+          await handleSave();
+        }
+        // Clear the pending session
+        localStorage.removeItem('pendingTripSession');
+      } catch (error) {
+        console.error('Error restoring session:', error);
+      }
+    }
+  }, [handleSave]);
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Fixed Header - overlays hero */}
-      <header className="fixed top-0 left-0 right-0 z-50">
-        <div className={`relative px-4 sm:px-6 lg:px-8 py-4 transition-all duration-500 ${chatExpanded ? 'lg:mr-[560px]' : 'lg:mr-[400px]'}`}>
-          <div className="max-w-6xl mx-auto flex items-center">
-            {/* Logo */}
-            <a href="/" className="flex items-center gap-2 group">
-              <div className="w-9 h-9 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10 group-hover:bg-white/30 transition-all">
-                <Compass className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-lg font-bold text-white hidden sm:block drop-shadow-lg">
-                Wanderlust<span className="text-amber-300">.</span>
-              </span>
-            </a>
-
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Right side - mobile only */}
-            <div className="flex items-center gap-3 lg:hidden">
-              <button className="px-4 py-2 bg-white text-teal-800 rounded-xl font-semibold text-sm hover:bg-amber-50 transition-all shadow-lg">
-                Sign In
-              </button>
-
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 backdrop-blur-sm transition-all text-white"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Desktop Navigation - positioned at chat panel edge */}
-        <nav className="hidden lg:flex items-center gap-2 absolute right-[436px] top-4">
-          {[
-            { label: 'Discover', icon: Map },
-            { label: 'My Trips', icon: Heart },
-            { label: 'Creators', icon: User },
-          ].map((item) => (
-            <button
-              key={item.label}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-white/90 hover:text-white hover:bg-white/15 backdrop-blur-sm transition-all font-medium text-xs border border-white/20"
-            >
-              <item.icon className="w-3 h-3" />
-              <span>{item.label}</span>
-            </button>
-          ))}
-          <button className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white text-teal-800 rounded-full font-medium text-xs hover:bg-amber-50 transition-all shadow-lg ml-1">
-            Sign In
-          </button>
-        </nav>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden mx-4 p-4 bg-white rounded-2xl shadow-2xl border border-gray-100">
-            <nav className="flex flex-col gap-1">
-              {[
-                { label: 'Discover', icon: Map },
-                { label: 'My Trips', icon: Heart },
-                { label: 'Creators', icon: User },
-                { label: 'Become Creator', icon: Sparkles },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3.5 text-left rounded-xl hover:bg-teal-50 transition-colors font-medium text-gray-800"
-                >
-                  <item.icon className="w-5 h-5 text-teal-600" />
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          </div>
-        )}
-      </header>
+      {/* Header */}
+      <Header />
 
       {/* Main Layout */}
       <div className="flex">
@@ -270,6 +325,30 @@ export default function HomePage() {
               {/* Popular Destinations */}
               <PopularDestinations onDestinationSelect={handleDestinationSelect} />
 
+              {/* Curated Itineraries from Travelers */}
+              <CuratedItineraries
+                onItinerarySelect={(id) => {
+                  setChatPrompt(`Show me the itinerary details for trip ${id}`);
+                  if (window.innerWidth < 1024) {
+                    setMobileChat(true);
+                  }
+                }}
+              />
+
+              {/* Marketplace - Public Itineraries for Business Offers */}
+              <MarketplaceItineraries
+                onViewItinerary={(id) => {
+                  setChatPrompt(`Show me details for marketplace listing ${id}`);
+                  if (window.innerWidth < 1024) {
+                    setMobileChat(true);
+                  }
+                }}
+                onMakeOffer={(id) => {
+                  // For now, prompt sign in. In production, check auth first
+                  setShowAuthModal(true);
+                }}
+              />
+
               {/* Glassmorphism CTA */}
               <GlassCTA onGetStarted={handleGetStarted} />
             </>
@@ -286,7 +365,7 @@ export default function HomePage() {
               onHotelSelect={handleHotelSelect}
               onSave={handleSave}
               onShare={handleShare}
-              onLogin={handleLogin}
+              onLogin={handleLoginToSave}
               isLoggedIn={isLoggedIn}
               isSaving={isSaving}
               shareUrl={shareUrl}
@@ -395,6 +474,13 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
     </div>
   );
 }

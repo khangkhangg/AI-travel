@@ -524,26 +524,26 @@ export default function ItineraryDisplay({
                   <button
                     onClick={onSave}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-white text-teal-700 rounded-xl hover:bg-teal-50 disabled:opacity-50 transition-all font-semibold shadow-lg"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/90 text-teal-700 rounded-full hover:bg-white disabled:opacity-50 transition-all font-medium text-sm border border-white/50"
                   >
-                    <Save className="w-4 h-4" />
+                    <Save className="w-3.5 h-3.5" />
                     {isSaving ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={onShare}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-violet-500 text-white rounded-xl hover:bg-violet-600 transition-all font-semibold shadow-lg"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all font-medium text-sm border border-white/30"
                   >
-                    <Share2 className="w-4 h-4" />
+                    <Share2 className="w-3.5 h-3.5" />
                     Share
                   </button>
                 </>
               ) : (
                 <button
                   onClick={onLogin}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-teal-700 rounded-xl hover:bg-teal-50 transition-all font-semibold shadow-lg"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/90 text-teal-700 rounded-full hover:bg-white transition-all font-medium text-sm border border-white/50"
                 >
-                  <LogIn className="w-4 h-4" />
-                  Login to Save
+                  <Save className="w-3.5 h-3.5" />
+                  Save
                 </button>
               )}
             </div>

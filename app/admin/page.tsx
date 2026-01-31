@@ -19,6 +19,10 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  Shield,
+  Server,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AppSettings {
@@ -27,6 +31,13 @@ interface AppSettings {
   maxTokens: number;
   systemPrompt: string;
   hasApiKey: boolean;
+  // Supabase
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  hasSupabaseConfig: boolean;
+  // Database
+  databaseUrl: string;
+  hasDatabaseConfig: boolean;
 }
 
 export default function AdminDashboard() {
@@ -39,6 +50,14 @@ export default function AdminDashboard() {
   const [newApiKey, setNewApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  // Supabase & Database
+  const [newSupabaseUrl, setNewSupabaseUrl] = useState('');
+  const [newSupabaseKey, setNewSupabaseKey] = useState('');
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
+  const [newDatabaseUrl, setNewDatabaseUrl] = useState('');
+  const [showDatabaseUrl, setShowDatabaseUrl] = useState(false);
+  const [testStatus, setTestStatus] = useState<{ type: string; status: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ type: '', status: 'idle' });
+  const [restartRequired, setRestartRequired] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -90,6 +109,18 @@ export default function AdminDashboard() {
         payload.deepseekApiKey = newApiKey;
       }
 
+      if (newSupabaseUrl) {
+        payload.supabaseUrl = newSupabaseUrl;
+      }
+
+      if (newSupabaseKey) {
+        payload.supabaseAnonKey = newSupabaseKey;
+      }
+
+      if (newDatabaseUrl) {
+        payload.databaseUrl = newDatabaseUrl;
+      }
+
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,15 +128,59 @@ export default function AdminDashboard() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         setSaveStatus('success');
         setNewApiKey('');
+        setNewSupabaseUrl('');
+        setNewSupabaseKey('');
+        setNewDatabaseUrl('');
         fetchData();
+
+        // Check if server restart is required
+        if (data.envChanged) {
+          setRestartRequired(true);
+        }
+
         setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
         setSaveStatus('error');
       }
     } catch {
       setSaveStatus('error');
+    }
+  };
+
+  const handleTestConnection = async (type: 'supabase' | 'database') => {
+    setTestStatus({ type, status: 'testing' });
+
+    try {
+      const payload: any = { type };
+
+      if (type === 'supabase') {
+        payload.supabaseUrl = newSupabaseUrl || settings?.supabaseUrl;
+        payload.supabaseAnonKey = newSupabaseKey || settings?.supabaseAnonKey;
+      } else {
+        payload.databaseUrl = newDatabaseUrl || settings?.databaseUrl;
+      }
+
+      const res = await fetch('/api/admin/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setTestStatus({ type, status: 'success', message: data.message });
+      } else {
+        setTestStatus({ type, status: 'error', message: data.error });
+      }
+
+      setTimeout(() => setTestStatus({ type: '', status: 'idle' }), 5000);
+    } catch (err: any) {
+      setTestStatus({ type, status: 'error', message: err.message });
+      setTimeout(() => setTestStatus({ type: '', status: 'idle' }), 5000);
     }
   };
 
@@ -477,6 +552,30 @@ export default function AdminDashboard() {
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="space-y-6">
+            {/* Restart Required Banner */}
+            {restartRequired && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-800">Server Restart Required</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Environment variables have been updated in <code className="bg-amber-100 px-1 rounded">.env</code>.
+                    Restart the dev server for changes to take effect:
+                  </p>
+                  <code className="block mt-2 p-2 bg-amber-100 rounded text-sm text-amber-900 font-mono">
+                    Press Ctrl+C then run: npm run dev
+                  </code>
+                </div>
+                <button
+                  onClick={() => setRestartRequired(false)}
+                  className="text-amber-500 hover:text-amber-700"
+                >
+                  <span className="sr-only">Dismiss</span>
+                  ×
+                </button>
+              </div>
+            )}
+
             {/* API Configuration */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200">
@@ -536,6 +635,202 @@ export default function AdminDashboard() {
                     <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline">
                       platform.deepseek.com
                     </a>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Supabase Configuration */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Supabase Authentication</h3>
+                    <p className="text-sm text-gray-600">Configure Supabase for user authentication</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Current Status */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    {settings?.hasSupabaseConfig ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-amber-500" />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {settings?.hasSupabaseConfig ? 'Supabase Configured' : 'Supabase Not Configured'}
+                      </p>
+                      {settings?.supabaseUrl && (
+                        <p className="text-sm text-gray-500">{settings.supabaseUrl}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleTestConnection('supabase')}
+                    disabled={testStatus.type === 'supabase' && testStatus.status === 'testing'}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {testStatus.type === 'supabase' && testStatus.status === 'testing' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Test Connection
+                  </button>
+                </div>
+
+                {/* Test Result */}
+                {testStatus.type === 'supabase' && testStatus.status !== 'idle' && testStatus.status !== 'testing' && (
+                  <div className={`p-3 rounded-xl flex items-start gap-2 ${
+                    testStatus.status === 'success' ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'
+                  }`}>
+                    {testStatus.status === 'success' ? (
+                      <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <p className={`text-sm ${testStatus.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                      {testStatus.message}
+                    </p>
+                  </div>
+                )}
+
+                {/* Supabase URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supabase URL
+                  </label>
+                  <input
+                    type="text"
+                    value={newSupabaseUrl}
+                    onChange={(e) => setNewSupabaseUrl(e.target.value)}
+                    placeholder={settings?.supabaseUrl || "https://your-project.supabase.co"}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  />
+                </div>
+
+                {/* Supabase Anon Key */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supabase Anon Key
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showSupabaseKey ? 'text' : 'password'}
+                      value={newSupabaseKey}
+                      onChange={(e) => setNewSupabaseKey(e.target.value)}
+                      placeholder={settings?.supabaseAnonKey || "eyJ..."}
+                      className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSupabaseKey(!showSupabaseKey)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showSupabaseKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Get your credentials from{' '}
+                    <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">
+                      supabase.com/dashboard
+                    </a>
+                    {' '}→ Project Settings → API
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Database Configuration */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                    <Server className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">PostgreSQL Database</h3>
+                    <p className="text-sm text-gray-600">Configure local database for user profiles and app data</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Current Status */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    {settings?.hasDatabaseConfig ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-amber-500" />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {settings?.hasDatabaseConfig ? 'Database Configured' : 'Database Not Configured'}
+                      </p>
+                      {settings?.databaseUrl && (
+                        <p className="text-sm text-gray-500 font-mono">{settings.databaseUrl}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleTestConnection('database')}
+                    disabled={testStatus.type === 'database' && testStatus.status === 'testing'}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {testStatus.type === 'database' && testStatus.status === 'testing' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Test Connection
+                  </button>
+                </div>
+
+                {/* Test Result */}
+                {testStatus.type === 'database' && testStatus.status !== 'idle' && testStatus.status !== 'testing' && (
+                  <div className={`p-3 rounded-xl flex items-start gap-2 ${
+                    testStatus.status === 'success' ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'
+                  }`}>
+                    {testStatus.status === 'success' ? (
+                      <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <p className={`text-sm ${testStatus.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                      {testStatus.message}
+                    </p>
+                  </div>
+                )}
+
+                {/* Database URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Database Connection String
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showDatabaseUrl ? 'text' : 'password'}
+                      value={newDatabaseUrl}
+                      onChange={(e) => setNewDatabaseUrl(e.target.value)}
+                      placeholder="postgresql://user:password@localhost:5432/ai_travel"
+                      className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowDatabaseUrl(!showDatabaseUrl)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showDatabaseUrl ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Format: postgresql://username:password@host:port/database
                   </p>
                 </div>
               </div>

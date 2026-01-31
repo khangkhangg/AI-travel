@@ -27,6 +27,8 @@ import {
   Star,
   MapPin,
 } from 'lucide-react';
+import TourBrowser from '@/components/tours/TourBrowser';
+import { Tour } from '@/lib/types/tour';
 
 interface Message {
   id: string;
@@ -328,6 +330,14 @@ function getMissingSuggestions(context: TripContext, hasItinerary: boolean): { l
   return suggestions.slice(0, 4); // Max 4 suggestions at a time
 }
 
+// Command menu options for "/" trigger
+const commandOptions = [
+  { id: 'location', label: 'Location', icon: '📍', placeholder: 'Where do you want to go?', prefix: 'I want to visit ' },
+  { id: 'duration', label: 'Duration', icon: '📅', placeholder: 'How many days?', prefix: "I'm planning a ", suffix: ' day trip' },
+  { id: 'budget', label: 'Budget', icon: '💰', placeholder: 'What\'s your budget?', prefix: 'My budget is $' },
+  { id: 'travelers', label: 'Travelers', icon: '👥', placeholder: 'How many people?', prefix: "We're ", suffix: ' people traveling' },
+];
+
 export default function ChatPanel({ initialPrompt, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -343,10 +353,262 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'journey' | 'packages'>('chat');
   const [tripContext, setTripContext] = useState<TripContext>({});
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
+  const [activeCommand, setActiveCommand] = useState<typeof commandOptions[0] | null>(null);
+  const [commandInput, setCommandInput] = useState('');
+  const [collectedInfo, setCollectedInfo] = useState<{
+    location?: string;
+    duration?: string;
+    budget?: string;
+    travelers?: string;
+  }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const commandMenuRef = useRef<HTMLDivElement>(null);
 
   // Get dynamic suggestion prompts based on missing info
   const suggestionPrompts = getMissingSuggestions(tripContext, itinerary !== null && itinerary.length > 0);
+
+  // Handle input change - detect "/" for command menu
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInput(value);
+
+    if (value === '/') {
+      setShowCommandMenu(true);
+      setActiveCommand(null);
+      setCommandInput('');
+    } else if (value.startsWith('/') && !activeCommand) {
+      // Filter commands based on typed text after /
+      const searchTerm = value.slice(1).toLowerCase();
+      const matchedCommand = commandOptions.find(cmd =>
+        cmd.label.toLowerCase().startsWith(searchTerm) ||
+        cmd.id.toLowerCase().startsWith(searchTerm)
+      );
+      if (matchedCommand && value.toLowerCase() === `/${matchedCommand.id}`) {
+        selectCommand(matchedCommand);
+      }
+    } else if (!value.startsWith('/') && showCommandMenu && !activeCommand) {
+      setShowCommandMenu(false);
+    }
+  };
+
+  // Select a command from the menu
+  const selectCommand = (command: typeof commandOptions[0]) => {
+    setActiveCommand(command);
+    setInput('');
+    setCommandInput('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  // Cancel command mode
+  const cancelCommand = () => {
+    setShowCommandMenu(false);
+    setActiveCommand(null);
+    setInput('');
+    setCommandInput('');
+  };
+
+  // Submit command value
+  const submitCommand = () => {
+    if (!activeCommand || !commandInput.trim()) return;
+
+    // Store collected info
+    setCollectedInfo(prev => ({
+      ...prev,
+      [activeCommand.id]: commandInput.trim()
+    }));
+
+    // Build message from command
+    let message = activeCommand.prefix + commandInput.trim();
+    if (activeCommand.suffix) message += activeCommand.suffix;
+
+    // Reset command state
+    setShowCommandMenu(false);
+    setActiveCommand(null);
+    setCommandInput('');
+    setInput('');
+
+    // Send the message
+    handleSendMessage(message);
+  };
+
+  // Handle keyboard navigation in command menu
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      if (activeCommand || showCommandMenu) {
+        cancelCommand();
+        e.preventDefault();
+      }
+    } else if (e.key === 'Enter') {
+      if (activeCommand && commandInput.trim()) {
+        submitCommand();
+        e.preventDefault();
+      } else if (showCommandMenu && !activeCommand) {
+        // Select first matching command
+        const searchTerm = input.slice(1).toLowerCase();
+        const matchedCommand = commandOptions.find(cmd =>
+          !searchTerm || cmd.label.toLowerCase().includes(searchTerm) || cmd.id.includes(searchTerm)
+        );
+        if (matchedCommand) {
+          selectCommand(matchedCommand);
+          e.preventDefault();
+        }
+      } else if (!showCommandMenu && input.trim()) {
+        handleSendMessage();
+      }
+    } else if (e.key === 'Backspace' && activeCommand && !commandInput) {
+      // Go back to command selection
+      setActiveCommand(null);
+      setInput('/');
+      e.preventDefault();
+    }
+  };
+
+  // Handle AI suggestion selection - fills trip details
+  const handleAISuggestionSelect = (opt: { label: string; value: string; type: 'option' | 'suggested' }) => {
+    // Check if this is a destination/location option
+    const isDestination = opt.type === 'option' ||
+      opt.label === 'Recommended' ||
+      /^(Option|Recommended)/i.test(opt.label);
+
+    if (isDestination) {
+      // Fill the location field with this destination
+      setCollectedInfo(prev => ({
+        ...prev,
+        location: opt.value
+      }));
+      // Also send a message to continue the conversation
+      handleSendMessage(`I'd like to go with ${opt.value}`);
+    } else if (opt.value.toLowerCase().includes('day') || opt.value.toLowerCase().includes('itinerary')) {
+      // This is a duration/itinerary suggestion - extract days if present
+      const daysMatch = opt.value.match(/(\d+)[\s-]*day/i);
+      if (daysMatch) {
+        setCollectedInfo(prev => ({
+          ...prev,
+          duration: `${daysMatch[1]} days`
+        }));
+      }
+      handleSendMessage(`Yes, let's go with the ${opt.value}`);
+    } else {
+      // Generic suggestion - just send the message
+      handleSendMessage(`Tell me more about ${opt.value}`);
+    }
+  };
+
+  // Check which info is filled
+  const getFilledInfo = () => {
+    const filled: { id: string; label: string; value: string; icon: string }[] = [];
+
+    // Check collectedInfo first
+    if (collectedInfo.location || tripContext.destination) {
+      filled.push({
+        id: 'location',
+        label: 'Location',
+        value: collectedInfo.location || tripContext.destination || '',
+        icon: '📍'
+      });
+    }
+    if (collectedInfo.duration || tripContext.duration) {
+      filled.push({
+        id: 'duration',
+        label: 'Duration',
+        value: collectedInfo.duration || tripContext.duration || '',
+        icon: '📅'
+      });
+    }
+    if (collectedInfo.budget || tripContext.budget) {
+      filled.push({
+        id: 'budget',
+        label: 'Budget',
+        value: collectedInfo.budget || tripContext.budget || '',
+        icon: '💰'
+      });
+    }
+    if (collectedInfo.travelers || tripContext.travelers) {
+      filled.push({
+        id: 'travelers',
+        label: 'Travelers',
+        value: collectedInfo.travelers || (tripContext.travelers ? `${tripContext.travelers} people` : ''),
+        icon: '👥'
+      });
+    }
+
+    return filled;
+  };
+
+  const filledInfo = getFilledInfo();
+
+  // Extract options/suggestions from AI messages
+  const extractOptionsFromMessages = (): { label: string; value: string; type: 'option' | 'suggested' }[] => {
+    const options: { label: string; value: string; type: 'option' | 'suggested' }[] = [];
+
+    // Get the last assistant message
+    const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistantMessage) return options;
+
+    const content = lastAssistantMessage.content;
+
+    // Match "Option N: Title" patterns (e.g., "Option 1: Phuket & The Phi Phi Islands")
+    const optionMatches = [...content.matchAll(/\*?\*?Option\s*(\d+)[:\s]*\*?\*?\s*([^\n*]+)/gi)];
+    for (const match of optionMatches) {
+      const title = match[2].trim().replace(/\*+/g, '').trim();
+      if (title && title.length > 2 && title.length < 60) {
+        options.push({
+          label: `Option ${match[1]}`,
+          value: title,
+          type: 'option'
+        });
+      }
+    }
+
+    // Match "Suggested X:" patterns (e.g., "Suggested 7-Day Itinerary:")
+    const suggestedMatches = [...content.matchAll(/\*?\*?Suggested\s+([^\n:]+):/gi)];
+    for (const match of suggestedMatches) {
+      const title = match[1].trim().replace(/\*+/g, '').trim();
+      if (title && title.length > 2 && title.length < 40) {
+        options.push({
+          label: 'Suggested',
+          value: title,
+          type: 'suggested'
+        });
+      }
+    }
+
+    // Match recommendation patterns like "I'd recommend X or Y"
+    const recommendMatches = [...content.matchAll(/(?:I'd|I would|we)\s*recommend\s+\*?\*?([A-Z][a-zA-Z\s]+?)(?:\*?\*?)(?:\s+or\s+\*?\*?([A-Z][a-zA-Z\s]+?)\*?\*?)?(?:\.|,|!)/gi)];
+    for (const match of recommendMatches) {
+      const place1 = match[1].trim().replace(/\*+/g, '');
+      if (place1 && place1.length > 2 && place1.length < 40) {
+        options.push({
+          label: 'Recommended',
+          value: place1,
+          type: 'suggested'
+        });
+      }
+      if (match[2]) {
+        const place2 = match[2].trim().replace(/\*+/g, '');
+        if (place2 && place2.length > 2 && place2.length < 40) {
+          options.push({
+            label: 'Recommended',
+            value: place2,
+            type: 'suggested'
+          });
+        }
+      }
+    }
+
+    // Deduplicate by value
+    const seen = new Set<string>();
+    return options.filter(opt => {
+      const key = opt.value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 4); // Max 4 options
+  };
+
+  const extractedOptions = extractOptionsFromMessages();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -355,6 +617,22 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Sync collected info from trip context (smart detection from messages)
+  useEffect(() => {
+    if (tripContext.destination && !collectedInfo.location) {
+      setCollectedInfo(prev => ({ ...prev, location: tripContext.destination }));
+    }
+    if (tripContext.duration && !collectedInfo.duration) {
+      setCollectedInfo(prev => ({ ...prev, duration: tripContext.duration }));
+    }
+    if (tripContext.budget && !collectedInfo.budget) {
+      setCollectedInfo(prev => ({ ...prev, budget: tripContext.budget }));
+    }
+    if (tripContext.travelers && !collectedInfo.travelers) {
+      setCollectedInfo(prev => ({ ...prev, travelers: `${tripContext.travelers} people` }));
+    }
+  }, [tripContext, collectedInfo]);
 
   useEffect(() => {
     if (initialPrompt) {
@@ -593,17 +871,47 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Smart Suggestions - show missing info prompts first, then quick actions */}
+            {/* Smart Suggestions - show trip info status tags */}
             <div className="px-4 py-3 border-t border-gray-100">
-              {suggestionPrompts.length > 0 && (
+              {/* Trip Info Status Tags */}
+              <div className="mb-2">
+                <p className="text-xs text-gray-500 mb-2 font-medium">Trip details:</p>
+                <div className="flex gap-2 flex-wrap">
+                  {commandOptions.map((cmd) => {
+                    const filled = filledInfo.find(f => f.id === cmd.id);
+                    return (
+                      <button
+                        key={cmd.id}
+                        onClick={() => selectCommand(cmd)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                          filled
+                            ? 'bg-teal-100 border border-teal-300 text-teal-700'
+                            : 'bg-gray-100 border border-gray-200 text-gray-500 hover:bg-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="text-sm">{cmd.icon}</span>
+                        {filled ? (
+                          <>
+                            <span className="truncate max-w-[80px]">{filled.value}</span>
+                            <span className="text-teal-500 ml-1">✓</span>
+                          </>
+                        ) : (
+                          <span>{cmd.label}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Additional suggestion prompts if still missing info */}
+              {suggestionPrompts.length > 0 && suggestionPrompts.length < 4 && (
                 <div className="mb-2">
-                  <p className="text-xs text-gray-500 mb-2 font-medium">Help me plan better:</p>
                   <div className="flex gap-2 flex-wrap">
-                    {suggestionPrompts.map((suggestion, index) => (
+                    {suggestionPrompts.slice(0, 2).map((suggestion, index) => (
                       <button
                         key={index}
                         onClick={() => handleSendMessage(suggestion.prompt)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 text-teal-700 text-xs font-medium hover:from-teal-100 hover:to-cyan-100 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 text-amber-700 text-xs font-medium hover:from-amber-100 hover:to-orange-100 transition-all"
                       >
                         <span className="text-sm">{suggestion.icon}</span>
                         {suggestion.label}
@@ -630,23 +938,136 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
 
             {/* Input */}
             <div className="p-4 border-t border-gray-100">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask me anything about your trip..."
-                  className="flex-1 px-4 py-3 rounded-xl bg-gray-100 border border-transparent focus:border-teal-300 focus:bg-white focus:outline-none text-sm text-gray-800 placeholder-gray-400 transition-all"
-                />
-                <button
-                  onClick={() => handleSendMessage()}
-                  disabled={!input.trim()}
-                  className="px-4 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+              {/* AI-Extracted Options - Options/Suggestions from AI response */}
+              {extractedOptions.length > 0 && !showCommandMenu && !activeCommand && (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
+                    <span>✨</span> AI Suggestions:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {extractedOptions.map((opt, idx) => (
+                      <button
+                        key={`${opt.type}-${idx}`}
+                        onClick={() => handleAISuggestionSelect(opt)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                          opt.type === 'option'
+                            ? 'bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 hover:border-violet-300'
+                            : 'bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300'
+                        }`}
+                      >
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 font-semibold">
+                          {opt.label}
+                        </span>
+                        <span className="truncate max-w-[120px]">{opt.value}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Command Menu */}
+              {showCommandMenu && !activeCommand && (
+                <div
+                  ref={commandMenuRef}
+                  className="mb-2 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden"
                 >
-                  <Send className="w-4 h-4" />
-                </button>
-              </div>
+                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">Quick commands</p>
+                  </div>
+                  <div className="p-1">
+                    {commandOptions.map((cmd) => {
+                      const isFilled = filledInfo.some(f => f.id === cmd.id);
+                      return (
+                        <button
+                          key={cmd.id}
+                          onClick={() => selectCommand(cmd)}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                            isFilled
+                              ? 'bg-teal-50 hover:bg-teal-100'
+                              : 'hover:bg-gray-100'
+                          }`}
+                        >
+                          <span className="text-lg">{cmd.icon}</span>
+                          <div className="flex-1">
+                            <span className={`text-sm font-medium ${isFilled ? 'text-teal-700' : 'text-gray-700'}`}>
+                              /{cmd.id}
+                            </span>
+                            <span className="text-gray-400 ml-2 text-xs">{cmd.placeholder}</span>
+                          </div>
+                          {isFilled && (
+                            <span className="text-teal-600 text-xs font-medium bg-teal-100 px-2 py-0.5 rounded-full">
+                              ✓ Set
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="px-3 py-2 bg-gray-50 border-t border-gray-100">
+                    <p className="text-[10px] text-gray-400">Press <kbd className="px-1 py-0.5 bg-gray-200 rounded text-gray-600">Esc</kbd> to cancel</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Active Command Input Mode */}
+              {activeCommand && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-teal-50 rounded-xl border border-teal-200">
+                  <span className="text-lg">{activeCommand.icon}</span>
+                  <span className="text-teal-700 font-medium text-sm">{activeCommand.label}:</span>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={commandInput}
+                    onChange={(e) => setCommandInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={activeCommand.placeholder}
+                    autoFocus
+                    className="flex-1 bg-transparent border-none outline-none text-sm text-gray-800 placeholder-teal-400"
+                  />
+                  <button
+                    onClick={submitCommand}
+                    disabled={!commandInput.trim()}
+                    className="p-1.5 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={cancelCommand}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* Regular Input */}
+              {!activeCommand && (
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={input}
+                      onChange={handleInputChange}
+                      onKeyDown={handleKeyDown}
+                      placeholder='Type "/" for quick commands or ask anything...'
+                      className="w-full px-4 py-3 rounded-xl bg-gray-100 border border-transparent focus:border-teal-300 focus:bg-white focus:outline-none text-sm text-gray-800 placeholder-gray-400 transition-all"
+                    />
+                    {!input && !showCommandMenu && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-gray-400 pointer-events-none">
+                        <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-[10px] text-gray-500 font-mono">/</kbd>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleSendMessage()}
+                    disabled={!input.trim() || showCommandMenu}
+                    className="px-4 py-3 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -765,41 +1186,14 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
         )}
 
         {activeTab === 'packages' && (
-          <div className="h-full overflow-y-auto p-4">
-            <div className="space-y-3">
-              {[
-                { title: 'Fushimi Inari Sunrise Tour', provider: 'Kyoto Local Guides', rating: 4.9, reviews: 234, price: 45, image: '🎌' },
-                { title: 'Traditional Tea Ceremony', provider: 'Camellia Garden', rating: 4.8, reviews: 189, price: 35, image: '🍵' },
-                { title: 'Arashiyama Bamboo + Monkey Park', provider: 'Kyoto Adventures', rating: 4.7, reviews: 412, price: 67, image: '🎋' },
-              ].map((pkg, index) => (
-                <div
-                  key={index}
-                  className="p-4 rounded-xl border border-gray-100 hover:border-teal-200 hover:shadow-md transition-all cursor-pointer"
-                >
-                  <div className="flex gap-3">
-                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center text-2xl">
-                      {pkg.image}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-sm text-gray-900">{pkg.title}</h4>
-                      <p className="text-xs text-gray-500">{pkg.provider}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs font-semibold text-amber-500">★ {pkg.rating}</span>
-                        <span className="text-xs text-gray-400">({pkg.reviews})</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-teal-700">${pkg.price}</p>
-                      <p className="text-xs text-gray-500">per person</p>
-                    </div>
-                  </div>
-                  <button className="w-full mt-3 py-2.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-sm font-semibold text-teal-700 transition-colors">
-                    Add to Day 2
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <TourBrowser
+            destination={tripContext.destination}
+            compact={true}
+            onSelectTour={(tour: Tour) => {
+              // TODO: Open tour detail modal or navigate to tour page
+              console.log('Selected tour:', tour);
+            }}
+          />
         )}
       </div>
     </div>

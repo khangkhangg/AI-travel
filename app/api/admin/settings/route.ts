@@ -4,18 +4,28 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'config', 'settings.json');
+const ENV_FILE = path.join(process.cwd(), '.env');
 
 interface Settings {
   deepseekApiKey: string;
   chatEnabled: boolean;
   maxTokens: number;
   systemPrompt: string;
+  // Supabase Configuration
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  // Database Configuration
+  databaseUrl: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   deepseekApiKey: '',
   chatEnabled: true,
   maxTokens: 4096,
+  // Load from env as defaults
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  databaseUrl: process.env.DATABASE_URL || '',
   systemPrompt: `You are a helpful AI travel planning assistant for Wanderlust. Help users plan their dream trips with PRECISE and DETAILED itineraries.
 
 When creating itineraries, ALWAYS include:
@@ -90,6 +100,51 @@ async function saveSettings(settings: Settings): Promise<void> {
   await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }
 
+// Update .env file with new values
+async function updateEnvFile(updates: Record<string, string>): Promise<boolean> {
+  try {
+    let envContent = '';
+    try {
+      envContent = await fs.readFile(ENV_FILE, 'utf-8');
+    } catch {
+      // .env doesn't exist, create new
+      envContent = '';
+    }
+
+    const lines = envContent.split('\n');
+    const updatedKeys = new Set<string>();
+
+    // Update existing lines
+    const updatedLines = lines.map(line => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return line;
+
+      const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=/);
+      if (match) {
+        const key = match[1];
+        if (key in updates) {
+          updatedKeys.add(key);
+          return `${key}=${updates[key]}`;
+        }
+      }
+      return line;
+    });
+
+    // Add new keys that weren't in the file
+    for (const [key, value] of Object.entries(updates)) {
+      if (!updatedKeys.has(key)) {
+        updatedLines.push(`${key}=${value}`);
+      }
+    }
+
+    await fs.writeFile(ENV_FILE, updatedLines.join('\n'));
+    return true;
+  } catch (error) {
+    console.error('Failed to update .env file:', error);
+    return false;
+  }
+}
+
 // GET - retrieve settings
 export async function GET() {
   if (!await isAuthenticated()) {
@@ -98,13 +153,24 @@ export async function GET() {
 
   const settings = await loadSettings();
 
-  // Mask the API key for security
+  // Mask sensitive values for security
   const maskedSettings = {
     ...settings,
     deepseekApiKey: settings.deepseekApiKey
       ? `${settings.deepseekApiKey.slice(0, 8)}...${settings.deepseekApiKey.slice(-4)}`
       : '',
     hasApiKey: !!settings.deepseekApiKey,
+    // Supabase - show URL, mask key
+    supabaseUrl: settings.supabaseUrl || '',
+    supabaseAnonKey: settings.supabaseAnonKey
+      ? `${settings.supabaseAnonKey.slice(0, 12)}...${settings.supabaseAnonKey.slice(-8)}`
+      : '',
+    hasSupabaseConfig: !!(settings.supabaseUrl && settings.supabaseAnonKey),
+    // Database - mask connection string
+    databaseUrl: settings.databaseUrl
+      ? settings.databaseUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')
+      : '',
+    hasDatabaseConfig: !!settings.databaseUrl,
   };
 
   return NextResponse.json(maskedSettings);
@@ -132,9 +198,53 @@ export async function POST(request: NextRequest) {
       updatedSettings.deepseekApiKey = body.deepseekApiKey;
     }
 
+    // Update Supabase URL if provided
+    if (body.supabaseUrl !== undefined) {
+      updatedSettings.supabaseUrl = body.supabaseUrl;
+    }
+
+    // Update Supabase Anon Key if provided (not masked value)
+    if (body.supabaseAnonKey && !body.supabaseAnonKey.includes('...')) {
+      updatedSettings.supabaseAnonKey = body.supabaseAnonKey;
+    }
+
+    // Update Database URL if provided (not masked value)
+    if (body.databaseUrl && !body.databaseUrl.includes('***')) {
+      updatedSettings.databaseUrl = body.databaseUrl;
+    }
+
     await saveSettings(updatedSettings);
 
-    return NextResponse.json({ success: true });
+    // Also update .env file for environment variables
+    const envUpdates: Record<string, string> = {};
+    let envChanged = false;
+
+    if (body.supabaseUrl && body.supabaseUrl !== process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      envUpdates['NEXT_PUBLIC_SUPABASE_URL'] = body.supabaseUrl;
+      envChanged = true;
+    }
+
+    if (body.supabaseAnonKey && !body.supabaseAnonKey.includes('...')) {
+      envUpdates['NEXT_PUBLIC_SUPABASE_ANON_KEY'] = body.supabaseAnonKey;
+      envChanged = true;
+    }
+
+    if (body.databaseUrl && !body.databaseUrl.includes('***')) {
+      envUpdates['DATABASE_URL'] = body.databaseUrl;
+      envChanged = true;
+    }
+
+    if (Object.keys(envUpdates).length > 0) {
+      await updateEnvFile(envUpdates);
+    }
+
+    return NextResponse.json({
+      success: true,
+      envChanged,
+      message: envChanged
+        ? 'Settings saved. Restart the server for environment changes to take effect.'
+        : 'Settings saved successfully.'
+    });
   } catch {
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
   }

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { MapPin, ChevronDown, Search, Plane, Palmtree, Mountain, Utensils, Camera, Building2, Heart } from 'lucide-react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { MapPin, ChevronDown, Search, Plane, Palmtree, Mountain, Utensils, Camera, Building2, Heart, Sparkles } from 'lucide-react';
 
 interface HeroSectionProps {
   onSearch: (query: string) => void;
@@ -16,23 +17,155 @@ const categories = [
   { id: 'healthcare', label: 'Healthcare', icon: Heart },
 ];
 
+type FlowStep = 'initial' | 'select-tag' | 'select-location' | 'enter-details';
+
 export default function HeroSection({ onSearch }: HeroSectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState('Anywhere');
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [flowStep, setFlowStep] = useState<FlowStep>('initial');
+  const [showHint, setShowHint] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
-  const locations = ['Anywhere', 'Near Me', 'Asia', 'Europe', 'Americas', 'Africa', 'Oceania'];
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const locationButtonRef = useRef<HTMLDivElement>(null);
 
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      onSearch(searchQuery);
+  const locations = ['Near Me', 'Asia', 'Europe', 'Americas', 'Africa', 'Oceania'];
+
+  // Update dropdown position when it opens
+  useLayoutEffect(() => {
+    if (showLocationDropdown && locationButtonRef.current) {
+      const rect = locationButtonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+      });
+    }
+  }, [showLocationDropdown]);
+
+  // Handle location selection
+  const handleLocationSelect = (location: string) => {
+    setSelectedLocation(location);
+    setShowLocationDropdown(false);
+
+    if (selectedCategory) {
+      // Both selected - go to details step
+      setFlowStep('enter-details');
+      setShowHint(true);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    } else {
+      // Location selected, need tag
+      setFlowStep('select-tag');
+      setShowHint(true);
     }
   };
 
+  // Handle category click
   const handleCategoryClick = (categoryId: string, label: string) => {
-    setSelectedCategory(categoryId === selectedCategory ? null : categoryId);
-    onSearch(`${label} trips${selectedLocation !== 'Anywhere' ? ` in ${selectedLocation}` : ''}`);
+    const isDeselecting = selectedCategory === categoryId;
+    setSelectedCategory(isDeselecting ? null : categoryId);
+
+    if (isDeselecting) {
+      setFlowStep(selectedLocation ? 'select-tag' : 'initial');
+      return;
+    }
+
+    if (selectedLocation) {
+      // Both selected - go to details step
+      setFlowStep('enter-details');
+      setShowHint(true);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 100);
+    } else {
+      // Tag selected, need location
+      setFlowStep('select-location');
+      setShowHint(true);
+      setShowLocationDropdown(true);
+    }
+  };
+
+  // Handle Explore button
+  const handleExploreClick = () => {
+    if (!selectedLocation) {
+      // Need to select location first
+      setFlowStep('select-location');
+      setShowLocationDropdown(true);
+      setShowHint(true);
+    } else if (!selectedCategory) {
+      // Need to select category
+      setFlowStep('select-tag');
+      setShowHint(true);
+    } else {
+      // Both selected, search
+      handleSearch();
+    }
+  };
+
+  // Handle search
+  const handleSearch = () => {
+    let query = searchQuery.trim();
+
+    if (!query && selectedCategory && selectedLocation) {
+      const categoryLabel = categories.find(c => c.id === selectedCategory)?.label || '';
+      query = `Plan a ${categoryLabel.toLowerCase()} trip to ${selectedLocation}`;
+    } else if (!query && selectedCategory) {
+      const categoryLabel = categories.find(c => c.id === selectedCategory)?.label || '';
+      query = `Plan a ${categoryLabel.toLowerCase()} trip`;
+    } else if (!query && selectedLocation) {
+      query = `Plan a trip to ${selectedLocation}`;
+    }
+
+    if (query) {
+      onSearch(query);
+    }
+  };
+
+  // Auto-hide hint after delay
+  useEffect(() => {
+    if (showHint) {
+      const timer = setTimeout(() => setShowHint(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showHint, flowStep]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (locationButtonRef.current && !locationButtonRef.current.contains(e.target as Node)) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get dynamic placeholder for search input
+  const getPlaceholder = () => {
+    if (flowStep === 'enter-details') {
+      if (selectedLocation && selectedCategory) {
+        const categoryLabel = categories.find(c => c.id === selectedCategory)?.label || '';
+        return `Tell us more about your ${categoryLabel.toLowerCase()} trip to ${selectedLocation}...`;
+      }
+    }
+    return 'Search for a destination...';
+  };
+
+  // Get hint message
+  const getHintMessage = () => {
+    switch (flowStep) {
+      case 'select-tag':
+        return '👆 Now choose a travel style';
+      case 'select-location':
+        return '📍 First, select a destination';
+      case 'enter-details':
+        return '✨ Add any special requests (optional)';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -58,56 +191,91 @@ export default function HeroSection({ onSearch }: HeroSectionProps) {
             <div className="relative max-w-2xl">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Search for a destination..."
-                className="w-full pl-14 pr-6 py-4 bg-white rounded-2xl text-gray-900 placeholder-gray-400 shadow-xl text-base focus:outline-none focus:ring-4 focus:ring-white/30"
+                placeholder={getPlaceholder()}
+                className={`w-full pl-14 pr-6 py-4 bg-white rounded-2xl text-gray-900 placeholder-gray-400 shadow-xl text-base focus:outline-none focus:ring-4 transition-all ${
+                  flowStep === 'enter-details'
+                    ? 'focus:ring-amber-300/50 ring-2 ring-amber-300/30'
+                    : 'focus:ring-white/30'
+                }`}
               />
+              {/* Search hint for enter-details step */}
+              {flowStep === 'enter-details' && showHint && (
+                <div className="absolute -bottom-8 left-0 text-amber-200 text-xs font-medium animate-pulse">
+                  {getHintMessage()}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Location + Category Pills + Explore - 40% smaller */}
-          <div className="flex flex-wrap items-center gap-3 max-w-2xl">
+          {/* Location + Category Pills + Explore */}
+          <div className="flex flex-wrap items-center gap-3 max-w-2xl relative">
             {/* Location pill with dropdown */}
-            <div className="relative">
+            <div className="relative" ref={locationButtonRef}>
               <button
                 onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm transition-all text-white border border-white/20 text-xs"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-sm transition-all border text-xs ${
+                  selectedLocation
+                    ? 'bg-white text-teal-700 border-white shadow-lg'
+                    : flowStep === 'select-location'
+                    ? 'bg-amber-400/30 hover:bg-amber-400/40 text-white border-amber-300 ring-2 ring-amber-300/50 animate-pulse'
+                    : 'bg-white/20 hover:bg-white/30 text-white border-white/20'
+                }`}
               >
                 <MapPin className="w-3 h-3" />
-                <span className="font-medium">{selectedLocation}</span>
+                <span className="font-medium">{selectedLocation || 'Anywhere'}</span>
                 <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showLocationDropdown ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Location Dropdown */}
-              {showLocationDropdown && (
-                <div className="absolute top-full left-0 mt-2 w-40 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50">
+              {/* Location Dropdown - rendered via portal to ensure it's above everything */}
+              {showLocationDropdown && typeof document !== 'undefined' && createPortal(
+                <div
+                  className="fixed w-44 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                  style={{
+                    zIndex: 9999,
+                    top: dropdownPosition.top,
+                    left: dropdownPosition.left,
+                  }}
+                >
+                  <div className="p-2 border-b border-gray-100">
+                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider px-2">Select destination</p>
+                  </div>
                   {locations.map((location) => (
                     <button
                       key={location}
-                      onClick={() => {
-                        setSelectedLocation(location);
-                        setShowLocationDropdown(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs transition-colors ${
+                      onClick={() => handleLocationSelect(location)}
+                      className={`w-full px-3 py-2.5 text-left text-xs transition-colors flex items-center gap-2 ${
                         selectedLocation === location
                           ? 'bg-teal-50 text-teal-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
                       }`}
                     >
+                      <MapPin className="w-3 h-3 text-gray-400" />
                       {location}
                     </button>
                   ))}
+                </div>,
+                document.body
+              )}
+
+              {/* Hint for select-location step */}
+              {flowStep === 'select-location' && showHint && !showLocationDropdown && (
+                <div className="absolute -bottom-6 left-0 whitespace-nowrap text-amber-200 text-xs font-medium">
+                  {getHintMessage()}
                 </div>
               )}
             </div>
 
-            {/* Category pills - 40% smaller */}
+            {/* Category pills */}
             {categories.map((category) => {
               const IconComponent = category.icon;
               const isSelected = selectedCategory === category.id;
+              const shouldHighlight = flowStep === 'select-tag' && !isSelected;
+
               return (
                 <button
                   key={category.id}
@@ -115,6 +283,8 @@ export default function HeroSection({ onSearch }: HeroSectionProps) {
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full transition-all border text-xs ${
                     isSelected
                       ? 'bg-white text-teal-700 border-white shadow-lg'
+                      : shouldHighlight
+                      ? 'bg-amber-400/20 hover:bg-amber-400/30 text-white border-amber-300/50 animate-pulse'
                       : 'bg-white/10 hover:bg-white/20 text-white border-white/20'
                   }`}
                 >
@@ -124,15 +294,63 @@ export default function HeroSection({ onSearch }: HeroSectionProps) {
               );
             })}
 
-            {/* Explore button - same style as pills but white background */}
+            {/* Explore button */}
             <button
-              onClick={() => onSearch('Explore popular destinations')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white text-teal-700 border border-white shadow-lg hover:bg-amber-50 transition-all text-xs"
+              onClick={handleExploreClick}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border shadow-lg transition-all text-xs ${
+                selectedLocation && selectedCategory
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-white border-amber-400 hover:from-amber-500 hover:to-amber-600'
+                  : 'bg-white text-teal-700 border-white hover:bg-amber-50'
+              }`}
             >
-              <Plane className="w-3 h-3" />
-              <span className="font-medium">Explore</span>
+              {selectedLocation && selectedCategory ? (
+                <>
+                  <Sparkles className="w-3 h-3" />
+                  <span className="font-medium">Plan Trip</span>
+                </>
+              ) : (
+                <>
+                  <Plane className="w-3 h-3" />
+                  <span className="font-medium">Explore</span>
+                </>
+              )}
             </button>
+
+            {/* Hint for select-tag step */}
+            {flowStep === 'select-tag' && showHint && (
+              <div className="absolute -bottom-6 left-32 text-amber-200 text-xs font-medium">
+                {getHintMessage()}
+              </div>
+            )}
           </div>
+
+          {/* Selection summary */}
+          {(selectedLocation || selectedCategory) && (
+            <div className="mt-6 max-w-2xl">
+              <div className="flex items-center gap-2 text-white/70 text-xs">
+                <span>Planning:</span>
+                {selectedCategory && (
+                  <span className="px-2 py-0.5 bg-white/20 rounded-full">
+                    {categories.find(c => c.id === selectedCategory)?.label}
+                  </span>
+                )}
+                {selectedLocation && (
+                  <>
+                    <span>in</span>
+                    <span className="px-2 py-0.5 bg-white/20 rounded-full">
+                      {selectedLocation}
+                    </span>
+                  </>
+                )}
+                {!selectedCategory && (
+                  <span className="text-amber-300/80 italic">← pick a style</span>
+                )}
+                {selectedCategory && !selectedLocation && (
+                  <span className="text-amber-300/80 italic">← pick a destination</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
