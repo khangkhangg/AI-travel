@@ -82,7 +82,7 @@ export interface UserBadge {
   earnedAt: string;
 }
 
-export const BADGE_INFO: Record<BadgeType, { label: string; description: string; icon: string }> = {
+export const BADGE_DEFINITIONS: Record<BadgeType, { label: string; description: string; icon: string }> = {
   first_itinerary: {
     label: 'First Itinerary',
     description: 'Created your first itinerary',
@@ -119,6 +119,9 @@ export const BADGE_INFO: Record<BadgeType, { label: string; description: string;
     icon: '📍',
   },
 };
+
+// Alias for backward compatibility
+export const BADGE_INFO = BADGE_DEFINITIONS;
 
 export const SOCIAL_PLATFORMS: Record<SocialPlatform, { label: string; icon: string; placeholder: string }> = {
   instagram: { label: 'Instagram', icon: '📷', placeholder: '@username' },

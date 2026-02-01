@@ -409,6 +409,23 @@ export default function CollaboratePage() {
     }
   };
 
+  // Handle update location (coordinates from Google Maps URL)
+  const handleUpdateLocation = async (activityId: string, lat: number, lng: number, address?: string) => {
+    try {
+      const response = await fetch(`/api/trips/${tripId}/items/${activityId}/location`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lng, address }),
+      });
+
+      if (response.ok) {
+        fetchTrip();
+      }
+    } catch (error) {
+      console.error('Failed to update location:', error);
+    }
+  };
+
   // Handle travelers change
   const handleTravelersChange = (travelers: Traveler[]) => {
     setTrip(prev => {
@@ -638,6 +655,7 @@ export default function CollaboratePage() {
               onUpdateUrl={handleUpdateUrl}
               onUpdateSummary={handleUpdateSummary}
               onUpdateDescription={handleUpdateDescription}
+              onUpdateLocation={handleUpdateLocation}
             />
           </div>
 

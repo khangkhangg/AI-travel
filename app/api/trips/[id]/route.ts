@@ -37,9 +37,9 @@ export async function GET(
     // Check access permissions
     const isOwner = user && trip.user_id === user.id;
     const isCollaborator = trip.user_role !== null;
-    const isPublic = trip.visibility === 'public';
+    const isPublicOrCurated = trip.visibility === 'public' || trip.visibility === 'curated';
 
-    if (!isPublic && !isOwner && !isCollaborator) {
+    if (!isPublicOrCurated && !isOwner && !isCollaborator) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -79,11 +79,76 @@ export async function GET(
       [id]
     );
 
+    // Get creator badges (gracefully handle if table doesn't exist)
+    let badges: any[] = [];
+    try {
+      const badgesResult = await query(
+        `SELECT badge_type, metadata, earned_at
+         FROM user_badges
+         WHERE user_id = $1
+         ORDER BY earned_at DESC`,
+        [trip.user_id]
+      );
+      badges = badgesResult.rows;
+    } catch {
+      // Table doesn't exist yet, continue with empty badges
+    }
+
+    // Get creator payment links (gracefully handle if table doesn't exist)
+    let paymentLinks: any[] = [];
+    try {
+      const paymentLinksResult = await query(
+        `SELECT platform, value, is_primary
+         FROM user_payment_links
+         WHERE user_id = $1
+         ORDER BY is_primary DESC, created_at ASC`,
+        [trip.user_id]
+      );
+      paymentLinks = paymentLinksResult.rows;
+    } catch {
+      // Table doesn't exist yet, continue with empty payment links
+    }
+
+    // Get creator stats (trip count, countries visited)
+    let tripCount = 0;
+    let countriesCount = 0;
+    try {
+      const statsResult = await query(
+        `SELECT COUNT(*) as trip_count FROM trips WHERE user_id = $1 AND visibility IN ('public', 'curated')`,
+        [trip.user_id]
+      );
+      tripCount = parseInt(statsResult.rows[0]?.trip_count) || 0;
+    } catch {
+      // Continue with 0
+    }
+
+    try {
+      const countriesResult = await query(
+        `SELECT COUNT(DISTINCT country) as countries_count FROM user_travel_history WHERE user_id = $1`,
+        [trip.user_id]
+      );
+      countriesCount = parseInt(countriesResult.rows[0]?.countries_count) || 0;
+    } catch {
+      // Table doesn't exist yet, continue with 0
+    }
+
+    // Build creator object
+    const creator = {
+      id: trip.user_id,
+      name: trip.owner_name || 'Trip Creator',
+      avatar_url: trip.owner_avatar,
+      badges,
+      trip_count: tripCount,
+      countries_count: countriesCount,
+    };
+
     return NextResponse.json({
       trip: {
         ...trip,
         itinerary_items: itemsResult.rows,
-        collaborators: collaboratorsResult.rows
+        collaborators: collaboratorsResult.rows,
+        creator,
+        payment_links: paymentLinks,
       }
     });
   } catch (error: any) {

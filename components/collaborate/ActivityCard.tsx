@@ -23,6 +23,7 @@ interface ActivityCardProps {
   onUpdateUrl?: (activityId: string, url: string) => void;
   onUpdateSummary?: (activityId: string, summary: string) => void;
   onUpdateDescription?: (activityId: string, description: string) => void;
+  onUpdateLocation?: (activityId: string, lat: number, lng: number, address?: string) => void;
   isSelected: boolean;
   isHotel?: boolean;
   isDragging?: boolean;
@@ -54,6 +55,7 @@ export default function ActivityCard({
   onUpdateUrl,
   onUpdateSummary,
   onUpdateDescription,
+  onUpdateLocation,
   isSelected,
   isHotel = false,
   isDragging = false,
@@ -80,6 +82,7 @@ export default function ActivityCard({
     priceLevel?: string;
     hours?: string;
     categories?: string[];
+    coordinates?: { lat: number; lng: number };
   } | null>(null);
   const lastFetchedUrl = useRef<string>('');
 
@@ -88,11 +91,8 @@ export default function ActivityCard({
     const parts: string[] = [];
 
     if (!place) {
-      // No place data, just add URL if available
-      if (sourceUrl) {
-        parts.push(`🔗 ${sourceUrl}`);
-      }
-      return parts.join('\n');
+      // No place data - don't add raw URL to description (it's stored separately)
+      return '';
     }
 
     // Add rating and reviews
@@ -127,11 +127,6 @@ export default function ActivityCard({
     // Add description
     if (place.description) {
       parts.push(place.description);
-    }
-
-    // If we have no other info, at least add source URL
-    if (parts.length === 0 && sourceUrl) {
-      parts.push(`🔗 ${sourceUrl}`);
     }
 
     return parts.join('\n');
@@ -180,7 +175,7 @@ export default function ActivityCard({
 
         if (response.ok) {
           const data = await response.json();
-          if (data.place?.name) {
+          if (data.place?.name || data.place?.coordinates) {
             setFetchedPlace({
               name: data.place.name,
               description: data.place.description,
@@ -190,6 +185,7 @@ export default function ActivityCard({
               priceLevel: data.place.priceLevel,
               hours: data.place.hours,
               categories: data.place.categories,
+              coordinates: data.place.coordinates,
             });
           }
         }
@@ -257,6 +253,15 @@ export default function ActivityCard({
     if (onUpdateUrl) {
       onUpdateUrl(activity.id, urlValue.trim());
     }
+    // Save coordinates if available from fetched place
+    if (fetchedPlace?.coordinates && onUpdateLocation) {
+      onUpdateLocation(
+        activity.id,
+        fetchedPlace.coordinates.lat,
+        fetchedPlace.coordinates.lng,
+        fetchedPlace.address
+      );
+    }
     // Auto-populate description if empty
     if (!activity.description && onUpdateDescription) {
       const richDescription = buildDescriptionFromPlace(fetchedPlace, urlValue.trim());
@@ -274,6 +279,15 @@ export default function ActivityCard({
     }
     if (fetchedPlace?.name && onUpdateSummary) {
       onUpdateSummary(activity.id, fetchedPlace.name);
+    }
+    // Save coordinates if available from fetched place
+    if (fetchedPlace?.coordinates && onUpdateLocation) {
+      onUpdateLocation(
+        activity.id,
+        fetchedPlace.coordinates.lat,
+        fetchedPlace.coordinates.lng,
+        fetchedPlace.address
+      );
     }
     // Auto-populate description if empty
     if (!activity.description && onUpdateDescription) {
@@ -468,7 +482,7 @@ export default function ActivityCard({
               </div>
             ) : activity.description ? (
               <div
-                className={`text-xs text-gray-600 ${!activity.is_final ? 'cursor-text hover:bg-gray-50 rounded p-1 -m-1' : ''}`}
+                className={`text-xs text-gray-600 break-all ${!activity.is_final ? 'cursor-text hover:bg-gray-50 rounded p-1 -m-1' : ''}`}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   if (!activity.is_final && onUpdateDescription) {
@@ -569,6 +583,12 @@ export default function ActivityCard({
                   <p className="text-xs text-gray-500 truncate">📍 {fetchedPlace.address}</p>
                 )}
 
+                {fetchedPlace.coordinates && (
+                  <p className="text-xs text-emerald-600 font-medium">
+                    🗺️ Location detected ({fetchedPlace.coordinates.lat.toFixed(4)}, {fetchedPlace.coordinates.lng.toFixed(4)})
+                  </p>
+                )}
+
                 {fetchedPlace.categories && fetchedPlace.categories.length > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {fetchedPlace.categories.slice(0, 3).map((cat, i) => (
@@ -580,22 +600,23 @@ export default function ActivityCard({
                 )}
 
                 {/* Show description preview - what will be added */}
-                {!activity.description && (
+                {!activity.description && getDescriptionPreview() && (
                   <div className="pt-1.5 mt-1 border-t border-blue-100">
                     <p className="text-[10px] text-blue-600 font-medium mb-1">+ Will add to description:</p>
                     <p className="text-[10px] text-gray-500 line-clamp-2 whitespace-pre-line">
-                      {getDescriptionPreview() || `🔗 ${urlValue.trim()}`}
+                      {getDescriptionPreview()}
                     </p>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Show description preview even without fetched place name (just URL) */}
-            {!fetchedPlace?.name && urlValue.trim() && !fetchingUrl && !activity.description && (
-              <div className="mt-2 p-2 bg-gray-50 rounded-lg">
-                <p className="text-[10px] text-gray-600 font-medium mb-1">+ Will add to description:</p>
-                <p className="text-[10px] text-gray-500 truncate">🔗 {urlValue.trim()}</p>
+            {/* Show coordinates detected even without fetched place name */}
+            {!fetchedPlace?.name && fetchedPlace?.coordinates && (
+              <div className="mt-2 p-2 bg-emerald-50 rounded-lg">
+                <p className="text-xs text-emerald-600 font-medium">
+                  🗺️ Location detected ({fetchedPlace.coordinates.lat.toFixed(4)}, {fetchedPlace.coordinates.lng.toFixed(4)})
+                </p>
               </div>
             )}
           </div>

@@ -24,6 +24,7 @@ interface DayColumnProps {
   onUpdateUrl: (activityId: string, url: string) => void;
   onUpdateSummary: (activityId: string, summary: string) => void;
   onUpdateDescription: (activityId: string, description: string) => void;
+  onUpdateLocation?: (activityId: string, lat: number, lng: number, address?: string) => void;
 }
 
 export default function DayColumn({
@@ -44,6 +45,7 @@ export default function DayColumn({
   onUpdateUrl,
   onUpdateSummary,
   onUpdateDescription,
+  onUpdateLocation,
 }: DayColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${day.dayNumber}`,
@@ -123,6 +125,7 @@ export default function DayColumn({
             onUpdateUrl={onUpdateUrl}
             onUpdateSummary={onUpdateSummary}
             onUpdateDescription={onUpdateDescription}
+            onUpdateLocation={onUpdateLocation}
             isSelected={selectedActivityId === hotelActivity.id}
             isHotel
           />
@@ -157,6 +160,7 @@ export default function DayColumn({
               onUpdateUrl={onUpdateUrl}
               onUpdateSummary={onUpdateSummary}
               onUpdateDescription={onUpdateDescription}
+              onUpdateLocation={onUpdateLocation}
               isSelected={selectedActivityId === activity.id}
             />
           ))}

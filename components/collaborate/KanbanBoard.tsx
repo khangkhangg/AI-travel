@@ -34,6 +34,7 @@ interface KanbanBoardProps {
   onUpdateUrl: (activityId: string, url: string) => void;
   onUpdateSummary: (activityId: string, summary: string) => void;
   onUpdateDescription: (activityId: string, description: string) => void;
+  onUpdateLocation?: (activityId: string, lat: number, lng: number, address?: string) => void;
 }
 
 export default function KanbanBoard({
@@ -53,6 +54,7 @@ export default function KanbanBoard({
   onUpdateUrl,
   onUpdateSummary,
   onUpdateDescription,
+  onUpdateLocation,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeActivity, setActiveActivity] = useState<CollaborateActivity | null>(null);
@@ -156,6 +158,7 @@ export default function KanbanBoard({
             onUpdateUrl={onUpdateUrl}
             onUpdateSummary={onUpdateSummary}
             onUpdateDescription={onUpdateDescription}
+            onUpdateLocation={onUpdateLocation}
           />
         ))}
       </div>
