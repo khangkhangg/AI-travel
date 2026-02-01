@@ -29,7 +29,7 @@ export async function GET(
        FROM trip_collaborators tc
        JOIN users u ON tc.user_id = u.id
        WHERE tc.trip_id = $1
-       ORDER BY tc.joined_at ASC`,
+       ORDER BY tc.created_at ASC`,
       [id]
     );
 

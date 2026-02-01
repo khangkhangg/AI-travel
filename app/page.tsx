@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Home, Calendar, MessageCircle, User, Compass } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import HeroSection from '@/components/landing/HeroSection';
@@ -13,6 +14,7 @@ import ChatPanel from '@/components/landing/ChatPanel';
 import ItineraryDisplay from '@/components/landing/ItineraryDisplay';
 import AuthModal from '@/components/auth/AuthModal';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
+import { ItineraryVisibility, CuratorInfo } from '@/lib/types/user';
 
 interface TripContext {
   destination?: string;
@@ -64,7 +66,16 @@ interface SelectedHotels {
   [day: number]: HotelResult;
 }
 
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
 export default function HomePage() {
+  const searchParams = useSearchParams();
+  const tripIdFromUrl = searchParams.get('tripId');
   const [chatPrompt, setChatPrompt] = useState<string>('');
   const [mobileChat, setMobileChat] = useState(false);
   const [chatExpanded, setChatExpanded] = useState(false);
@@ -72,21 +83,31 @@ export default function HomePage() {
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([]);
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | undefined>();
+  const [currentTripId, setCurrentTripId] = useState<string | undefined>();
+  const [visibility, setVisibility] = useState<ItineraryVisibility>('private');
+  const [curatorInfo, setCuratorInfo] = useState<CuratorInfo | undefined>();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedHotels, setSelectedHotels] = useState<SelectedHotels>({});
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingAutoSave, setPendingAutoSave] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingTrip, setIsLoadingTrip] = useState(false);
 
   // Check auth state and restore pending session on mount
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
 
-    // Check current auth state
+    // Check current auth state and refresh session to ensure cookies are set
     const checkAuthAndRestoreSession = async () => {
+      // First try to get current session
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
+        // Refresh session to ensure cookies are properly set with @supabase/ssr
+        await supabase.auth.refreshSession();
         setIsLoggedIn(true);
 
         // Check for pending trip session to restore
@@ -137,6 +158,76 @@ export default function HomePage() {
     };
   }, []);
 
+  // Load trip data when tripId is in URL (resume mode)
+  useEffect(() => {
+    if (!tripIdFromUrl) return;
+
+    const loadTrip = async () => {
+      setIsLoadingTrip(true);
+      try {
+        const response = await fetch(`/api/trips/${tripIdFromUrl}`);
+        if (response.ok) {
+          const data = await response.json();
+          const trip = data.trip;
+
+          // Set trip ID and saved state
+          setCurrentTripId(trip.id);
+          setIsSaved(true);
+          setHasUnsavedChanges(false);
+
+          // Set visibility and curator info
+          setVisibility(trip.visibility || 'private');
+          if (trip.curator_is_local || trip.curator_years_lived || trip.curator_experience) {
+            setCuratorInfo({
+              isLocal: trip.curator_is_local,
+              yearsLived: trip.curator_years_lived,
+              experience: trip.curator_experience,
+            });
+          }
+
+          // Set share URL
+          if (trip.share_code) {
+            const baseUrl = window.location.origin;
+            setShareUrl(`${baseUrl}/shared/${trip.share_code}`);
+          }
+
+          // Load chat history
+          if (trip.chat_history && Array.isArray(trip.chat_history)) {
+            setChatMessages(trip.chat_history.map((m: any) => ({
+              ...m,
+              timestamp: new Date(m.timestamp),
+            })));
+          }
+
+          // Load itinerary and travelers from generated_content
+          if (trip.generated_content) {
+            if (trip.generated_content.itinerary) {
+              setItinerary(trip.generated_content.itinerary);
+            }
+            if (trip.generated_content.travelers) {
+              setTravelers(trip.generated_content.travelers);
+            }
+          }
+
+          // Set trip context
+          setTripContext({
+            destination: trip.city,
+            duration: trip.description, // duration was stored in description
+          });
+
+          // Expand chat to show the conversation
+          setChatExpanded(true);
+        }
+      } catch (error) {
+        console.error('Failed to load trip:', error);
+      } finally {
+        setIsLoadingTrip(false);
+      }
+    };
+
+    loadTrip();
+  }, [tripIdFromUrl]);
+
   // Auto-save when pending and itinerary is ready
   useEffect(() => {
     if (pendingAutoSave && itinerary.length > 0 && isLoggedIn) {
@@ -155,9 +246,16 @@ export default function HomePage() {
               travelers,
             }),
           });
-          const data = await response.json();
-          if (data.shareUrl) {
-            setShareUrl(data.shareUrl);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.shareUrl) {
+              setShareUrl(data.shareUrl);
+            }
+            if (data.trip?.id) {
+              setCurrentTripId(data.trip.id);
+            }
+            setIsSaved(true);
+            setHasUnsavedChanges(false);
           }
         } catch (error) {
           console.error('Auto-save error:', error);
@@ -219,11 +317,17 @@ export default function HomePage() {
 
   const handleItineraryChange = useCallback((newItinerary: ItineraryDay[]) => {
     setItinerary(newItinerary);
-  }, []);
+    if (isSaved) {
+      setHasUnsavedChanges(true);
+    }
+  }, [isSaved]);
 
   const handleTravelersChange = useCallback((newTravelers: Traveler[]) => {
     setTravelers(newTravelers);
-  }, []);
+    if (isSaved) {
+      setHasUnsavedChanges(true);
+    }
+  }, [isSaved]);
 
   const handleHotelSelect = useCallback((day: number, hotel: HotelResult | null) => {
     setSelectedHotels(prev => {
@@ -236,28 +340,58 @@ export default function HomePage() {
   }, []);
 
   const handleSave = useCallback(async () => {
+    // Check if user is logged in first
+    if (!isLoggedIn) {
+      // Show auth modal to prompt login
+      setShowAuthModal(true);
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const response = await fetch('/api/trips', {
-        method: 'POST',
+      // If we have an existing trip, update it; otherwise create new
+      const isUpdate = !!currentTripId;
+      const url = isUpdate ? `/api/trips/${currentTripId}` : '/api/trips';
+      const method = isUpdate ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           destination: tripContext?.destination,
           duration: tripContext?.duration,
           itinerary,
           travelers,
+          visibility,
+          curatorInfo: visibility === 'curated' ? curatorInfo : undefined,
+          chatHistory: chatMessages,
         }),
       });
-      const data = await response.json();
-      if (data.shareUrl) {
-        setShareUrl(data.shareUrl);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.shareUrl) {
+          setShareUrl(data.shareUrl);
+        }
+        if (data.trip?.id) {
+          setCurrentTripId(data.trip.id);
+        }
+        setIsSaved(true);
+        setHasUnsavedChanges(false);
+      } else if (response.status === 401) {
+        // Session expired or not authenticated - prompt re-login
+        console.error('Authentication required - please sign in again');
+        setShowAuthModal(true);
+      } else {
+        const errorData = await response.json();
+        console.error('Save failed:', errorData);
       }
     } catch (error) {
       console.error('Save error:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [tripContext, itinerary, travelers]);
+  }, [tripContext, itinerary, travelers, currentTripId, visibility, curatorInfo, isLoggedIn, chatMessages]);
 
   const handleShare = useCallback(async () => {
     if (!shareUrl) {
@@ -265,6 +399,33 @@ export default function HomePage() {
     }
     // URL will be set by handleSave
   }, [shareUrl, handleSave]);
+
+  const handleUpdateVisibility = useCallback(async (newVisibility: ItineraryVisibility, newCuratorInfo?: CuratorInfo) => {
+    setVisibility(newVisibility);
+    if (newCuratorInfo) {
+      setCuratorInfo(newCuratorInfo);
+    }
+
+    // If trip already exists, update it on the server
+    if (currentTripId) {
+      try {
+        const response = await fetch(`/api/trips/${currentTripId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            visibility: newVisibility,
+            curatorInfo: newVisibility === 'curated' ? newCuratorInfo : undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to update visibility');
+        }
+      } catch (error) {
+        console.error('Error updating visibility:', error);
+      }
+    }
+  }, [currentTripId]);
 
   const handleLoginToSave = useCallback(() => {
     // Store session data to localStorage before showing auth modal
@@ -368,7 +529,12 @@ export default function HomePage() {
               onLogin={handleLoginToSave}
               isLoggedIn={isLoggedIn}
               isSaving={isSaving}
+              isSaved={isSaved}
+              hasUnsavedChanges={hasUnsavedChanges}
               shareUrl={shareUrl}
+              visibility={visibility}
+              curatorInfo={curatorInfo}
+              onUpdateVisibility={handleUpdateVisibility}
             />
           )}
 
@@ -406,11 +572,13 @@ export default function HomePage() {
           <div className="h-full">
             <ChatPanel
               initialPrompt={chatPrompt}
+              initialMessages={chatMessages.length > 0 ? chatMessages : undefined}
               parentItinerary={itinerary}
               selectedHotels={selectedHotels}
               onConversationStart={handleConversationStart}
               onContextUpdate={handleContextUpdate}
               onItineraryGenerated={handleItineraryGenerated}
+              onMessagesChange={setChatMessages}
             />
           </div>
         </div>
@@ -463,11 +631,13 @@ export default function HomePage() {
               <div className="flex-1 overflow-hidden px-2">
                 <ChatPanel
                   initialPrompt={chatPrompt}
+                  initialMessages={chatMessages.length > 0 ? chatMessages : undefined}
                   parentItinerary={itinerary}
                   selectedHotels={selectedHotels}
                   onConversationStart={handleConversationStart}
                   onContextUpdate={handleContextUpdate}
                   onItineraryGenerated={handleItineraryGenerated}
+                  onMessagesChange={setChatMessages}
                 />
               </div>
             </div>

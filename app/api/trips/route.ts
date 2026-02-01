@@ -45,27 +45,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { destination, duration, itinerary, travelers } = body;
+    const { destination, duration, itinerary, travelers, visibility = 'private', curatorInfo, chatHistory } = body;
 
     // Generate unique share code
     const shareCode = generateShareCode();
     const title = destination ? `Trip to ${destination}` : 'My Trip';
 
     // Create trip - use city column for destination since schema uses that
+    // Include curator info fields if visibility is 'curated'
     const tripResult = await query(
       `INSERT INTO trips (
         user_id, title, city, description,
-        visibility, share_code, generated_content, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        visibility, share_code, generated_content, chat_history,
+        curator_is_local, curator_years_lived, curator_experience,
+        created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
       RETURNING *`,
       [
         user.id,
         title,
         destination || '',
         duration || '',
-        'private',
+        visibility,
         shareCode,
         JSON.stringify({ travelers, itinerary }),
+        JSON.stringify(chatHistory || []),
+        visibility === 'curated' ? curatorInfo?.isLocal : null,
+        visibility === 'curated' ? curatorInfo?.yearsLived : null,
+        visibility === 'curated' ? curatorInfo?.experience : null,
       ]
     );
 

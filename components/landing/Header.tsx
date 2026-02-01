@@ -13,6 +13,7 @@ export default function Header() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [tripCount, setTripCount] = useState(0);
   const signInButtonRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -35,6 +36,27 @@ export default function Header() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Fetch trip count when user is logged in
+  useEffect(() => {
+    const fetchTripCount = async () => {
+      if (!user) {
+        setTripCount(0);
+        return;
+      }
+      try {
+        const response = await fetch('/api/trips');
+        if (response.ok) {
+          const data = await response.json();
+          setTripCount(data.trips?.length || 0);
+        }
+      } catch (error) {
+        console.error('Failed to fetch trip count:', error);
+      }
+    };
+
+    fetchTripCount();
+  }, [user]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -88,16 +110,22 @@ export default function Header() {
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-1">
             {[
-              { label: 'Discover', icon: Map },
-              { label: 'My Trips', icon: Heart },
-              { label: 'Creators', icon: User },
+              { label: 'Discover', icon: Map, path: '/discover' },
+              { label: 'My Trips', icon: Heart, path: '/my-trips', showBadge: true },
+              { label: 'Creators', icon: User, path: '/creators' },
             ].map((item) => (
               <button
                 key={item.label}
+                onClick={() => router.push(item.path)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 transition-all font-medium"
               >
                 <item.icon className="w-4 h-4" />
                 <span>{item.label}</span>
+                {item.showBadge && tripCount > 0 && (
+                  <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-full">
+                    {tripCount}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -248,18 +276,26 @@ export default function Header() {
           <div className="lg:hidden py-4 border-t border-emerald-100 animate-in slide-in-from-top-2 duration-200">
             <nav className="flex flex-col gap-1">
               {[
-                { label: 'Discover', icon: Map },
-                { label: 'My Trips', icon: Heart },
-                { label: 'Creators', icon: User },
-                { label: 'Become Creator', icon: Sparkles },
+                { label: 'Discover', icon: Map, path: '/discover' },
+                { label: 'My Trips', icon: Heart, path: '/my-trips', showBadge: true },
+                { label: 'Creators', icon: User, path: '/creators' },
+                { label: 'Become Creator', icon: Sparkles, path: '/guide/register' },
               ].map((item) => (
                 <button
                   key={item.label}
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    router.push(item.path);
+                  }}
                   className="flex items-center gap-3 px-4 py-3 text-left rounded-xl hover:bg-emerald-50 transition-colors font-medium text-emerald-800"
                 >
                   <item.icon className="w-5 h-5 text-emerald-600" />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.showBadge && tripCount > 0 && (
+                    <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-full">
+                      {tripCount}
+                    </span>
+                  )}
                 </button>
               ))}
             </nav>

@@ -362,7 +362,9 @@ focus:outline-none focus:ring-2 focus:ring-teal-400/50
 
 ## Icon Usage
 
-**Library:** Lucide React
+**Library:** Lucide React (https://lucide.dev)
+
+**Important:** Never use emojis in the UI. Always use Lucide React icons for visual consistency, scalability, and proper color inheritance.
 
 | Context | Size | Color |
 |---------|------|-------|
@@ -370,6 +372,7 @@ focus:outline-none focus:ring-2 focus:ring-teal-400/50
 | Category icons | `w-6 h-6` | Category color |
 | Card actions | `w-4 h-4` | `text-gray-400` hover `text-teal-600` |
 | Hero decorative | `w-5 h-5` | `text-white` |
+| Inline with text | `w-4 h-4` | Inherit from parent |
 
 ---
 
@@ -388,6 +391,7 @@ focus:outline-none focus:ring-2 focus:ring-teal-400/50
 - Skip stagger animations on lists
 - Use sharp corners (always round)
 - Forget mobile bottom nav spacing
+- Use emojis in the UI — always use Lucide React icons instead for consistency and scalability
 
 ---
 

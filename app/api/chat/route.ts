@@ -18,6 +18,23 @@ const DEFAULT_SYSTEM_PROMPT = `You are a helpful AI travel planning assistant fo
 - Providing budget estimates and travel tips
 - Being friendly, enthusiastic, and knowledgeable about travel
 
+IMPORTANT: When you identify or confirm any trip details from the conversation, include a hidden metadata block at the END of your response in this exact format:
+
+<!--TRIP_DATA
+destination: [city/country name if mentioned]
+duration: [number of days if mentioned]
+budget: [budget amount with $ if mentioned]
+travelers: [number of travelers if mentioned]
+TRIP_DATA-->
+
+Only include fields that have been explicitly mentioned or confirmed. This helps the UI display trip details to the user.
+
+Example: If user says "I want to visit Tokyo for 5 days", end your response with:
+<!--TRIP_DATA
+destination: Tokyo
+duration: 5 days
+TRIP_DATA-->
+
 Always be helpful and provide actionable travel advice.`;
 
 async function loadSettings(): Promise<Settings> {

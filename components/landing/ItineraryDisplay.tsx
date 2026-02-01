@@ -36,7 +36,10 @@ import {
   ExternalLink,
   Star,
   Loader2,
+  Link,
 } from 'lucide-react';
+import { ItineraryVisibility, CuratorInfo } from '@/lib/types/user';
+import ShareModal from './ShareModal';
 
 interface ItineraryActivity {
   id?: string;
@@ -78,12 +81,17 @@ interface ItineraryDisplayProps {
   onItineraryChange?: (itinerary: ItineraryDay[]) => void;
   onTravelersChange?: (travelers: Traveler[]) => void;
   onHotelSelect?: (day: number, hotel: HotelResult | null) => void;
-  onSave?: () => void;
+  onSave?: () => Promise<void>;
   onShare?: () => void;
   onLogin?: () => void;
   isLoggedIn?: boolean;
   isSaving?: boolean;
+  isSaved?: boolean;
+  hasUnsavedChanges?: boolean;
   shareUrl?: string;
+  visibility?: ItineraryVisibility;
+  curatorInfo?: CuratorInfo;
+  onUpdateVisibility?: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo) => Promise<void>;
 }
 
 interface HotelResult {
@@ -130,7 +138,12 @@ export default function ItineraryDisplay({
   onLogin,
   isLoggedIn = false,
   isSaving = false,
+  isSaved = false,
+  hasUnsavedChanges = false,
   shareUrl,
+  visibility = 'private',
+  curatorInfo,
+  onUpdateVisibility,
 }: ItineraryDisplayProps) {
   const [editingActivity, setEditingActivity] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ItineraryActivity>>({});
@@ -140,6 +153,10 @@ export default function ItineraryDisplay({
   const [draggedDay, setDraggedDay] = useState<number | null>(null);
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
+  const [showShareTooltip, setShowShareTooltip] = useState(false);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [showHotels, setShowHotels] = useState(false);
   const [showFloatingCost, setShowFloatingCost] = useState(false);
@@ -442,6 +459,37 @@ export default function ItineraryDisplay({
     }
   };
 
+  const handleSaveClick = async () => {
+    if (onSave) {
+      await onSave();
+      // Show share modal after saving
+      setShowShareModal(true);
+    }
+  };
+
+  const handleUpdateVisibility = async (newVisibility: ItineraryVisibility, newCuratorInfo?: CuratorInfo) => {
+    if (onUpdateVisibility) {
+      setIsUpdatingVisibility(true);
+      try {
+        await onUpdateVisibility(newVisibility, newCuratorInfo);
+        setShowShareModal(false);
+      } finally {
+        setIsUpdatingVisibility(false);
+      }
+    }
+  };
+
+  // Get visibility label for Share button
+  const getVisibilityLabel = () => {
+    if (!isSaved) return null;
+    switch (visibility) {
+      case 'public': return 'Public';
+      case 'marketplace': return 'Marketplace';
+      case 'curated': return 'Curated';
+      default: return null;
+    }
+  };
+
   const adults = travelers.filter(t => !t.isChild);
   const children = travelers.filter(t => t.isChild);
 
@@ -518,24 +566,76 @@ export default function ItineraryDisplay({
                 {travelers.length > 0 && ` • ${travelers.length} travelers`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
               {isLoggedIn ? (
                 <>
+                  {/* Save Button */}
                   <button
-                    onClick={onSave}
-                    disabled={isSaving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/90 text-teal-700 rounded-full hover:bg-white disabled:opacity-50 transition-all font-medium text-sm border border-white/50"
+                    onClick={handleSaveClick}
+                    disabled={isSaving || (isSaved && !hasUnsavedChanges)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all font-medium text-sm border ${
+                      isSaved && !hasUnsavedChanges
+                        ? 'bg-green-500/90 text-white border-green-400/50 cursor-default'
+                        : 'bg-white/90 text-teal-700 hover:bg-white disabled:opacity-50 border-white/50'
+                    }`}
                   >
-                    <Save className="w-3.5 h-3.5" />
-                    {isSaving ? 'Saving...' : 'Save'}
+                    {isSaved && !hasUnsavedChanges ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        Saved
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Save'}
+                      </>
+                    )}
                   </button>
-                  <button
-                    onClick={onShare}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all font-medium text-sm border border-white/30"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    Share
-                  </button>
+
+                  {/* Share Button with Tooltip */}
+                  <div className="relative">
+                    <button
+                      ref={shareButtonRef}
+                      onClick={() => isSaved ? setShowShareModal(!showShareModal) : handleSaveClick()}
+                      onMouseEnter={() => isSaved && shareUrl && setShowShareTooltip(true)}
+                      onMouseLeave={() => setShowShareTooltip(false)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 text-white rounded-full hover:bg-white/30 transition-all font-medium text-sm border border-white/30"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      {getVisibilityLabel() ? (
+                        <>
+                          Shared · {getVisibilityLabel()}
+                          {visibility === 'curated' && <Star className="w-3 h-3 fill-amber-400 text-amber-400" />}
+                        </>
+                      ) : (
+                        'Share'
+                      )}
+                    </button>
+
+                    {/* URL Tooltip */}
+                    {showShareTooltip && shareUrl && !showShareModal && (
+                      <div className="absolute top-full mt-2 right-0 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg whitespace-nowrap z-50">
+                        <div className="flex items-center gap-1.5">
+                          <Link className="w-3 h-3" />
+                          {shareUrl}
+                        </div>
+                        <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 rotate-45" />
+                      </div>
+                    )}
+
+                    {/* Share Modal */}
+                    {showShareModal && shareUrl && (
+                      <ShareModal
+                        isOpen={showShareModal}
+                        onClose={() => setShowShareModal(false)}
+                        shareUrl={shareUrl}
+                        currentVisibility={visibility}
+                        curatorInfo={curatorInfo}
+                        onUpdateVisibility={handleUpdateVisibility}
+                        isUpdating={isUpdatingVisibility}
+                      />
+                    )}
+                  </div>
                 </>
               ) : (
                 <button
@@ -549,8 +649,8 @@ export default function ItineraryDisplay({
             </div>
           </div>
 
-          {/* Share URL */}
-          {shareUrl && (
+          {/* Share URL - Only show when shared publicly */}
+          {shareUrl && visibility !== 'private' && (
             <div className="mb-6 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 flex items-center gap-3">
               <Share2 className="w-5 h-5 text-white flex-shrink-0" />
               <input

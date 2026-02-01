@@ -16,19 +16,40 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const result = await query(
-      `SELECT
+    const { searchParams } = new URL(request.url);
+    const itemId = searchParams.get('itemId');
+
+    // Build query based on whether we're filtering by item
+    let queryStr: string;
+    let queryParams: any[];
+
+    if (itemId) {
+      // Get discussions for specific activity
+      queryStr = `SELECT
         d.*,
         u.email as user_email,
         u.full_name as user_name,
-        u.avatar_url as user_avatar,
         (SELECT COUNT(*) FROM discussions WHERE parent_id = d.id) as reply_count
        FROM discussions d
        LEFT JOIN users u ON d.user_id = u.id
-       WHERE d.trip_id = $1
-       ORDER BY d.created_at ASC`,
-      [id]
-    );
+       WHERE d.trip_id = $1 AND d.itinerary_item_id = $2
+       ORDER BY d.created_at ASC`;
+      queryParams = [id, itemId];
+    } else {
+      // Get general trip discussions (no item_id)
+      queryStr = `SELECT
+        d.*,
+        u.email as user_email,
+        u.full_name as user_name,
+        (SELECT COUNT(*) FROM discussions WHERE parent_id = d.id) as reply_count
+       FROM discussions d
+       LEFT JOIN users u ON d.user_id = u.id
+       WHERE d.trip_id = $1 AND d.itinerary_item_id IS NULL
+       ORDER BY d.created_at ASC`;
+      queryParams = [id];
+    }
+
+    const result = await query(queryStr, queryParams);
 
     // Build threaded structure
     const discussions = result.rows;
@@ -76,6 +97,7 @@ export async function POST(
       return NextResponse.json({ error: 'Trip not found or access denied' }, { status: 403 });
     }
 
+    // Insert and return with user info
     const result = await query(
       `INSERT INTO discussions (trip_id, user_id, content, parent_id, itinerary_item_id)
        VALUES ($1, $2, $3, $4, $5)
@@ -89,7 +111,19 @@ export async function POST(
       ]
     );
 
-    return NextResponse.json({ discussion: result.rows[0] }, { status: 201 });
+    // Get user info to include in response
+    const userResult = await query(
+      `SELECT email, full_name FROM users WHERE id = $1`,
+      [user.id]
+    );
+
+    const discussion = {
+      ...result.rows[0],
+      user_email: userResult.rows[0]?.email || user.email,
+      user_name: userResult.rows[0]?.full_name || null,
+    };
+
+    return NextResponse.json({ discussion }, { status: 201 });
   } catch (error: any) {
     console.error('Failed to create discussion:', error);
 

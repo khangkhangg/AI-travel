@@ -49,11 +49,24 @@ export async function GET(
       [id]
     );
 
-    // Get itinerary items
+    // Get itinerary items with votes and comment counts
     const itemsResult = await query(
-      `SELECT * FROM itinerary_items
-       WHERE trip_id = $1
-       ORDER BY day_number, order_index`,
+      `SELECT
+        i.*,
+        COALESCE(
+          (SELECT json_agg(json_build_object(
+            'id', v.id,
+            'user_id', v.user_id,
+            'vote', v.vote
+          ))
+          FROM activity_votes v
+          WHERE v.itinerary_item_id = i.id),
+          '[]'
+        ) as votes,
+        (SELECT COUNT(*) FROM discussions d WHERE d.itinerary_item_id = i.id) as comment_count
+       FROM itinerary_items i
+       WHERE i.trip_id = $1
+       ORDER BY i.day_number, i.order_index`,
       [id]
     );
 
@@ -95,7 +108,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, visibility } = body;
+    const { title, visibility, curatorInfo, chatHistory, itinerary, travelers, destination } = body;
 
     // Check if user has edit permissions
     const permissionCheck = await query(
@@ -117,13 +130,65 @@ export async function PATCH(
       values.push(title);
     }
 
+    if (destination !== undefined) {
+      updates.push(`city = $${paramIndex++}`);
+      values.push(destination);
+    }
+
     if (visibility !== undefined) {
       updates.push(`visibility = $${paramIndex++}`);
       values.push(visibility);
     }
 
-    if (updates.length === 0) {
+    if (chatHistory !== undefined) {
+      updates.push(`chat_history = $${paramIndex++}`);
+      values.push(JSON.stringify(chatHistory));
+    }
+
+    if (itinerary !== undefined || travelers !== undefined) {
+      // Get current generated_content to merge
+      const currentResult = await query('SELECT generated_content FROM trips WHERE id = $1', [id]);
+      const currentContent = currentResult.rows[0]?.generated_content || {};
+
+      const newContent = {
+        ...currentContent,
+        ...(itinerary !== undefined && { itinerary }),
+        ...(travelers !== undefined && { travelers }),
+      };
+      updates.push(`generated_content = $${paramIndex++}`);
+      values.push(JSON.stringify(newContent));
+    }
+
+    // Handle curator info fields for 'curated' visibility
+    if (curatorInfo && visibility === 'curated') {
+      if (curatorInfo.isLocal) {
+        updates.push(`curator_is_local = $${paramIndex++}`);
+        values.push(curatorInfo.isLocal);
+      }
+      if (curatorInfo.yearsLived) {
+        updates.push(`curator_years_lived = $${paramIndex++}`);
+        values.push(curatorInfo.yearsLived);
+      }
+      if (curatorInfo.experience) {
+        updates.push(`curator_experience = $${paramIndex++}`);
+        values.push(curatorInfo.experience);
+      }
+    } else if (visibility && visibility !== 'curated') {
+      // Clear curator fields if switching away from curated
+      updates.push(`curator_is_local = NULL`);
+      updates.push(`curator_years_lived = NULL`);
+      updates.push(`curator_experience = NULL`);
+    }
+
+    // Allow empty updates if we're just refreshing the trip
+    if (updates.length === 0 && !chatHistory && !itinerary && !travelers) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
+    }
+
+    if (updates.length === 0) {
+      // Only generated_content updates, still need to return current trip
+      const result = await query('SELECT * FROM trips WHERE id = $1', [id]);
+      return NextResponse.json({ trip: result.rows[0] });
     }
 
     updates.push(`updated_at = NOW()`);

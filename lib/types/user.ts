@@ -164,7 +164,18 @@ export interface UserSummary {
 }
 
 // Itinerary types
-export type ItineraryVisibility = 'public' | 'private' | 'marketplace';
+export type ItineraryVisibility = 'public' | 'private' | 'marketplace' | 'curated';
+
+// Curator expertise options
+export type CuratorIsLocal = 'yes_live_here' | 'visited_multiple' | 'first_detailed_trip';
+export type CuratorYearsLived = 'less_than_1' | '1_2_years' | '3_5_years' | '5_plus_years' | 'na_visitor';
+export type CuratorExperience = 'first_time' | 'visited_2_5' | 'visited_10_plus' | 'local_expert';
+
+export interface CuratorInfo {
+  isLocal: CuratorIsLocal;
+  yearsLived: CuratorYearsLived;
+  experience: CuratorExperience;
+}
 
 export interface Itinerary {
   id: string;
@@ -184,6 +195,8 @@ export interface Itinerary {
   clonedFromId?: string;
   createdAt: string;
   updatedAt: string;
+  // Curator fields (for 'curated' visibility)
+  curatorInfo?: CuratorInfo;
   // Populated fields (partial user info for list views)
   user?: UserSummary;
   collaborators?: ItineraryCollaborator[];

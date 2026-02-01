@@ -26,6 +26,7 @@ import {
   Hotel,
   Star,
   MapPin,
+  Users,
 } from 'lucide-react';
 import TourBrowser from '@/components/tours/TourBrowser';
 import { Tour } from '@/lib/types/tour';
@@ -86,21 +87,28 @@ interface SelectedHotels {
 
 interface ChatPanelProps {
   initialPrompt?: string;
+  initialMessages?: Message[];
   parentItinerary?: ItineraryDay[];
   selectedHotels?: SelectedHotels;
   onItineraryGenerated?: (itinerary: ItineraryDay[]) => void;
   onConversationStart?: () => void;
   onContextUpdate?: (context: TripContext) => void;
+  onMessagesChange?: (messages: Message[]) => void;
 }
 
 const smartTags = [
-  { label: '+1 day', icon: Plus, color: 'bg-teal-100 text-teal-700 hover:bg-teal-200', needsInput: true, placeholder: 'What activities to add? e.g., beach day, city tour, rest day', prefix: 'Add one more day to the trip with: ' },
-  { label: '-1 day', icon: Minus, color: 'bg-rose-100 text-rose-700 hover:bg-rose-200', needsInput: true, placeholder: 'Which day to remove? e.g., day 3, or the shopping day', prefix: 'Remove from the itinerary: ' },
+  { label: '1 day', icon: Plus, color: 'bg-teal-100 text-teal-700 hover:bg-teal-200', needsInput: true, placeholder: 'What activities to add? e.g., beach day, city tour, rest day', prefix: 'Add one more day to the trip with: ' },
+  { label: '1 day', icon: Minus, color: 'bg-rose-100 text-rose-700 hover:bg-rose-200', needsInput: true, placeholder: 'Which day to remove? e.g., day 3, or the shopping day', prefix: 'Remove from the itinerary: ' },
   { label: 'More food', icon: Utensils, color: 'bg-amber-100 text-amber-700 hover:bg-amber-200', needsInput: true, placeholder: 'What cuisine? e.g., local street food, fine dining, seafood', prefix: 'Add more food experiences to the trip: ' },
   { label: 'Sightseeing', icon: Camera, color: 'bg-violet-100 text-violet-700 hover:bg-violet-200', needsInput: true, placeholder: 'What to see? e.g., historical sites, viewpoints, landmarks', prefix: 'Add more sightseeing activities: ' },
   { label: 'Swap days', icon: RefreshCw, color: 'bg-blue-100 text-blue-700 hover:bg-blue-200', needsInput: true, placeholder: 'e.g., swap day 2 with day 3, or move beach day to day 1', prefix: 'Please adjust the itinerary: ' },
   { label: 'Weather plan', icon: Sun, color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200', needsInput: true, placeholder: 'Weather concern? e.g., rainy day backup, too hot, indoor alternatives', prefix: 'Adjust the plan for weather: ' },
 ];
+
+// Strip hidden TRIP_DATA metadata from AI responses before display
+function stripHiddenMetadata(content: string): string {
+  return content.replace(/<!--TRIP_DATA[\s\S]*?TRIP_DATA-->/g, '').trim();
+}
 
 // Check if an activity is actually a cost summary item (not a real activity)
 function isCostSummaryItem(time: string, title: string): boolean {
@@ -242,6 +250,48 @@ function parseItineraryFromResponse(response: string): ItineraryDay[] {
 // Extract trip context from conversation
 function extractTripContext(messages: Message[]): TripContext {
   const context: TripContext = {};
+
+  // First, try to parse structured TRIP_DATA from AI responses (most reliable)
+  // Look for the hidden metadata block that AI includes in responses
+  for (const msg of [...messages].reverse()) {
+    if (msg.role === 'assistant') {
+      const tripDataMatch = msg.content.match(/<!--TRIP_DATA\n([\s\S]*?)\nTRIP_DATA-->/);
+      if (tripDataMatch) {
+        const dataBlock = tripDataMatch[1];
+
+        // Parse destination
+        const destMatch = dataBlock.match(/destination:\s*(.+)/i);
+        if (destMatch && destMatch[1].trim()) {
+          context.destination = destMatch[1].trim();
+        }
+
+        // Parse duration
+        const durMatch = dataBlock.match(/duration:\s*(.+)/i);
+        if (durMatch && durMatch[1].trim()) {
+          context.duration = durMatch[1].trim();
+        }
+
+        // Parse budget
+        const budgetMatch = dataBlock.match(/budget:\s*(.+)/i);
+        if (budgetMatch && budgetMatch[1].trim()) {
+          context.budget = budgetMatch[1].trim();
+        }
+
+        // Parse travelers
+        const travelersMatch = dataBlock.match(/travelers:\s*(\d+)/i);
+        if (travelersMatch) {
+          context.travelers = parseInt(travelersMatch[1]);
+        }
+
+        // If we found structured data, use it as the primary source
+        if (context.destination || context.duration || context.budget || context.travelers) {
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback: extract from conversation text if no structured data found
   const allText = messages.map(m => m.content).join(' ').toLowerCase();
 
   // Common phrases that should NOT be detected as destinations
@@ -252,13 +302,28 @@ function extractTripContext(messages: Message[]): TripContext {
     'you', 'me', 'us', 'them', 'it', 'that', 'this', 'here', 'there',
   ];
 
-  // Extract destination
-  const destMatch = allText.match(/(?:to|visit|in|going to)\s+([A-Z][a-zA-Z\s]+?)(?:\.|,|!|\?|for|with|\s+is)/i);
-  if (destMatch) {
-    const potentialDest = destMatch[1].trim().toLowerCase();
-    // Only set destination if it's not an excluded phrase
-    if (!excludedPhrases.some(phrase => potentialDest === phrase || potentialDest.startsWith(phrase + ' '))) {
-      context.destination = destMatch[1].trim();
+  // If no destination from structured data, try regex patterns
+  if (!context.destination) {
+    const destPatterns = [
+      // AI response patterns
+      /(?:trip to|itinerary for|planning for|welcome to|exploring|adventure in|visiting)\s+([a-z][a-z\s]{2,25}?)(?:\.|,|!|\?|for|with|and|\s+is|\s*$)/i,
+      // User input patterns
+      /(?:to|visit|in|going to|explore|see|travel to)\s+([a-z][a-z\s]{2,25}?)(?:\.|,|!|\?|for|with|and|\s+is|\s*$)/i,
+      // "I want [destination]" or "let's go [destination]"
+      /(?:i want|let's go|take me to|show me)\s+([a-z][a-z\s]{2,25}?)(?:\.|,|!|\?|$)/i,
+    ];
+
+    for (const pattern of destPatterns) {
+      const destMatch = allText.match(pattern);
+      if (destMatch) {
+        const potentialDest = destMatch[1].trim().toLowerCase();
+        if (!excludedPhrases.some(phrase => potentialDest === phrase || potentialDest.startsWith(phrase + ' '))) {
+          context.destination = potentialDest.split(' ').map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1)
+          ).join(' ');
+          break;
+        }
+      }
     }
   }
 
@@ -364,21 +429,25 @@ function getMissingSuggestions(context: TripContext, hasItinerary: boolean): { l
 
 // Command menu options for "/" trigger
 const commandOptions = [
-  { id: 'location', label: 'Location', icon: '📍', placeholder: 'Where do you want to go?', prefix: 'I want to visit ' },
-  { id: 'duration', label: 'Duration', icon: '📅', placeholder: 'How many days?', prefix: "I'm planning a ", suffix: ' day trip' },
-  { id: 'budget', label: 'Budget', icon: '💰', placeholder: 'What\'s your budget?', prefix: 'My budget is $', adjustPrefix: 'Please adjust the trip plan to fit a budget of $', adjustPlaceholder: 'Enter new budget amount' },
-  { id: 'travelers', label: 'Travelers', icon: '👥', placeholder: 'How many people?', prefix: "We're ", suffix: ' people traveling' },
+  { id: 'location', label: 'Location', icon: <MapPin className="w-4 h-4" />, placeholder: 'Where do you want to go?', prefix: 'I want to visit ' },
+  { id: 'duration', label: 'Duration', icon: <Calendar className="w-4 h-4" />, placeholder: 'How many days?', prefix: "I'm planning a ", suffix: ' day trip' },
+  { id: 'budget', label: 'Budget', icon: <DollarSign className="w-4 h-4" />, placeholder: 'What\'s your budget?', prefix: 'My budget is $', adjustPrefix: 'Please adjust the trip plan to fit a budget of $', adjustPlaceholder: 'Enter new budget amount' },
+  { id: 'travelers', label: 'Travelers', icon: <Users className="w-4 h-4" />, placeholder: 'How many people?', prefix: "We're ", suffix: ' people traveling' },
 ];
 
-export default function ChatPanel({ initialPrompt, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: "Hi! I'm your travel planning assistant. Tell me about your dream trip, or pick a destination to get started!",
-      timestamp: new Date(),
-    },
-  ]);
+const DEFAULT_WELCOME_MESSAGE: Message = {
+  id: '1',
+  role: 'assistant',
+  content: "Hi! I'm your travel planning assistant. Tell me about your dream trip, or pick a destination to get started!",
+  timestamp: new Date(),
+};
+
+export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange }: ChatPanelProps) {
+  const [messages, setMessages] = useState<Message[]>(
+    initialMessages && initialMessages.length > 0
+      ? initialMessages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
+      : [DEFAULT_WELCOME_MESSAGE]
+  );
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [itinerary, setItinerary] = useState<ItineraryDay[] | null>(null);
@@ -592,15 +661,13 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
 
   // Check which info is filled
   const getFilledInfo = () => {
-    const filled: { id: string; label: string; value: string; icon: string }[] = [];
+    const filled: { id: string; label: string; value: string }[] = [];
 
-    // Check collectedInfo first
     if (collectedInfo.location || tripContext.destination) {
       filled.push({
         id: 'location',
         label: 'Location',
         value: collectedInfo.location || tripContext.destination || '',
-        icon: '📍'
       });
     }
     if (collectedInfo.duration || tripContext.duration) {
@@ -608,7 +675,6 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
         id: 'duration',
         label: 'Duration',
         value: collectedInfo.duration || tripContext.duration || '',
-        icon: '📅'
       });
     }
     if (collectedInfo.budget || tripContext.budget) {
@@ -616,7 +682,6 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
         id: 'budget',
         label: 'Budget',
         value: collectedInfo.budget || tripContext.budget || '',
-        icon: '💰'
       });
     }
     if (collectedInfo.travelers || tripContext.travelers) {
@@ -624,7 +689,6 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
         id: 'travelers',
         label: 'Travelers',
         value: collectedInfo.travelers || (tripContext.travelers ? `${tripContext.travelers} people` : ''),
-        icon: '👥'
       });
     }
 
@@ -728,6 +792,13 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
     scrollToBottom();
   }, [messages]);
 
+  // Notify parent when messages change (for saving to database)
+  useEffect(() => {
+    if (onMessagesChange && messages.length > 1) {
+      onMessagesChange(messages);
+    }
+  }, [messages, onMessagesChange]);
+
   // Sync collected info from trip context (smart detection from messages)
   useEffect(() => {
     if (tripContext.destination && !collectedInfo.location) {
@@ -749,6 +820,28 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
       handleSendMessage(initialPrompt);
     }
   }, [initialPrompt]);
+
+  // Parse initial messages to restore trip context and itinerary when resuming
+  useEffect(() => {
+    if (initialMessages && initialMessages.length > 0) {
+      // Extract trip context from loaded messages
+      const context = extractTripContext(messages);
+      setTripContext(context);
+      onContextUpdate?.(context);
+
+      // Try to parse itinerary from the last assistant message
+      for (const msg of [...messages].reverse()) {
+        if (msg.role === 'assistant') {
+          const parsedItinerary = parseItineraryFromResponse(msg.content);
+          if (parsedItinerary.length > 0) {
+            setItinerary(parsedItinerary);
+            onItineraryGenerated?.(parsedItinerary);
+            break;
+          }
+        }
+      }
+    }
+  }, []); // Only run once on mount
 
   const handleSendMessage = async (text?: string) => {
     const messageText = text || input;
@@ -958,7 +1051,7 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
                         prose-th:bg-teal-50 prose-th:text-teal-800 prose-th:px-2 prose-th:py-1 prose-th:border prose-th:border-gray-200 prose-th:font-semibold
                         prose-td:px-2 prose-td:py-1 prose-td:border prose-td:border-gray-200
                         [&>*:first-child]:mt-0">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripHiddenMetadata(message.content)}</ReactMarkdown>
                       </div>
                     )}
                   </div>
@@ -999,10 +1092,12 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
                             : 'bg-gray-100 border border-gray-200 text-gray-500 hover:bg-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <span className="text-sm">{cmd.icon}</span>
+                        {cmd.icon}
                         {filled ? (
                           <>
-                            <span className="truncate max-w-[80px]">{filled.value}</span>
+                            <span className="truncate max-w-[80px]">
+                              {cmd.id === 'budget' ? filled.value.replace(/^\$/, '') : filled.value}
+                            </span>
                             <span className="text-teal-500 ml-1">✓</span>
                           </>
                         ) : (
@@ -1097,7 +1192,7 @@ export default function ChatPanel({ initialPrompt, parentItinerary, selectedHote
                               : 'hover:bg-gray-100'
                           }`}
                         >
-                          <span className="text-lg">{cmd.icon}</span>
+                          <span className="text-gray-500">{cmd.icon}</span>
                           <div className="flex-1">
                             <span className={`text-sm font-medium ${isFilled ? 'text-teal-700' : 'text-gray-700'}`}>
                               /{cmd.id}

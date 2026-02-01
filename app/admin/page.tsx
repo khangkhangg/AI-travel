@@ -23,6 +23,7 @@ import {
   Server,
   Loader2,
   RefreshCw,
+  Mail,
 } from 'lucide-react';
 
 interface AppSettings {
@@ -38,6 +39,24 @@ interface AppSettings {
   // Database
   databaseUrl: string;
   hasDatabaseConfig: boolean;
+  // AI URL Parsing
+  aiUrlParsingEnabled: boolean;
+  // Email
+  emailProvider: string;
+  emailFrom: string;
+  emailFromName: string;
+  emailApiKey: string;
+  hasEmailConfig: boolean;
+  // SMTP specific
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPass: string;
+  smtpSecure: boolean;
+  // SES specific
+  awsSesRegion: string;
+  awsAccessKeyId: string;
+  awsSecretKey: string;
 }
 
 export default function AdminDashboard() {
@@ -58,6 +77,25 @@ export default function AdminDashboard() {
   const [showDatabaseUrl, setShowDatabaseUrl] = useState(false);
   const [testStatus, setTestStatus] = useState<{ type: string; status: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ type: '', status: 'idle' });
   const [restartRequired, setRestartRequired] = useState(false);
+  // Email settings state
+  const [emailProvider, setEmailProvider] = useState('disabled');
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailFromName, setEmailFromName] = useState('');
+  const [emailApiKey, setEmailApiKey] = useState('');
+  const [showEmailApiKey, setShowEmailApiKey] = useState(false);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPass, setSmtpPass] = useState('');
+  const [showSmtpPass, setShowSmtpPass] = useState(false);
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [awsSesRegion, setAwsSesRegion] = useState('us-east-1');
+  const [awsAccessKeyId, setAwsAccessKeyId] = useState('');
+  const [awsSecretKey, setAwsSecretKey] = useState('');
+  const [showAwsSecretKey, setShowAwsSecretKey] = useState(false);
+  // Test email
+  const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [emailTestStatus, setEmailTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ status: 'idle' });
   const router = useRouter();
 
   useEffect(() => {
@@ -90,6 +128,14 @@ export default function AdminDashboard() {
         }
         const data = await res.json();
         setSettings(data);
+        // Populate email settings
+        if (data.emailProvider) setEmailProvider(data.emailProvider);
+        if (data.emailFrom) setEmailFrom(data.emailFrom);
+        if (data.emailFromName) setEmailFromName(data.emailFromName);
+        if (data.smtpHost) setSmtpHost(data.smtpHost);
+        if (data.smtpPort) setSmtpPort(String(data.smtpPort));
+        if (data.smtpSecure) setSmtpSecure(data.smtpSecure);
+        if (data.awsSesRegion) setAwsSesRegion(data.awsSesRegion);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -103,6 +149,7 @@ export default function AdminDashboard() {
         chatEnabled: settings?.chatEnabled,
         maxTokens: settings?.maxTokens,
         systemPrompt: settings?.systemPrompt,
+        aiUrlParsingEnabled: settings?.aiUrlParsingEnabled,
       };
 
       if (newApiKey) {
@@ -120,6 +167,20 @@ export default function AdminDashboard() {
       if (newDatabaseUrl) {
         payload.databaseUrl = newDatabaseUrl;
       }
+
+      // Email settings
+      payload.emailProvider = emailProvider;
+      if (emailFrom) payload.emailFrom = emailFrom;
+      if (emailFromName) payload.emailFromName = emailFromName;
+      if (emailApiKey) payload.emailApiKey = emailApiKey;
+      if (smtpHost) payload.smtpHost = smtpHost;
+      if (smtpPort) payload.smtpPort = parseInt(smtpPort);
+      if (smtpUser) payload.smtpUser = smtpUser;
+      if (smtpPass) payload.smtpPass = smtpPass;
+      payload.smtpSecure = smtpSecure;
+      if (awsSesRegion) payload.awsSesRegion = awsSesRegion;
+      if (awsAccessKeyId) payload.awsAccessKeyId = awsAccessKeyId;
+      if (awsSecretKey) payload.awsSecretKey = awsSecretKey;
 
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
@@ -181,6 +242,51 @@ export default function AdminDashboard() {
     } catch (err: any) {
       setTestStatus({ type, status: 'error', message: err.message });
       setTimeout(() => setTestStatus({ type: '', status: 'idle' }), 5000);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!testEmailAddress) {
+      setEmailTestStatus({ status: 'error', message: 'Please enter a test email address' });
+      setTimeout(() => setEmailTestStatus({ status: 'idle' }), 3000);
+      return;
+    }
+
+    setEmailTestStatus({ status: 'testing' });
+
+    try {
+      const res = await fetch('/api/admin/test-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: emailProvider,
+          emailFrom: emailFrom || settings?.emailFrom,
+          emailFromName: emailFromName || settings?.emailFromName,
+          emailApiKey: emailApiKey || settings?.emailApiKey,
+          smtpHost: smtpHost || settings?.smtpHost,
+          smtpPort: parseInt(smtpPort) || settings?.smtpPort,
+          smtpUser: smtpUser || settings?.smtpUser,
+          smtpPass: smtpPass || settings?.smtpPass,
+          smtpSecure: smtpSecure,
+          awsSesRegion: awsSesRegion || settings?.awsSesRegion,
+          awsAccessKeyId: awsAccessKeyId,
+          awsSecretKey: awsSecretKey,
+          testEmail: testEmailAddress,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setEmailTestStatus({ status: 'success', message: data.message });
+      } else {
+        setEmailTestStatus({ status: 'error', message: data.error });
+      }
+
+      setTimeout(() => setEmailTestStatus({ status: 'idle' }), 5000);
+    } catch (err: any) {
+      setEmailTestStatus({ status: 'error', message: err.message });
+      setTimeout(() => setEmailTestStatus({ status: 'idle' }), 5000);
     }
   };
 
@@ -836,6 +942,320 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* Email Configuration */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Email Configuration</h3>
+                    <p className="text-sm text-gray-600">Configure email provider for invite notifications</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Current Status */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    {settings?.hasEmailConfig ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-gray-400" />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {settings?.hasEmailConfig
+                          ? `Email Configured (${settings.emailProvider})`
+                          : 'Email Not Configured'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {settings?.hasEmailConfig
+                          ? 'Invite emails will be sent automatically'
+                          : 'Share links will be used instead of email invites'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email Provider Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Provider
+                  </label>
+                  <select
+                    value={emailProvider}
+                    onChange={(e) => setEmailProvider(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                  >
+                    <option value="disabled">Disabled (Share links only)</option>
+                    <option value="resend">Resend (100/day free)</option>
+                    <option value="sendgrid">SendGrid (100/day free)</option>
+                    <option value="ses">AWS SES (62K/month if on EC2)</option>
+                    <option value="smtp">SMTP (Custom mail server)</option>
+                  </select>
+                </div>
+
+                {/* From Email */}
+                {emailProvider !== 'disabled' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          From Email
+                        </label>
+                        <input
+                          type="email"
+                          value={emailFrom}
+                          onChange={(e) => setEmailFrom(e.target.value)}
+                          placeholder="invites@yourdomain.com"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          From Name
+                        </label>
+                        <input
+                          type="text"
+                          value={emailFromName}
+                          onChange={(e) => setEmailFromName(e.target.value)}
+                          placeholder="AI Travel"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Resend/SendGrid API Key */}
+                {(emailProvider === 'resend' || emailProvider === 'sendgrid') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      API Key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showEmailApiKey ? 'text' : 'password'}
+                        value={emailApiKey}
+                        onChange={(e) => setEmailApiKey(e.target.value)}
+                        placeholder={emailProvider === 'resend' ? 're_...' : 'SG...'}
+                        className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailApiKey(!showEmailApiKey)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showEmailApiKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500">
+                      Get your API key from{' '}
+                      <a
+                        href={emailProvider === 'resend' ? 'https://resend.com/api-keys' : 'https://app.sendgrid.com/settings/api_keys'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-pink-600 hover:underline"
+                      >
+                        {emailProvider === 'resend' ? 'resend.com' : 'sendgrid.com'}
+                      </a>
+                    </p>
+                  </div>
+                )}
+
+                {/* AWS SES Configuration */}
+                {emailProvider === 'ses' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        AWS Region
+                      </label>
+                      <select
+                        value={awsSesRegion}
+                        onChange={(e) => setAwsSesRegion(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                      >
+                        <option value="us-east-1">US East (N. Virginia)</option>
+                        <option value="us-west-2">US West (Oregon)</option>
+                        <option value="eu-west-1">EU (Ireland)</option>
+                        <option value="eu-central-1">EU (Frankfurt)</option>
+                        <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                        <option value="ap-southeast-2">Asia Pacific (Sydney)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        AWS Access Key ID
+                      </label>
+                      <input
+                        type="text"
+                        value={awsAccessKeyId}
+                        onChange={(e) => setAwsAccessKeyId(e.target.value)}
+                        placeholder="AKIA..."
+                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        AWS Secret Access Key
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showAwsSecretKey ? 'text' : 'password'}
+                          value={awsSecretKey}
+                          onChange={(e) => setAwsSecretKey(e.target.value)}
+                          placeholder="Your secret key..."
+                          className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAwsSecretKey(!showAwsSecretKey)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showAwsSecretKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* SMTP Configuration */}
+                {emailProvider === 'smtp' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          SMTP Host
+                        </label>
+                        <input
+                          type="text"
+                          value={smtpHost}
+                          onChange={(e) => setSmtpHost(e.target.value)}
+                          placeholder="smtp.gmail.com"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          SMTP Port
+                        </label>
+                        <input
+                          type="number"
+                          value={smtpPort}
+                          onChange={(e) => setSmtpPort(e.target.value)}
+                          placeholder="587"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          SMTP Username
+                        </label>
+                        <input
+                          type="text"
+                          value={smtpUser}
+                          onChange={(e) => setSmtpUser(e.target.value)}
+                          placeholder="your@email.com"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          SMTP Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showSmtpPass ? 'text' : 'password'}
+                            value={smtpPass}
+                            onChange={(e) => setSmtpPass(e.target.value)}
+                            placeholder="App password..."
+                            className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPass(!showSmtpPass)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            {showSmtpPass ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">Use TLS/SSL</p>
+                        <p className="text-sm text-gray-500">Enable for port 465 (SSL) or 587 (TLS)</p>
+                      </div>
+                      <button
+                        onClick={() => setSmtpSecure(!smtpSecure)}
+                        className={`relative w-14 h-8 rounded-full transition-colors ${
+                          smtpSecure ? 'bg-pink-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                            smtpSecure ? 'left-7' : 'left-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* Test Email Section */}
+                {emailProvider !== 'disabled' && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <h4 className="font-medium text-gray-900 mb-3">Test Configuration</h4>
+                    <div className="flex gap-3">
+                      <input
+                        type="email"
+                        value={testEmailAddress}
+                        onChange={(e) => setTestEmailAddress(e.target.value)}
+                        placeholder="Enter your email to test"
+                        className="flex-1 px-4 py-2 rounded-xl border border-gray-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                      />
+                      <button
+                        onClick={handleTestEmail}
+                        disabled={emailTestStatus.status === 'testing'}
+                        className="px-4 py-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+                      >
+                        {emailTestStatus.status === 'testing' ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="w-4 h-4" />
+                            Send Test
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    {/* Test Result */}
+                    {emailTestStatus.status !== 'idle' && emailTestStatus.status !== 'testing' && (
+                      <div className={`mt-3 p-3 rounded-xl flex items-start gap-2 ${
+                        emailTestStatus.status === 'success' ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'
+                      }`}>
+                        {emailTestStatus.status === 'success' ? (
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        )}
+                        <p className={`text-sm ${emailTestStatus.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                          {emailTestStatus.message}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Chat Settings */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200">
@@ -865,6 +1285,26 @@ export default function AdminDashboard() {
                     <div
                       className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
                         settings?.chatEnabled ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* AI URL Parsing Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">Enable AI URL Parsing</p>
+                    <p className="text-sm text-gray-500">Use AI to extract place info from non-Google URLs (costs tokens)</p>
+                  </div>
+                  <button
+                    onClick={() => setSettings(s => s ? { ...s, aiUrlParsingEnabled: !s.aiUrlParsingEnabled } : s)}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      settings?.aiUrlParsingEnabled ? 'bg-teal-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                        settings?.aiUrlParsingEnabled ? 'left-7' : 'left-1'
                       }`}
                     />
                   </button>

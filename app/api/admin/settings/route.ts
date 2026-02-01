@@ -16,6 +16,21 @@ interface Settings {
   supabaseAnonKey: string;
   // Database Configuration
   databaseUrl: string;
+  // AI URL Parsing
+  aiUrlParsingEnabled: boolean;
+  // Email Configuration
+  emailProvider: string;
+  emailFrom: string;
+  emailFromName: string;
+  emailApiKey: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPass: string;
+  smtpSecure: boolean;
+  awsSesRegion: string;
+  awsAccessKeyId: string;
+  awsSecretKey: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -26,6 +41,21 @@ const DEFAULT_SETTINGS: Settings = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
   databaseUrl: process.env.DATABASE_URL || '',
+  // AI URL Parsing - disabled by default to save costs
+  aiUrlParsingEnabled: false,
+  // Email - load from env
+  emailProvider: process.env.EMAIL_PROVIDER || 'disabled',
+  emailFrom: process.env.EMAIL_FROM || '',
+  emailFromName: process.env.EMAIL_FROM_NAME || 'AI Travel',
+  emailApiKey: process.env.EMAIL_API_KEY || '',
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: parseInt(process.env.SMTP_PORT || '587'),
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  smtpSecure: process.env.SMTP_SECURE === 'true',
+  awsSesRegion: process.env.AWS_SES_REGION || 'us-east-1',
+  awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+  awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   systemPrompt: `You are a helpful AI travel planning assistant for Wanderlust. Help users plan their dream trips with PRECISE and DETAILED itineraries.
 
 When creating itineraries, ALWAYS include:
@@ -171,6 +201,25 @@ export async function GET() {
       ? settings.databaseUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')
       : '',
     hasDatabaseConfig: !!settings.databaseUrl,
+    // AI URL Parsing
+    aiUrlParsingEnabled: settings.aiUrlParsingEnabled ?? false,
+    // Email Configuration
+    emailProvider: settings.emailProvider || 'disabled',
+    emailFrom: settings.emailFrom || '',
+    emailFromName: settings.emailFromName || '',
+    emailApiKey: settings.emailApiKey
+      ? `${settings.emailApiKey.slice(0, 8)}...`
+      : '',
+    hasEmailConfig: settings.emailProvider !== 'disabled' && (
+      (settings.emailProvider === 'resend' && !!settings.emailApiKey) ||
+      (settings.emailProvider === 'sendgrid' && !!settings.emailApiKey) ||
+      (settings.emailProvider === 'ses' && !!settings.awsAccessKeyId && !!settings.awsSecretKey) ||
+      (settings.emailProvider === 'smtp' && !!settings.smtpHost && !!settings.smtpUser)
+    ),
+    smtpHost: settings.smtpHost || '',
+    smtpPort: settings.smtpPort || 587,
+    smtpSecure: settings.smtpSecure || false,
+    awsSesRegion: settings.awsSesRegion || 'us-east-1',
   };
 
   return NextResponse.json(maskedSettings);
@@ -191,6 +240,7 @@ export async function POST(request: NextRequest) {
       chatEnabled: body.chatEnabled ?? currentSettings.chatEnabled,
       maxTokens: body.maxTokens ?? currentSettings.maxTokens,
       systemPrompt: body.systemPrompt ?? currentSettings.systemPrompt,
+      aiUrlParsingEnabled: body.aiUrlParsingEnabled ?? currentSettings.aiUrlParsingEnabled,
     };
 
     // Only update API key if provided (not masked value)
@@ -213,6 +263,44 @@ export async function POST(request: NextRequest) {
       updatedSettings.databaseUrl = body.databaseUrl;
     }
 
+    // Update Email Configuration
+    if (body.emailProvider !== undefined) {
+      updatedSettings.emailProvider = body.emailProvider;
+    }
+    if (body.emailFrom !== undefined) {
+      updatedSettings.emailFrom = body.emailFrom;
+    }
+    if (body.emailFromName !== undefined) {
+      updatedSettings.emailFromName = body.emailFromName;
+    }
+    if (body.emailApiKey && !body.emailApiKey.includes('...')) {
+      updatedSettings.emailApiKey = body.emailApiKey;
+    }
+    if (body.smtpHost !== undefined) {
+      updatedSettings.smtpHost = body.smtpHost;
+    }
+    if (body.smtpPort !== undefined) {
+      updatedSettings.smtpPort = body.smtpPort;
+    }
+    if (body.smtpUser !== undefined) {
+      updatedSettings.smtpUser = body.smtpUser;
+    }
+    if (body.smtpPass && !body.smtpPass.includes('...')) {
+      updatedSettings.smtpPass = body.smtpPass;
+    }
+    if (body.smtpSecure !== undefined) {
+      updatedSettings.smtpSecure = body.smtpSecure;
+    }
+    if (body.awsSesRegion !== undefined) {
+      updatedSettings.awsSesRegion = body.awsSesRegion;
+    }
+    if (body.awsAccessKeyId !== undefined) {
+      updatedSettings.awsAccessKeyId = body.awsAccessKeyId;
+    }
+    if (body.awsSecretKey && !body.awsSecretKey.includes('...')) {
+      updatedSettings.awsSecretKey = body.awsSecretKey;
+    }
+
     await saveSettings(updatedSettings);
 
     // Also update .env file for environment variables
@@ -231,6 +319,56 @@ export async function POST(request: NextRequest) {
 
     if (body.databaseUrl && !body.databaseUrl.includes('***')) {
       envUpdates['DATABASE_URL'] = body.databaseUrl;
+      envChanged = true;
+    }
+
+    // Email environment variables
+    if (body.emailProvider !== undefined) {
+      envUpdates['EMAIL_PROVIDER'] = body.emailProvider;
+      envChanged = true;
+    }
+    if (body.emailFrom) {
+      envUpdates['EMAIL_FROM'] = body.emailFrom;
+      envChanged = true;
+    }
+    if (body.emailFromName) {
+      envUpdates['EMAIL_FROM_NAME'] = body.emailFromName;
+      envChanged = true;
+    }
+    if (body.emailApiKey && !body.emailApiKey.includes('...')) {
+      envUpdates['EMAIL_API_KEY'] = body.emailApiKey;
+      envChanged = true;
+    }
+    if (body.smtpHost) {
+      envUpdates['SMTP_HOST'] = body.smtpHost;
+      envChanged = true;
+    }
+    if (body.smtpPort) {
+      envUpdates['SMTP_PORT'] = String(body.smtpPort);
+      envChanged = true;
+    }
+    if (body.smtpUser) {
+      envUpdates['SMTP_USER'] = body.smtpUser;
+      envChanged = true;
+    }
+    if (body.smtpPass && !body.smtpPass.includes('...')) {
+      envUpdates['SMTP_PASS'] = body.smtpPass;
+      envChanged = true;
+    }
+    if (body.smtpSecure !== undefined) {
+      envUpdates['SMTP_SECURE'] = String(body.smtpSecure);
+      envChanged = true;
+    }
+    if (body.awsSesRegion) {
+      envUpdates['AWS_SES_REGION'] = body.awsSesRegion;
+      envChanged = true;
+    }
+    if (body.awsAccessKeyId) {
+      envUpdates['AWS_ACCESS_KEY_ID'] = body.awsAccessKeyId;
+      envChanged = true;
+    }
+    if (body.awsSecretKey && !body.awsSecretKey.includes('...')) {
+      envUpdates['AWS_SECRET_ACCESS_KEY'] = body.awsSecretKey;
       envChanged = true;
     }
 
