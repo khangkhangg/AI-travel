@@ -39,9 +39,18 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Fraunces', Georgia, serif;
   font-weight: 600;
   line-height: 1.2;
+}
+
+/* Fraunces serif font for main app pages */
+.font-fraunces h1,
+.font-fraunces h2,
+.font-fraunces h3,
+.font-fraunces h4,
+.font-fraunces h5,
+.font-fraunces h6 {
+  font-family: 'Fraunces', Georgia, serif;
 }
 
 /* Custom scrollbar - teal theme */

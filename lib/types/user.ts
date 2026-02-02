@@ -1,8 +1,11 @@
 // User Platform Types
 
+export type ProfileVisibility = 'public' | 'private';
+
 export interface User {
   id: string;
   email: string;
+  username?: string;
   fullName: string;
   avatarUrl?: string;
   bio?: string;
@@ -11,6 +14,7 @@ export interface User {
   emailVerified: boolean;
   emailVerifiedAt?: string;
   verificationDeadline?: string;
+  profileVisibility?: ProfileVisibility;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +63,7 @@ export interface UserTravelHistory {
   notes?: string;
   lat?: number;
   lng?: number;
+  isWishlist?: boolean;
   createdAt: string;
 }
 

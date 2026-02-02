@@ -16,7 +16,10 @@ export async function GET(
         t.*,
         u.email as owner_email,
         u.full_name as owner_name,
+        u.username as owner_username,
         u.avatar_url as owner_avatar,
+        u.bio as owner_bio,
+        u.location as owner_location,
         m.display_name as ai_model_name,
         (SELECT COUNT(*) FROM trip_likes WHERE trip_id = t.id) as likes_count,
         ${user ? `(SELECT COUNT(*) > 0 FROM trip_likes WHERE trip_id = t.id AND user_id = '${user.id}') as is_liked,` : 'false as is_liked,'}
@@ -136,7 +139,10 @@ export async function GET(
     const creator = {
       id: trip.user_id,
       name: trip.owner_name || 'Trip Creator',
+      username: trip.owner_username,
       avatar_url: trip.owner_avatar,
+      bio: trip.owner_bio,
+      location: trip.owner_location,
       badges,
       trip_count: tripCount,
       countries_count: countriesCount,

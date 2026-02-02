@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
       notes: row.notes,
       lat: row.lat ? parseFloat(row.lat) : null,
       lng: row.lng ? parseFloat(row.lng) : null,
+      isWishlist: row.is_wishlist || false,
       createdAt: row.created_at,
     }));
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { city, country, year, month, notes, lat, lng } = body;
+    const { city, country, year, month, notes, lat, lng, isWishlist } = body;
 
     if (!city || !country) {
       return NextResponse.json(
@@ -59,10 +60,10 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await query(
-      `INSERT INTO user_travel_history (user_id, city, country, year, month, notes, lat, lng)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO user_travel_history (user_id, city, country, year, month, notes, lat, lng, is_wishlist)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [user.id, city, country, year || null, month || null, notes || null, lat || null, lng || null]
+      [user.id, city, country, year || null, month || null, notes || null, lat || null, lng || null, isWishlist || false]
     );
 
     // Check for globetrotter badge (10+ countries)
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
         notes: row.notes,
         lat: row.lat ? parseFloat(row.lat) : null,
         lng: row.lng ? parseFloat(row.lng) : null,
+        isWishlist: row.is_wishlist || false,
         createdAt: row.created_at,
       },
       message: 'Travel history added successfully',

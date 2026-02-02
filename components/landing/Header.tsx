@@ -14,6 +14,7 @@ export default function Header() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [tripCount, setTripCount] = useState(0);
+  const [userProfile, setUserProfile] = useState<{ username?: string; fullName?: string } | null>(null);
   const signInButtonRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -37,25 +38,37 @@ export default function Header() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch trip count when user is logged in
+  // Fetch trip count and user profile when user is logged in
   useEffect(() => {
-    const fetchTripCount = async () => {
+    const fetchUserData = async () => {
       if (!user) {
         setTripCount(0);
+        setUserProfile(null);
         return;
       }
       try {
-        const response = await fetch('/api/trips');
-        if (response.ok) {
-          const data = await response.json();
-          setTripCount(data.trips?.length || 0);
+        // Fetch trips
+        const tripsResponse = await fetch('/api/trips');
+        if (tripsResponse.ok) {
+          const tripsData = await tripsResponse.json();
+          setTripCount(tripsData.trips?.length || 0);
+        }
+
+        // Fetch user profile for username
+        const profileResponse = await fetch('/api/users');
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          setUserProfile({
+            username: profileData.user?.username,
+            fullName: profileData.user?.fullName,
+          });
         }
       } catch (error) {
-        console.error('Failed to fetch trip count:', error);
+        console.error('Failed to fetch user data:', error);
       }
     };
 
-    fetchTripCount();
+    fetchUserData();
   }, [user]);
 
   // Close user menu when clicking outside
@@ -183,16 +196,36 @@ export default function Header() {
 
                       {/* Menu Items */}
                       <div className="py-2">
+                        {/* View Public Profile - only show if user has username */}
+                        {userProfile?.username && (
+                          <button
+                            onClick={() => handleMenuItemClick(`/profile/${userProfile.username}`)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                              <User className="w-4 h-4 text-emerald-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">View Profile</p>
+                              <p className="text-xs text-gray-500">@{userProfile.username}</p>
+                            </div>
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleMenuItemClick('/profile')}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                            <Settings className="w-4 h-4 text-emerald-600" />
+                          <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                            <Settings className="w-4 h-4 text-gray-600" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">Edit Profile</p>
-                            <p className="text-xs text-gray-500">Manage your account</p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {userProfile?.username ? 'Edit Profile' : 'Set Up Profile'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {userProfile?.username ? 'Manage your account' : 'Add username & bio'}
+                            </p>
                           </div>
                         </button>
 

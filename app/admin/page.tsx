@@ -24,6 +24,13 @@ import {
   Loader2,
   RefreshCw,
   Mail,
+  Palette,
+  Ban,
+  UserCheck,
+  Edit2,
+  Trash2,
+  Search,
+  MoreVertical,
 } from 'lucide-react';
 
 interface AppSettings {
@@ -59,12 +66,32 @@ interface AppSettings {
   awsSecretKey: string;
 }
 
+interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string;
+  username?: string;
+  avatar_url?: string;
+  status: 'active' | 'banned';
+  created_at: string;
+  trip_count: number;
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [models, setModels] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [recentQueries, setRecentQueries] = useState<any[]>([]);
   const [modelPerformance, setModelPerformance] = useState<any[]>([]);
+  // User management state
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [userActionMenu, setUserActionMenu] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [userSaveStatus, setUserSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [newApiKey, setNewApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -96,7 +123,16 @@ export default function AdminDashboard() {
   // Test email
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [emailTestStatus, setEmailTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ status: 'idle' });
+  // Profile Design
+  const [profileDesign, setProfileDesign] = useState<'journey' | 'explorer' | 'wanderer'>('journey');
+  const [profileDesignSaveStatus, setProfileDesignSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const router = useRouter();
+
+  const PROFILE_DESIGNS = [
+    { id: 'journey' as const, name: 'JOURNEY', description: 'Dark theme with giant typography and Zune-inspired bold stats', preview: 'bg-zinc-900' },
+    { id: 'explorer' as const, name: 'EXPLORER', description: 'Two-column layout with sticky sidebar map', preview: 'bg-stone-100' },
+    { id: 'wanderer' as const, name: 'WANDERER', description: 'Full-bleed gradient hero with horizontal scrolling cards', preview: 'bg-gradient-to-br from-emerald-500 to-cyan-500' },
+  ];
 
   useEffect(() => {
     fetchData();
@@ -120,6 +156,17 @@ export default function AdminDashboard() {
         const res = await fetch('/api/admin/model-performance');
         const data = await res.json();
         setModelPerformance(data.performance || []);
+      } else if (activeTab === 'users') {
+        setUsersLoading(true);
+        try {
+          const res = await fetch('/api/admin/users');
+          if (res.ok) {
+            const data = await res.json();
+            setUsers(data.users || []);
+          }
+        } finally {
+          setUsersLoading(false);
+        }
       } else if (activeTab === 'settings') {
         const res = await fetch('/api/admin/settings');
         if (res.status === 401) {
@@ -136,6 +183,19 @@ export default function AdminDashboard() {
         if (data.smtpPort) setSmtpPort(String(data.smtpPort));
         if (data.smtpSecure) setSmtpSecure(data.smtpSecure);
         if (data.awsSesRegion) setAwsSesRegion(data.awsSesRegion);
+
+        // Fetch profile design setting from site-settings
+        try {
+          const designRes = await fetch('/api/admin/site-settings?key=profile_design');
+          if (designRes.ok) {
+            const designData = await designRes.json();
+            if (designData.value) {
+              setProfileDesign(designData.value);
+            }
+          }
+        } catch (e) {
+          // Default to 'journey' if not found
+        }
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -290,6 +350,28 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleSaveProfileDesign = async () => {
+    setProfileDesignSaveStatus('saving');
+    try {
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'profile_design', value: profileDesign }),
+      });
+
+      if (res.ok) {
+        setProfileDesignSaveStatus('success');
+        setTimeout(() => setProfileDesignSaveStatus('idle'), 3000);
+      } else {
+        setProfileDesignSaveStatus('error');
+        setTimeout(() => setProfileDesignSaveStatus('idle'), 3000);
+      }
+    } catch {
+      setProfileDesignSaveStatus('error');
+      setTimeout(() => setProfileDesignSaveStatus('idle'), 3000);
+    }
+  };
+
   const handleLogout = async () => {
     await fetch('/api/admin/login', { method: 'DELETE' });
     router.push('/admin/login');
@@ -318,6 +400,84 @@ export default function AdminDashboard() {
       console.error('Failed to set default model:', error);
     }
   };
+
+  // User management functions
+  const handleBanUser = async (userId: string) => {
+    try {
+      await fetch(`/api/admin/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'banned' }),
+      });
+      fetchData();
+      setUserActionMenu(null);
+    } catch (error) {
+      console.error('Failed to ban user:', error);
+    }
+  };
+
+  const handleActivateUser = async (userId: string) => {
+    try {
+      await fetch(`/api/admin/users/${userId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'active' }),
+      });
+      fetchData();
+      setUserActionMenu(null);
+    } catch (error) {
+      console.error('Failed to activate user:', error);
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    setUserSaveStatus('saving');
+    try {
+      const payload: any = {
+        full_name: editingUser.full_name,
+        username: editingUser.username,
+      };
+      if (newPassword) {
+        payload.password = newPassword;
+      }
+      const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setUserSaveStatus('success');
+        setTimeout(() => {
+          setUserSaveStatus('idle');
+          setEditingUser(null);
+          setNewPassword('');
+          fetchData();
+        }, 1500);
+      } else {
+        setUserSaveStatus('error');
+      }
+    } catch {
+      setUserSaveStatus('error');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) return;
+    try {
+      await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      fetchData();
+      setUserActionMenu(null);
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+    }
+  };
+
+  const filteredUsers = users.filter(user =>
+    user.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+    user.full_name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    user.username?.toLowerCase().includes(userSearch.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -394,6 +554,19 @@ export default function AdminDashboard() {
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4" />
                 <span>Analytics</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-6 py-4 font-medium transition ${
+                activeTab === 'users'
+                  ? 'border-b-2 border-teal-600 text-teal-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4" />
+                <span>Users</span>
               </div>
             </button>
             <button
@@ -652,6 +825,217 @@ export default function AdminDashboard() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Users Tab */}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            {/* Search and Actions */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold">User Management</h3>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    placeholder="Search users..."
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                  />
+                </div>
+              </div>
+
+              {usersLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trips</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-3">
+                              {user.avatar_url ? (
+                                <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                                  <span className="text-white font-medium">{(user.full_name || 'U')[0].toUpperCase()}</span>
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-medium text-gray-900">{user.full_name || 'Unnamed User'}</p>
+                                {user.username && <p className="text-sm text-gray-500">@{user.username}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-600">{user.email}</td>
+                          <td className="px-4 py-4">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.status === 'banned'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {user.status === 'banned' ? 'Banned' : 'Active'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-600">{user.trip_count || 0}</td>
+                          <td className="px-4 py-4 text-sm text-gray-500">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <div className="relative">
+                              <button
+                                onClick={() => setUserActionMenu(userActionMenu === user.id ? null : user.id)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                              >
+                                <MoreVertical className="w-4 h-4 text-gray-500" />
+                              </button>
+                              {userActionMenu === user.id && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                                  <button
+                                    onClick={() => { setEditingUser(user); setUserActionMenu(null); }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                    Edit User
+                                  </button>
+                                  {user.status === 'banned' ? (
+                                    <button
+                                      onClick={() => handleActivateUser(user.id)}
+                                      className="w-full px-4 py-2 text-left text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+                                    >
+                                      <UserCheck className="w-4 h-4" />
+                                      Activate
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleBanUser(user.id)}
+                                      className="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                                    >
+                                      <Ban className="w-4 h-4" />
+                                      Ban User
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete User
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                            {userSearch ? 'No users found matching your search.' : 'No users yet.'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Edit User Modal */}
+            {editingUser && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold">Edit User</h3>
+                    <p className="text-sm text-gray-500">{editingUser.email}</p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        value={editingUser.full_name || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, full_name: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                      <input
+                        type="text"
+                        value={editingUser.username || ''}
+                        onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">New Password (leave blank to keep current)</label>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Enter new password..."
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                      />
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-gray-200 flex items-center justify-between">
+                    <div>
+                      {userSaveStatus === 'success' && (
+                        <span className="text-green-600 text-sm flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" /> Saved!
+                        </span>
+                      )}
+                      {userSaveStatus === 'error' && (
+                        <span className="text-red-600 text-sm flex items-center gap-1">
+                          <AlertCircle className="w-4 h-4" /> Failed to save
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => { setEditingUser(null); setNewPassword(''); setUserSaveStatus('idle'); }}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleUpdateUser}
+                        disabled={userSaveStatus === 'saving'}
+                        className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {userSaveStatus === 'saving' ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            Save Changes
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1343,6 +1727,81 @@ export default function AdminDashboard() {
                   <p className="mt-2 text-sm text-gray-500">
                     This prompt defines the AI assistant&apos;s behavior and personality
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Profile Design */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                    <Palette className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Profile Page Design</h3>
+                    <p className="text-sm text-gray-600">Choose the design theme for public user profiles</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {PROFILE_DESIGNS.map((design) => (
+                    <button
+                      key={design.id}
+                      onClick={() => setProfileDesign(design.id)}
+                      className={`relative p-4 rounded-xl border-2 transition-all text-left ${
+                        profileDesign === design.id
+                          ? 'border-amber-500 bg-amber-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      {/* Preview swatch */}
+                      <div className={`w-full h-16 rounded-lg mb-3 ${design.preview}`} />
+                      <div className="font-semibold text-gray-900">{design.name}</div>
+                      <p className="text-xs text-gray-500 mt-1">{design.description}</p>
+                      {profileDesign === design.id && (
+                        <div className="absolute top-3 right-3">
+                          <CheckCircle className="w-5 h-5 text-amber-500" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Save Profile Design Button */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  <div>
+                    {profileDesignSaveStatus === 'success' && (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm">Design saved!</span>
+                      </div>
+                    )}
+                    {profileDesignSaveStatus === 'error' && (
+                      <div className="flex items-center gap-2 text-red-600">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm">Failed to save</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSaveProfileDesign}
+                    disabled={profileDesignSaveStatus === 'saving'}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white font-medium rounded-lg hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                  >
+                    {profileDesignSaveStatus === 'saving' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Design
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>

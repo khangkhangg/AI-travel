@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Shield, MapPin, Globe, Star } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { ChevronDown, ChevronUp, Shield, MapPin, Globe, Star, ExternalLink } from 'lucide-react';
 import { BADGE_DEFINITIONS } from '@/lib/types/user';
+import BadgeGrid from '@/components/badges/BadgeGrid';
+import { UserBadgeLevel } from '@/lib/badges';
 
 interface Badge {
   badge_type: string;
@@ -46,23 +49,63 @@ const getBadgeLabel = (badge: Badge): string => {
   return def?.label || badge.badge_type;
 };
 
+// Friendly labels for curator years lived
+const YEARS_LIVED_LABELS: Record<string, string> = {
+  'less_than_1': 'less than 1 year',
+  '1_2_years': '1-2 years',
+  '3_5_years': '3-5 years',
+  '5_plus_years': '5+ years',
+  'na_visitor': 'visitor',
+};
+
+// Friendly labels for curator experience
+const EXPERIENCE_LABELS: Record<string, string> = {
+  'first_time': 'First-time visitor with detailed research',
+  'visited_2_5': 'Visited 2-5 times',
+  'visited_10_plus': 'Visited 10+ times',
+  'local_expert': 'Local expert',
+};
+
 export default function CreatorCard({
   creator,
   curatorInfo,
   defaultExpanded = true,
 }: CreatorCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [badgeLevels, setBadgeLevels] = useState<UserBadgeLevel[]>([]);
 
-  // Get top badges to display (max 3)
-  const topBadges = (creator.badges || [])
-    .filter((b) => ['verified_guide', 'local_expert', 'globetrotter', 'explorer'].includes(b.badge_type))
-    .slice(0, 3);
+  // Fetch gamified badge levels
+  useEffect(() => {
+    const fetchBadges = async () => {
+      try {
+        const res = await fetch(`/api/users/${creator.id}/badges`);
+        if (res.ok) {
+          const data = await res.json();
+          setBadgeLevels(data.badges || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch badge levels:', error);
+      }
+    };
+
+    if (creator.id) {
+      fetchBadges();
+    }
+  }, [creator.id]);
+
+  // Get special badges to display
+  const specialBadges = (creator.badges || [])
+    .filter((b) => BADGE_DEFINITIONS[b.badge_type as keyof typeof BADGE_DEFINITIONS])
+    .map(b => ({ type: b.badge_type, metadata: b.metadata }));
 
   // Build curator tagline
   const getTagline = () => {
-    if (curatorInfo?.experience) return curatorInfo.experience;
+    if (curatorInfo?.experience) {
+      return EXPERIENCE_LABELS[curatorInfo.experience] || curatorInfo.experience;
+    }
     if (curatorInfo?.is_local === 'yes_live_here' && curatorInfo?.years_lived) {
-      return `Living here for ${curatorInfo.years_lived}`;
+      const yearsLabel = YEARS_LIVED_LABELS[curatorInfo.years_lived] || curatorInfo.years_lived;
+      return `Living here for ${yearsLabel}`;
     }
     if (curatorInfo?.is_local === 'visited_multiple') {
       return 'Visited multiple times';
@@ -115,19 +158,13 @@ export default function CreatorCard({
       {/* Expanded Content */}
       {expanded && (
         <div className="px-3 pb-3 space-y-2">
-          {/* Badges */}
-          {topBadges.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {topBadges.map((badge, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs"
-                >
-                  {getBadgeIcon(badge.badge_type)}
-                  <span>{getBadgeLabel(badge)}</span>
-                </div>
-              ))}
-            </div>
+          {/* Gamified Badge Grid */}
+          {(badgeLevels.length > 0 || specialBadges.length > 0) && (
+            <BadgeGrid
+              badges={badgeLevels}
+              specialBadges={specialBadges}
+              size="sm"
+            />
           )}
 
           {/* Tagline */}
@@ -137,6 +174,18 @@ export default function CreatorCard({
               <p className="text-xs text-gray-600 italic">"{tagline}"</p>
             </>
           )}
+
+          {/* View Profile Link */}
+          <div className="pt-1">
+            <Link
+              href={`/profile/${creator.username || creator.id}`}
+              className="flex items-center justify-center gap-1.5 w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-medium text-gray-700 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View Profile
+              <ExternalLink className="w-3 h-3" />
+            </Link>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/auth/supabase';
 import { query } from '@/lib/db';
+import { BadgeTrack, buildUserBadgeLevel } from '@/lib/badges';
 
 // POST - Create user record after signup
 export async function POST(request: NextRequest) {
@@ -13,9 +14,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existing = await query('SELECT id FROM users WHERE id = $1', [id]);
+    const existing = await query('SELECT * FROM users WHERE id = $1', [id]);
     if (existing.rows.length > 0) {
-      return NextResponse.json({ message: 'User already exists' });
+      return NextResponse.json({
+        user: existing.rows[0],
+        message: 'User already exists'
+      });
     }
 
     // Create user with 30-day verification deadline
@@ -83,23 +87,59 @@ export async function GET(request: NextRequest) {
       [authUser.id]
     );
 
-    // Get stats
+    // Get stats from trips table
     const statsResult = await query(
       `SELECT
-        (SELECT COUNT(*) FROM itineraries WHERE user_id = $1) as itineraries_count,
-        (SELECT COUNT(*) FROM itineraries WHERE user_id = $1 AND visibility = 'public') as public_itineraries_count,
-        (SELECT COALESCE(SUM(clone_count), 0) FROM itineraries WHERE user_id = $1) as total_clones,
-        (SELECT COALESCE(SUM(view_count), 0) FROM itineraries WHERE user_id = $1) as total_views,
-        (SELECT COUNT(DISTINCT country) FROM user_travel_history WHERE user_id = $1) as countries_visited`,
+        (SELECT COUNT(*) FROM trips WHERE user_id = $1) as itineraries_count,
+        (SELECT COUNT(*) FROM trips WHERE user_id = $1 AND visibility IN ('public', 'curated')) as public_itineraries_count,
+        (SELECT COALESCE(SUM(views_count), 0) FROM trips WHERE user_id = $1) as total_views,
+        (SELECT COUNT(DISTINCT country) FROM user_travel_history WHERE user_id = $1 AND (is_wishlist = false OR is_wishlist IS NULL)) as countries_visited`,
       [authUser.id]
     );
 
     const stats = statsResult.rows[0];
 
+    // Get gamified badge levels
+    let badgeLevelsResult = await query(
+      `SELECT track, level, current_count, updated_at
+       FROM user_badge_levels
+       WHERE user_id = $1`,
+      [authUser.id]
+    );
+
+    // If no badge levels exist, calculate and store them
+    if (badgeLevelsResult.rows.length === 0) {
+      const trackStats: { track: BadgeTrack; count: number }[] = [
+        { track: 'explorer', count: parseInt(stats.countries_visited) || 0 },
+        { track: 'creator', count: parseInt(stats.public_itineraries_count) || 0 },
+        { track: 'influence', count: 0 }, // Clone tracking not yet implemented in trips table
+      ];
+
+      for (const { track, count } of trackStats) {
+        const badgeInfo = buildUserBadgeLevel(track, count);
+        await query(
+          `INSERT INTO user_badge_levels (user_id, track, level, current_count, updated_at)
+           VALUES ($1, $2, $3, $4, NOW())
+           ON CONFLICT (user_id, track)
+           DO UPDATE SET level = $3, current_count = $4, updated_at = NOW()`,
+          [authUser.id, track, badgeInfo.level, count]
+        );
+      }
+
+      // Re-fetch badge levels
+      badgeLevelsResult = await query(
+        `SELECT track, level, current_count, updated_at
+         FROM user_badge_levels
+         WHERE user_id = $1`,
+        [authUser.id]
+      );
+    }
+
     return NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         fullName: user.full_name,
         avatarUrl: user.avatar_url,
         bio: user.bio,
@@ -108,6 +148,7 @@ export async function GET(request: NextRequest) {
         emailVerified: user.email_verified,
         emailVerifiedAt: user.email_verified_at,
         verificationDeadline: user.verification_deadline,
+        profileVisibility: user.profile_visibility || 'public',
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       },
@@ -136,6 +177,7 @@ export async function GET(request: NextRequest) {
         notes: row.notes,
         lat: row.lat,
         lng: row.lng,
+        isWishlist: row.is_wishlist || false,
         createdAt: row.created_at,
       })),
       badges: badgesResult.rows.map(row => ({
@@ -148,10 +190,14 @@ export async function GET(request: NextRequest) {
       stats: {
         itinerariesCount: parseInt(stats.itineraries_count),
         publicItinerariesCount: parseInt(stats.public_itineraries_count),
-        totalClones: parseInt(stats.total_clones),
+        totalClones: 0, // Clone tracking not yet implemented in trips table
         totalViews: parseInt(stats.total_views),
         countriesVisited: parseInt(stats.countries_visited),
       },
+      // Gamified badge levels (leveled progression system)
+      badgeLevels: badgeLevelsResult.rows.map(row =>
+        buildUserBadgeLevel(row.track as BadgeTrack, row.current_count)
+      ).sort((a, b) => b.level - a.level),
     });
   } catch (error: any) {
     console.error('Failed to get user:', error);
@@ -171,19 +217,47 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fullName, bio, location, phone, avatarUrl } = body;
+    const { fullName, username, bio, location, phone, avatarUrl, profileVisibility } = body;
+
+    // Validate username if provided
+    if (username !== undefined) {
+      // Username format validation: 3-30 chars, alphanumeric, underscores, dots
+      const usernameRegex = /^[a-zA-Z0-9_.]{3,30}$/;
+      if (username && !usernameRegex.test(username)) {
+        return NextResponse.json(
+          { error: 'Username must be 3-30 characters and contain only letters, numbers, underscores, and dots' },
+          { status: 400 }
+        );
+      }
+
+      // Check if username is already taken (by another user)
+      if (username) {
+        const existingUser = await query(
+          'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2',
+          [username, authUser.id]
+        );
+        if (existingUser.rows.length > 0) {
+          return NextResponse.json(
+            { error: 'Username is already taken' },
+            { status: 400 }
+          );
+        }
+      }
+    }
 
     const result = await query(
       `UPDATE users SET
         full_name = COALESCE($2, full_name),
-        bio = COALESCE($3, bio),
-        location = COALESCE($4, location),
-        phone = COALESCE($5, phone),
-        avatar_url = COALESCE($6, avatar_url),
+        username = COALESCE($3, username),
+        bio = COALESCE($4, bio),
+        location = COALESCE($5, location),
+        phone = COALESCE($6, phone),
+        avatar_url = COALESCE($7, avatar_url),
+        profile_visibility = COALESCE($8, profile_visibility),
         updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [authUser.id, fullName, bio, location, phone, avatarUrl]
+      [authUser.id, fullName, username || null, bio, location, phone, avatarUrl, profileVisibility]
     );
 
     if (result.rows.length === 0) {
@@ -191,7 +265,10 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json({
-      user: result.rows[0],
+      user: {
+        ...result.rows[0],
+        username: result.rows[0].username,
+      },
       message: 'Profile updated successfully',
     });
   } catch (error: any) {

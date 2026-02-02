@@ -68,13 +68,17 @@ export default function TravelMap({ travelHistory, height = '300px' }: TravelMap
     const markers: L.Marker[] = [];
     const bounds: L.LatLngBoundsExpression = [];
 
-    travelHistory.forEach((place) => {
+    // Separate visited and wishlist places
+    const visitedPlaces = travelHistory.filter(p => !p.isWishlist);
+    const wishlistPlaces = travelHistory.filter(p => p.isWishlist);
+
+    // Add markers for visited places (green)
+    visitedPlaces.forEach((place) => {
       if (place.lat && place.lng) {
         const marker = L.marker([place.lat, place.lng], {
-          icon: createCustomIcon(),
+          icon: createCustomIcon('#10b981'), // emerald
         }).addTo(map);
 
-        // Add popup
         const popupContent = `
           <div style="min-width: 150px;">
             <strong style="font-size: 14px;">${place.city}</strong>
@@ -82,6 +86,31 @@ export default function TravelMap({ travelHistory, height = '300px' }: TravelMap
             ${place.year ? `<div style="color: #999; font-size: 11px; margin-top: 4px;">
               ${place.month ? new Date(2000, place.month - 1).toLocaleString('default', { month: 'short' }) + ' ' : ''}${place.year}
             </div>` : ''}
+            ${place.notes ? `<div style="color: #666; font-size: 12px; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;">${place.notes}</div>` : ''}
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+
+        markers.push(marker);
+        bounds.push([place.lat, place.lng]);
+      }
+    });
+
+    // Add markers for wishlist places (yellow/amber)
+    wishlistPlaces.forEach((place) => {
+      if (place.lat && place.lng) {
+        const marker = L.marker([place.lat, place.lng], {
+          icon: createCustomIcon('#f59e0b'), // amber
+        }).addTo(map);
+
+        const popupContent = `
+          <div style="min-width: 150px;">
+            <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+              <span style="font-size: 12px;">⭐</span>
+              <span style="font-size: 11px; color: #f59e0b; font-weight: 500;">Wishlist</span>
+            </div>
+            <strong style="font-size: 14px;">${place.city}</strong>
+            <div style="color: #666; font-size: 12px;">${place.country}</div>
             ${place.notes ? `<div style="color: #666; font-size: 12px; margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;">${place.notes}</div>` : ''}
           </div>
         `;
@@ -101,9 +130,13 @@ export default function TravelMap({ travelHistory, height = '300px' }: TravelMap
       }
     }
 
-    // Draw lines connecting places (optional - travel path)
-    if (bounds.length > 1) {
-      const polyline = L.polyline(bounds as L.LatLngExpression[], {
+    // Draw lines connecting visited places only (travel path)
+    const visitedBounds = visitedPlaces
+      .filter(p => p.lat && p.lng)
+      .map(p => [p.lat!, p.lng!] as L.LatLngExpression);
+
+    if (visitedBounds.length > 1) {
+      L.polyline(visitedBounds, {
         color: '#10b981',
         weight: 2,
         opacity: 0.5,

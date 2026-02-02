@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,6 +22,9 @@ import {
   Eye,
   Copy,
   ExternalLink,
+  Lock,
+  Loader2,
+  Upload,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -30,10 +33,13 @@ import {
   SOCIAL_PLATFORMS,
   PAYMENT_PLATFORMS,
   BADGE_INFO,
+  BADGE_DEFINITIONS,
   UserTravelHistory,
 } from '@/lib/types/user';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
 import dynamic from 'next/dynamic';
+import BadgeGrid from '@/components/badges/BadgeGrid';
+import { UserBadgeLevel } from '@/lib/badges';
 
 // Dynamically import map component (Leaflet doesn't work with SSR)
 const TravelMap = dynamic(() => import('@/components/profile/TravelMap'), {
@@ -49,22 +55,37 @@ const AddLinkModal = dynamic(() => import('@/components/profile/AddLinkModal'), 
   ssr: false,
 });
 
+// Helper to count words
+const countWords = (text: string): number => {
+  if (!text || !text.trim()) return 0;
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+};
+
+const MAX_BIO_WORDS = 600;
+
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [badgeLevels, setBadgeLevels] = useState<UserBadgeLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'travel' | 'links' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
 
   // Modal states
   const [showTravelModal, setShowTravelModal] = useState(false);
+  const [showWishlistModal, setShowWishlistModal] = useState(false);
   const [showSocialLinkModal, setShowSocialLinkModal] = useState(false);
   const [showPaymentLinkModal, setShowPaymentLinkModal] = useState(false);
   const [editingTravel, setEditingTravel] = useState<UserTravelHistory | null>(null);
 
+  // Avatar upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
   // Edit form states
   const [editForm, setEditForm] = useState({
     fullName: '',
+    username: '',
     bio: '',
     location: '',
     phone: '',
@@ -72,6 +93,11 @@ export default function ProfilePage() {
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [profileVisibility, setProfileVisibility] = useState<'public' | 'private'>('public');
+  const [savingVisibility, setSavingVisibility] = useState(false);
+
+  // Bio word count
+  const bioWordCount = countWords(editForm.bio);
 
   useEffect(() => {
     fetchProfile();
@@ -79,21 +105,60 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch('/api/users');
+      // First check if user is authenticated via Supabase
+      const supabase = createBrowserSupabaseClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+
+      if (!authUser) {
+        // Not authenticated, redirect to home
+        router.push('/');
+        return;
+      }
+
+      // Try to get profile from API
+      let response = await fetch('/api/users');
+
+      // If user authenticated but no profile record exists, create one
+      if (response.status === 404) {
+        console.log('Profile not found, creating new profile...');
+        const createResponse = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: authUser.id,
+            email: authUser.email,
+            fullName: authUser.user_metadata?.full_name || '',
+          }),
+        });
+
+        if (createResponse.ok) {
+          // Retry fetching profile
+          response = await fetch('/api/users');
+        } else {
+          const errorData = await createResponse.json();
+          console.error('Failed to create profile:', errorData);
+        }
+      }
+
       if (response.status === 401) {
         router.push('/');
         return;
       }
 
-      const data = await response.json();
       if (response.ok) {
+        const data = await response.json();
         setProfile(data);
+        setBadgeLevels(data.badgeLevels || []);
         setEditForm({
           fullName: data.user.fullName || '',
+          username: data.user.username || '',
           bio: data.user.bio || '',
           location: data.user.location || '',
           phone: data.user.phone || '',
         });
+        setProfileVisibility(data.user.profileVisibility || 'public');
+      } else {
+        console.error('Failed to fetch profile, status:', response.status);
       }
     } catch (err) {
       console.error('Failed to fetch profile:', err);
@@ -113,8 +178,10 @@ export default function ProfilePage() {
         body: JSON.stringify(editForm),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        throw new Error(data.error || 'Failed to update profile');
       }
 
       await fetchProfile();
@@ -218,6 +285,95 @@ export default function ProfilePage() {
     }
   };
 
+  const handleToggleVisibility = async () => {
+    const newVisibility = profileVisibility === 'public' ? 'private' : 'public';
+    setSavingVisibility(true);
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileVisibility: newVisibility }),
+      });
+
+      if (response.ok) {
+        setProfileVisibility(newVisibility);
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to update visibility');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingVisibility(false);
+    }
+  };
+
+  // Avatar upload handler
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/users/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload avatar');
+      }
+
+      // Refresh profile to show new avatar
+      await fetchProfile();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle bio change with word limit
+  const handleBioChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newText = e.target.value;
+    const words = countWords(newText);
+
+    // Allow typing but warn if over limit
+    if (words <= MAX_BIO_WORDS) {
+      setEditForm(prev => ({ ...prev, bio: newText }));
+    } else {
+      // Truncate to max words
+      const wordsArray = newText.trim().split(/\s+/);
+      const truncated = wordsArray.slice(0, MAX_BIO_WORDS).join(' ');
+      setEditForm(prev => ({ ...prev, bio: truncated }));
+    }
+  };
+
   const daysUntilVerificationDeadline = profile?.user.verificationDeadline
     ? Math.ceil((new Date(profile.user.verificationDeadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
@@ -234,6 +390,8 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
+          <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-900 font-medium mb-2">Profile not found</p>
           <p className="text-gray-500 mb-4">Please sign in to view your profile</p>
           <Link href="/" className="text-emerald-600 hover:underline">
             Go to Home
@@ -272,31 +430,44 @@ export default function ProfilePage() {
               </Link>
               <h1 className="font-bold text-gray-900">My Profile</h1>
             </div>
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                Edit Profile
-              </button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            <div className="flex items-center gap-2">
+              {/* View Public Profile button - only show if user has username */}
+              {profile.user.username && !isEditing && (
+                <Link
+                  href={`/profile/${profile.user.username}`}
+                  className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Cancel
-                </button>
+                  <Eye className="w-4 h-4" />
+                  View Public Profile
+                </Link>
+              )}
+
+              {!isEditing ? (
                 <button
-                  onClick={handleSaveProfile}
-                  disabled={saving}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
                 >
-                  {saving ? 'Saving...' : 'Save Changes'}
+                  <Edit className="w-4 h-4" />
+                  Edit Profile
                 </button>
-              </div>
-            )}
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -318,7 +489,11 @@ export default function ProfilePage() {
             {/* Avatar */}
             <div className="relative -mt-16 mb-4">
               <div className="w-32 h-32 rounded-2xl bg-white border-4 border-white shadow-lg overflow-hidden">
-                {profile.user.avatarUrl ? (
+                {uploadingAvatar ? (
+                  <div className="w-full h-full bg-emerald-100 flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+                  </div>
+                ) : profile.user.avatarUrl ? (
                   <img
                     src={profile.user.avatarUrl}
                     alt=""
@@ -330,28 +505,62 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
-              {isEditing && (
-                <button className="absolute bottom-2 right-2 p-2 bg-white rounded-lg shadow-md hover:bg-gray-50">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              {/* Upload button - always visible */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute bottom-2 right-2 p-2 bg-white rounded-lg shadow-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                title="Upload avatar"
+              >
+                {uploadingAvatar ? (
+                  <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />
+                ) : (
                   <Camera className="w-4 h-4 text-gray-600" />
-                </button>
-              )}
+                )}
+              </button>
             </div>
 
             {/* User Info */}
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div className="flex-1">
                 {isEditing ? (
-                  <input
-                    type="text"
-                    value={editForm.fullName}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, fullName: e.target.value }))}
-                    placeholder="Your name"
-                    className="text-2xl font-bold text-gray-900 bg-gray-100 rounded-lg px-3 py-1 w-full max-w-xs"
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={editForm.fullName}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, fullName: e.target.value }))}
+                      placeholder="Your name"
+                      className="text-2xl font-bold text-gray-900 bg-gray-100 rounded-lg px-3 py-1 w-full max-w-xs"
+                    />
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-400">@</span>
+                      <input
+                        type="text"
+                        value={editForm.username}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, username: e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, '') }))}
+                        placeholder="username"
+                        className="text-sm bg-gray-100 rounded-lg px-2 py-1 w-48"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">3-30 characters, letters, numbers, underscores, dots</p>
+                  </div>
                 ) : (
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    {profile.user.fullName || 'Anonymous'}
-                  </h2>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {profile.user.fullName || 'Anonymous'}
+                    </h2>
+                    {profile.user.username && (
+                      <p className="text-gray-500 text-sm">@{profile.user.username}</p>
+                    )}
+                  </div>
                 )}
 
                 <p className="text-gray-500 flex items-center gap-1 mt-1">
@@ -403,16 +612,25 @@ export default function ProfilePage() {
                 )}
 
                 {isEditing ? (
-                  <textarea
-                    value={editForm.bio}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))}
-                    placeholder="Tell us about yourself..."
-                    rows={3}
-                    maxLength={500}
-                    className="mt-4 w-full bg-gray-100 rounded-lg px-3 py-2 text-sm resize-none"
-                  />
+                  <div className="mt-4">
+                    <textarea
+                      value={editForm.bio}
+                      onChange={handleBioChange}
+                      placeholder="Tell us about yourself, your travel experiences, favorite destinations, and what inspires your adventures..."
+                      rows={6}
+                      className="w-full bg-gray-100 rounded-lg px-3 py-2 text-sm resize-none focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-colors"
+                    />
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-xs text-gray-400">
+                        Share your story with other travelers
+                      </p>
+                      <p className={`text-xs ${bioWordCount > MAX_BIO_WORDS * 0.9 ? (bioWordCount >= MAX_BIO_WORDS ? 'text-red-500' : 'text-amber-500') : 'text-gray-400'}`}>
+                        {bioWordCount} / {MAX_BIO_WORDS} words
+                      </p>
+                    </div>
+                  </div>
                 ) : profile.user.bio ? (
-                  <p className="mt-4 text-gray-600">{profile.user.bio}</p>
+                  <p className="mt-4 text-gray-600 whitespace-pre-wrap">{profile.user.bio}</p>
                 ) : null}
               </div>
 
@@ -427,36 +645,25 @@ export default function ProfilePage() {
                   <p className="text-xs text-gray-500">Countries</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{profile.badges.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {badgeLevels.filter(b => b.currentCount > 0).length + profile.badges.length}
+                  </p>
                   <p className="text-xs text-gray-500">Badges</p>
                 </div>
               </div>
             </div>
 
-            {/* Badges */}
-            {profile.badges.length > 0 && (
+            {/* Gamified Badges */}
+            {(badgeLevels.length > 0 || profile.badges.length > 0) && (
               <div className="mt-6 pt-6 border-t border-gray-100">
-                <h3 className="text-sm font-medium text-gray-500 mb-3">Badges Earned</h3>
-                <div className="flex flex-wrap gap-2">
-                  {profile.badges.map((badge) => {
-                    const info = BADGE_INFO[badge.badgeType];
-                    return (
-                      <div
-                        key={badge.id}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full"
-                        title={info.description}
-                      >
-                        <span>{info.icon}</span>
-                        <span className="text-sm font-medium text-emerald-700">
-                          {badge.badgeType === 'local_expert' && badge.metadata?.city
-                            ? `${info.label}: ${badge.metadata.city}`
-                            : info.label
-                          }
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <h3 className="text-sm font-medium text-gray-500 mb-3">Badges & Achievements</h3>
+                <BadgeGrid
+                  badges={badgeLevels}
+                  specialBadges={profile.badges
+                    .filter((badge) => BADGE_DEFINITIONS[badge.badgeType as keyof typeof BADGE_DEFINITIONS])
+                    .map(b => ({ type: b.badgeType, metadata: b.metadata }))}
+                  size="md"
+                />
               </div>
             )}
           </div>
@@ -465,9 +672,7 @@ export default function ProfilePage() {
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
           {[
-            { id: 'overview', label: 'Overview' },
-            { id: 'travel', label: 'Travel History' },
-            { id: 'links', label: 'Links & Tips' },
+            { id: 'profile', label: 'Profile' },
             { id: 'settings', label: 'Settings' },
           ].map((tab) => (
             <button
@@ -485,73 +690,85 @@ export default function ProfilePage() {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Recent Activity</h3>
-              <div className="text-center py-8 text-gray-500">
-                <Eye className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No recent activity</p>
-              </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Your Impact</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Total Views</span>
-                  <span className="font-semibold">{profile.stats.totalViews}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Itineraries Cloned</span>
-                  <span className="font-semibold">{profile.stats.totalClones}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Public Itineraries</span>
-                  <span className="font-semibold">{profile.stats.publicItinerariesCount}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'travel' && (
+        {activeTab === 'profile' && (
           <div className="space-y-6">
-            {/* Travel Map */}
+            {/* Overview Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Recent Activity */}
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                <div className="text-center py-8 text-gray-500">
+                  <Eye className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                  <p className="text-sm">No recent activity</p>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <h3 className="font-semibold text-gray-900 mb-4">Your Impact</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Total Views</span>
+                    <span className="font-semibold">{profile.stats.totalViews}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Itineraries Cloned</span>
+                    <span className="font-semibold">{profile.stats.totalClones}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Public Itineraries</span>
+                    <span className="font-semibold">{profile.stats.publicItinerariesCount}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Travel History Section */}
             <div className="bg-white rounded-xl border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Places Visited</h3>
-                <button
-                  onClick={() => setShowTravelModal(true)}
-                  className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Place
-                </button>
+                <h3 className="font-semibold text-gray-900">Travel History</h3>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowTravelModal(true)}
+                    className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Place
+                  </button>
+                  <button
+                    onClick={() => setShowWishlistModal(true)}
+                    className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Wishlist
+                  </button>
+                </div>
               </div>
               <TravelMap travelHistory={profile.travelHistory} />
-            </div>
-
-            {/* Travel Timeline */}
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Travel Timeline</h3>
               {profile.travelHistory.length > 0 ? (
-                <div className="space-y-4">
+                <div className="mt-4 space-y-3 max-h-64 overflow-y-auto">
                   {profile.travelHistory.map((place) => (
                     <div
                       key={place.id}
                       className="flex items-start gap-4 p-3 rounded-lg hover:bg-gray-50 group"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                        <MapPin className="w-5 h-5 text-emerald-600" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        place.isWishlist ? 'bg-amber-100' : 'bg-emerald-100'
+                      }`}>
+                        <MapPin className={`w-5 h-5 ${place.isWishlist ? 'text-amber-600' : 'text-emerald-600'}`} />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">
-                          {place.city}, {place.country}
-                        </p>
-                        {(place.year || place.month) && (
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">
+                            {place.city}, {place.country}
+                          </p>
+                          {place.isWishlist && (
+                            <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+                              Wishlist
+                            </span>
+                          )}
+                        </div>
+                        {!place.isWishlist && (place.year || place.month) && (
                           <p className="text-sm text-gray-500">
                             {place.month && `${new Date(2000, place.month - 1).toLocaleString('default', { month: 'short' })} `}
                             {place.year}
@@ -571,8 +788,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Globe className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                <div className="text-center py-6 text-gray-500">
                   <p className="text-sm">No travel history yet</p>
                   <button
                     onClick={() => setShowTravelModal(true)}
@@ -583,133 +799,132 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-          </div>
-        )}
 
-        {activeTab === 'links' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Social Links */}
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Social Links</h3>
-                <button
-                  onClick={() => setShowSocialLinkModal(true)}
-                  className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add
-                </button>
-              </div>
-              {profile.socialLinks.length > 0 ? (
-                <div className="space-y-3">
-                  {profile.socialLinks.map((link) => {
-                    const platform = SOCIAL_PLATFORMS[link.platform as SocialPlatform];
-                    return (
-                      <div
-                        key={link.id}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"
-                      >
-                        <span className="text-xl">{platform?.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900">{platform?.label}</p>
-                          <p className="text-sm text-gray-500 truncate">{link.value}</p>
-                        </div>
-                        <a
-                          href={link.value.startsWith('http') ? link.value : `https://${link.value}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-gray-400 hover:text-gray-600"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                        <button
-                          onClick={() => handleDeleteSocialLink(link.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Globe className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm">No social links added</p>
+            {/* Links & Tips Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Social Links */}
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Social Links</h3>
                   <button
                     onClick={() => setShowSocialLinkModal(true)}
-                    className="mt-2 text-sm text-emerald-600 hover:underline"
+                    className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
                   >
-                    Add your first social link
+                    <Plus className="w-4 h-4" />
+                    Add
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* Payment Links */}
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Tip Links</h3>
-                <button
-                  onClick={() => setShowPaymentLinkModal(true)}
-                  className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add
-                </button>
-              </div>
-              {profile.paymentLinks.length > 0 ? (
-                <div className="space-y-3">
-                  {profile.paymentLinks.map((link) => {
-                    const platform = PAYMENT_PLATFORMS[link.platform as PaymentPlatform];
-                    return (
-                      <div
-                        key={link.id}
-                        className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"
-                      >
-                        <span className="text-xl">{platform?.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                {profile.socialLinks.length > 0 ? (
+                  <div className="space-y-3">
+                    {profile.socialLinks.map((link) => {
+                      const platform = SOCIAL_PLATFORMS[link.platform as SocialPlatform];
+                      return (
+                        <div
+                          key={link.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"
+                        >
+                          <span className="text-xl">{platform?.icon}</span>
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900">{platform?.label}</p>
-                            {link.isPrimary && (
-                              <span className="px-1.5 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">
-                                Primary
-                              </span>
-                            )}
+                            <p className="text-sm text-gray-500 truncate">{link.value}</p>
                           </div>
-                          <p className="text-sm text-gray-500 truncate">{link.value}</p>
+                          <a
+                            href={link.value.startsWith('http') ? link.value : `https://${link.value}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 text-gray-400 hover:text-gray-600"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                          <button
+                            onClick={() => handleDeleteSocialLink(link.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(link.value);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-gray-600"
-                          title="Copy to clipboard"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeletePaymentLink(link.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Award className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm">No tip links added</p>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Globe className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No social links added</p>
+                    <button
+                      onClick={() => setShowSocialLinkModal(true)}
+                      className="mt-2 text-sm text-emerald-600 hover:underline"
+                    >
+                      Add your first social link
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Payment Links */}
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Tip Links</h3>
                   <button
                     onClick={() => setShowPaymentLinkModal(true)}
-                    className="mt-2 text-sm text-emerald-600 hover:underline"
+                    className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700"
                   >
-                    Add your first tip method
+                    <Plus className="w-4 h-4" />
+                    Add
                   </button>
                 </div>
-              )}
+                {profile.paymentLinks.length > 0 ? (
+                  <div className="space-y-3">
+                    {profile.paymentLinks.map((link) => {
+                      const platform = PAYMENT_PLATFORMS[link.platform as PaymentPlatform];
+                      return (
+                        <div
+                          key={link.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"
+                        >
+                          <span className="text-xl">{platform?.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900">{platform?.label}</p>
+                              {link.isPrimary && (
+                                <span className="px-1.5 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500 truncate">{link.value}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(link.value);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-gray-600"
+                            title="Copy to clipboard"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePaymentLink(link.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Award className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No tip links added</p>
+                    <button
+                      onClick={() => setShowPaymentLinkModal(true)}
+                      className="mt-2 text-sm text-emerald-600 hover:underline"
+                    >
+                      Add your first tip method
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -718,6 +933,44 @@ export default function ProfilePage() {
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h3 className="font-semibold text-gray-900 mb-6">Account Settings</h3>
             <div className="space-y-6">
+              {/* Profile Visibility */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  {profileVisibility === 'public' ? (
+                    <Globe className="w-5 h-5 text-emerald-500" />
+                  ) : (
+                    <Lock className="w-5 h-5 text-gray-500" />
+                  )}
+                  <div>
+                    <p className="font-medium text-gray-900">Profile Visibility</p>
+                    <p className="text-sm text-gray-500">
+                      {profileVisibility === 'public'
+                        ? 'Anyone can view your public profile'
+                        : 'Only you can see your profile'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleToggleVisibility}
+                  disabled={savingVisibility}
+                  className={`relative w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+                    profileVisibility === 'public' ? 'bg-emerald-500' : 'bg-gray-300'
+                  }`}
+                >
+                  {savingVisibility ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 text-white animate-spin" />
+                    </div>
+                  ) : (
+                    <div
+                      className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                        profileVisibility === 'public' ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  )}
+                </button>
+              </div>
+
               {/* Email Verification Status */}
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div>
@@ -766,6 +1019,13 @@ export default function ProfilePage() {
           lat: editingTravel.lat,
           lng: editingTravel.lng,
         } : undefined}
+      />
+
+      <AddTravelModal
+        isOpen={showWishlistModal}
+        onClose={() => setShowWishlistModal(false)}
+        onSave={handleAddTravel}
+        isWishlist
       />
 
       <AddLinkModal

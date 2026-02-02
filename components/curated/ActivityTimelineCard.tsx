@@ -280,8 +280,7 @@ export default function ActivityTimelineCard({
                 {cost && (
                   <>
                     <span>·</span>
-                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
-                      <DollarSign className="w-3.5 h-3.5" />
+                    <span className="text-emerald-600 font-medium">
                       {cost}
                     </span>
                   </>

@@ -8,6 +8,7 @@ interface AddTravelModalProps {
   onClose: () => void;
   onSave: (data: TravelData) => Promise<void>;
   initialData?: TravelData;
+  isWishlist?: boolean;
 }
 
 interface TravelData {
@@ -19,6 +20,7 @@ interface TravelData {
   notes?: string;
   lat?: number;
   lng?: number;
+  isWishlist?: boolean;
 }
 
 const MONTHS = [
@@ -31,7 +33,7 @@ const POPULAR_COUNTRIES = [
   'United Kingdom', 'Germany', 'Australia', 'Canada', 'Mexico', 'Brazil'
 ];
 
-export default function AddTravelModal({ isOpen, onClose, onSave, initialData }: AddTravelModalProps) {
+export default function AddTravelModal({ isOpen, onClose, onSave, initialData, isWishlist = false }: AddTravelModalProps) {
   const [formData, setFormData] = useState<TravelData>(initialData || {
     city: '',
     country: '',
@@ -74,7 +76,7 @@ export default function AddTravelModal({ isOpen, onClose, onSave, initialData }:
         console.warn('Geocoding failed:', err);
       }
 
-      await onSave({ ...formData, lat, lng });
+      await onSave({ ...formData, lat, lng, isWishlist });
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to save');
@@ -121,12 +123,12 @@ export default function AddTravelModal({ isOpen, onClose, onSave, initialData }:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-4">
       <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">
-            {initialData ? 'Edit Place' : 'Add Place Visited'}
+        <div className={`flex items-center justify-between px-6 py-4 border-b ${isWishlist ? 'border-amber-100 bg-amber-50' : 'border-gray-100'}`}>
+          <h3 className={`font-semibold ${isWishlist ? 'text-amber-800' : 'text-gray-900'}`}>
+            {initialData ? 'Edit Place' : isWishlist ? 'Add to Wishlist' : 'Add Place Visited'}
           </h3>
           <button
             onClick={onClose}
@@ -232,9 +234,11 @@ export default function AddTravelModal({ isOpen, onClose, onSave, initialData }:
             <textarea
               value={formData.notes || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="What did you love about this place?"
+              placeholder={isWishlist ? "Why do you want to visit this place?" : "What did you love about this place?"}
               rows={3}
-              className="w-full px-4 py-2.5 rounded-xl bg-gray-100 border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none resize-none"
+              className={`w-full px-4 py-2.5 rounded-xl bg-gray-100 border border-transparent focus:bg-white focus:outline-none resize-none ${
+                isWishlist ? 'focus:border-amber-300' : 'focus:border-emerald-300'
+              }`}
             />
           </div>
 
@@ -257,9 +261,13 @@ export default function AddTravelModal({ isOpen, onClose, onSave, initialData }:
             <button
               type="submit"
               disabled={saving || !formData.city || !formData.country}
-              className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex-1 py-2.5 rounded-xl text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+                isWishlist
+                  ? 'bg-amber-500 hover:bg-amber-600'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
             >
-              {saving ? 'Saving...' : (initialData ? 'Update' : 'Add Place')}
+              {saving ? 'Saving...' : (initialData ? 'Update' : isWishlist ? 'Add to Wishlist' : 'Add Place')}
             </button>
           </div>
         </form>

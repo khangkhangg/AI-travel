@@ -18,6 +18,7 @@ export async function GET() {
 
     const result = await query(
       `SELECT t.*,
+        COALESCE(t.clone_count, 0) as clone_count,
         (SELECT COUNT(*) FROM trip_likes WHERE trip_id = t.id) as likes_count,
         (SELECT COUNT(*) FROM itinerary_items WHERE trip_id = t.id) as items_count
        FROM trips t

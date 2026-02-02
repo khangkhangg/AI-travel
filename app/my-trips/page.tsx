@@ -1,26 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   MapPin, Calendar, Users, Eye, Heart, Trash2, Share2,
   Plus, Compass, Lock, Globe, Building2, Star, Edit3, Users2,
+  Copy, ChevronDown, Check, Loader2, AlertTriangle,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
-import { format } from 'date-fns';
+import { format, isPast, parseISO } from 'date-fns';
+
+type ItineraryVisibility = 'public' | 'private' | 'marketplace' | 'curated';
 
 interface Trip {
   id: string;
+  user_id: string;
   title: string;
   city?: string;
   description?: string;
-  visibility: 'public' | 'private' | 'marketplace' | 'curated';
+  visibility: ItineraryVisibility;
   share_code?: string;
+  start_date?: string;
   created_at: string;
   updated_at: string;
   likes_count?: number;
   items_count?: number;
+  clone_count?: number;
   generated_content?: {
     travelers?: any[];
     itinerary?: any[];
@@ -41,12 +47,41 @@ const visibilityLabels = {
   curated: 'Curated',
 };
 
+const visibilityOptions: { value: ItineraryVisibility; label: string; description: string; icon: typeof Lock }[] = [
+  { value: 'private', label: 'Private', description: 'Only you can access', icon: Lock },
+  { value: 'public', label: 'Public', description: 'Anyone can view', icon: Globe },
+  { value: 'marketplace', label: 'Marketplace', description: 'Travel companies can bid', icon: Building2 },
+  { value: 'curated', label: 'Curated', description: 'Share as local expert', icon: Star },
+];
+
 export default function MyTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [openVisibilityMenu, setOpenVisibilityMenu] = useState<string | null>(null);
+  const [updatingVisibility, setUpdatingVisibility] = useState<string | null>(null);
+  const [cloningTrip, setCloningTrip] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingTrip, setDeletingTrip] = useState<string | null>(null);
+  const visibilityMenuRef = useRef<HTMLDivElement>(null);
+  const deleteMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createBrowserSupabaseClient();
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (visibilityMenuRef.current && !visibilityMenuRef.current.contains(event.target as Node)) {
+        setOpenVisibilityMenu(null);
+      }
+      if (deleteMenuRef.current && !deleteMenuRef.current.contains(event.target as Node)) {
+        setConfirmDeleteId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -59,6 +94,7 @@ export default function MyTripsPage() {
       }
 
       setIsLoggedIn(true);
+      setCurrentUserId(session.user.id);
       await fetchTrips();
     };
 
@@ -82,8 +118,7 @@ export default function MyTripsPage() {
   };
 
   const handleDelete = async (tripId: string) => {
-    if (!confirm('Are you sure you want to delete this trip?')) return;
-
+    setDeletingTrip(tripId);
     try {
       const response = await fetch(`/api/trips/${tripId}`, {
         method: 'DELETE',
@@ -91,11 +126,14 @@ export default function MyTripsPage() {
 
       if (response.ok) {
         setTrips(trips.filter(t => t.id !== tripId));
+        setConfirmDeleteId(null);
       } else {
         alert('Failed to delete trip');
       }
     } catch (error) {
       console.error('Failed to delete trip:', error);
+    } finally {
+      setDeletingTrip(null);
     }
   };
 
@@ -104,6 +142,86 @@ export default function MyTripsPage() {
     const shareUrl = `${baseUrl}/shared/${shareCode}`;
     await navigator.clipboard.writeText(shareUrl);
     alert('Share link copied to clipboard!');
+  };
+
+  const handleUpdateVisibility = async (tripId: string, newVisibility: ItineraryVisibility) => {
+    setUpdatingVisibility(tripId);
+    try {
+      const response = await fetch(`/api/trips/${tripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visibility: newVisibility }),
+      });
+
+      if (response.ok) {
+        setTrips(trips.map(t => t.id === tripId ? { ...t, visibility: newVisibility } : t));
+      } else {
+        alert('Failed to update visibility');
+      }
+    } catch (error) {
+      console.error('Failed to update visibility:', error);
+    } finally {
+      setUpdatingVisibility(null);
+      setOpenVisibilityMenu(null);
+    }
+  };
+
+  const handleClone = async (tripId: string) => {
+    setCloningTrip(tripId);
+    try {
+      const response = await fetch(`/api/trips/${tripId}/clone`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Navigate to the new trip
+        router.push(`/?tripId=${data.trip.id}`);
+      } else {
+        alert('Failed to clone trip');
+      }
+    } catch (error) {
+      console.error('Failed to clone trip:', error);
+    } finally {
+      setCloningTrip(null);
+    }
+  };
+
+  // Check if trip is in the past (based on start_date + itinerary length)
+  const isTripPast = (trip: Trip): boolean => {
+    const itinerary = trip.generated_content?.itinerary || [];
+    const days = itinerary.length || 1;
+
+    // If start_date exists, calculate end date and check if past
+    if (trip.start_date) {
+      try {
+        const startDate = parseISO(trip.start_date);
+        // End date is start_date + (days - 1)
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + days - 1);
+        return isPast(endDate);
+      } catch {
+        // Fall back if date parsing fails
+      }
+    }
+
+    // No start_date set - trip is not considered "past"
+    return false;
+  };
+
+  // Get trip end date for display
+  const getTripEndDate = (trip: Trip): string | null => {
+    if (!trip.start_date) return null;
+    const itinerary = trip.generated_content?.itinerary || [];
+    const days = itinerary.length || 1;
+    try {
+      const startDate = parseISO(trip.start_date);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + days - 1);
+      return endDate.toISOString();
+    } catch {
+      return null;
+    }
   };
 
   if (loading) {
@@ -198,7 +316,7 @@ export default function MyTripsPage() {
                 return (
                   <div
                     key={trip.id}
-                    className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow group"
+                    className="bg-white rounded-2xl border border-gray-100 overflow-visible hover:shadow-lg transition-shadow group"
                   >
                     {/* Card Header */}
                     <div className="p-5">
@@ -207,50 +325,114 @@ export default function MyTripsPage() {
                           <h3 className="font-semibold text-gray-900 truncate group-hover:text-emerald-600 transition-colors">
                             {trip.title || 'Untitled Trip'}
                           </h3>
-                          {trip.city && (
-                            <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                              <MapPin className="w-3.5 h-3.5" />
-                              <span>{trip.city}</span>
+                          <div className={`flex items-center gap-1 text-sm mt-1 ${trip.city ? 'text-gray-500' : 'text-orange-400'}`}>
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>{trip.city || 'Add destination'}</span>
+                          </div>
+                        </div>
+                        {/* Visibility Dropdown */}
+                        <div className="relative" ref={openVisibilityMenu === trip.id ? visibilityMenuRef : null}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenVisibilityMenu(openVisibilityMenu === trip.id ? null : trip.id);
+                            }}
+                            disabled={updatingVisibility === trip.id}
+                            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                              trip.visibility === 'private' ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' :
+                              trip.visibility === 'public' ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' :
+                              trip.visibility === 'marketplace' ? 'bg-purple-100 text-purple-600 hover:bg-purple-200' :
+                              'bg-amber-100 text-amber-600 hover:bg-amber-200'
+                            }`}
+                          >
+                            {updatingVisibility === trip.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <VisibilityIcon className="w-3 h-3" />
+                            )}
+                            <span>{visibilityLabels[trip.visibility]}</span>
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          {openVisibilityMenu === trip.id && (
+                            <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                              {visibilityOptions.map((option) => {
+                                const Icon = option.icon;
+                                const isSelected = trip.visibility === option.value;
+                                return (
+                                  <button
+                                    key={option.value}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!isSelected) {
+                                        handleUpdateVisibility(trip.id, option.value);
+                                      }
+                                    }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors ${
+                                      isSelected
+                                        ? 'bg-emerald-50 text-emerald-700'
+                                        : 'hover:bg-gray-50 text-gray-700'
+                                    }`}
+                                  >
+                                    <Icon className="w-4 h-4" />
+                                    <div className="flex-1">
+                                      <div className="font-medium">{option.label}</div>
+                                      <div className="text-xs text-gray-500">{option.description}</div>
+                                    </div>
+                                    {isSelected && <Check className="w-4 h-4 text-emerald-600" />}
+                                  </button>
+                                );
+                              })}
                             </div>
                           )}
-                        </div>
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium ${
-                          trip.visibility === 'private' ? 'bg-gray-100 text-gray-600' :
-                          trip.visibility === 'public' ? 'bg-blue-100 text-blue-600' :
-                          trip.visibility === 'marketplace' ? 'bg-purple-100 text-purple-600' :
-                          'bg-amber-100 text-amber-600'
-                        }`}>
-                          <VisibilityIcon className="w-3 h-3" />
-                          <span>{visibilityLabels[trip.visibility]}</span>
                         </div>
                       </div>
 
                       {/* Stats Row */}
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        {days > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>{days} {days === 1 ? 'day' : 'days'}</span>
-                          </div>
-                        )}
-                        {travelers.length > 0 && (
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            <span>{travelers.length}</span>
-                          </div>
-                        )}
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className={`flex items-center gap-1 ${days > 0 ? 'text-gray-500' : 'text-orange-400'}`}>
+                          <Calendar className="w-4 h-4" />
+                          <span>{days > 0 ? `${days} ${days === 1 ? 'day' : 'days'}` : 'No itinerary'}</span>
+                        </div>
+                        <div className={`flex items-center gap-1 ${travelers.length > 0 ? 'text-gray-500' : 'text-orange-400'}`}>
+                          <Users className="w-4 h-4" />
+                          <span>{travelers.length > 0 ? travelers.length : 'Add travelers'}</span>
+                        </div>
                         {(trip.likes_count || 0) > 0 && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 text-gray-500">
                             <Heart className="w-4 h-4" />
                             <span>{trip.likes_count}</span>
                           </div>
                         )}
+                        {(trip.clone_count || 0) > 0 && (
+                          <div className="flex items-center gap-1 text-emerald-600">
+                            <Copy className="w-4 h-4" />
+                            <span>{trip.clone_count} {trip.clone_count === 1 ? 'clone' : 'clones'}</span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Date */}
-                      <p className="text-xs text-gray-400 mt-3">
-                        Created {format(new Date(trip.created_at), 'MMM d, yyyy')}
-                      </p>
+                      {/* Travel Date */}
+                      <div className="mt-3">
+                        {trip.start_date ? (
+                          <p className="text-xs text-gray-500">
+                            <span className="font-medium">
+                              {format(parseISO(trip.start_date), 'MMM d')}
+                              {getTripEndDate(trip) && ` - ${format(parseISO(getTripEndDate(trip)!), 'MMM d, yyyy')}`}
+                            </span>
+                            {isTripPast(trip) && (
+                              <span className="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px] font-medium">
+                                PAST
+                              </span>
+                            )}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-orange-400">
+                            Set travel dates
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     {/* Card Footer */}
@@ -276,6 +458,21 @@ export default function MyTripsPage() {
                       >
                         <Users2 className="w-4 h-4" />
                       </button>
+                      {/* Clone Button - for past trips */}
+                      {isTripPast(trip) && (
+                        <button
+                          onClick={() => handleClone(trip.id)}
+                          disabled={cloningTrip === trip.id}
+                          className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors border-l border-gray-100 disabled:opacity-50"
+                          title="Clone this trip"
+                        >
+                          {cloningTrip === trip.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
                       {trip.share_code && trip.visibility !== 'private' && (
                         <button
                           onClick={() => handleCopyShareLink(trip.share_code!)}
@@ -284,12 +481,71 @@ export default function MyTripsPage() {
                           <Share2 className="w-4 h-4" />
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(trip.id)}
-                        className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 transition-colors border-l border-gray-100"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {/* Delete Button with Confirmation */}
+                      {(() => {
+                        const isOwner = trip.user_id === currentUserId;
+                        const isPastTrip = isTripPast(trip);
+                        const canDelete = isOwner && !isPastTrip;
+                        const deleteTitle = !isOwner
+                          ? 'Only the owner can delete this trip'
+                          : isPastTrip
+                            ? 'Past trips cannot be deleted'
+                            : 'Delete trip';
+
+                        return (
+                          <div className="relative" ref={confirmDeleteId === trip.id ? deleteMenuRef : null}>
+                            <button
+                              onClick={() => {
+                                if (!canDelete) return;
+                                setConfirmDeleteId(confirmDeleteId === trip.id ? null : trip.id);
+                              }}
+                              disabled={!canDelete}
+                              className={`flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-l border-gray-100 ${
+                                !canDelete
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-red-500 hover:bg-red-50'
+                              }`}
+                              title={deleteTitle}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+
+                        {/* Delete Confirmation Dropdown */}
+                        {confirmDeleteId === trip.id && (
+                          <div className="absolute right-0 bottom-full mb-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                            <div className="p-4">
+                              <div className="flex items-center gap-2 text-red-600 mb-2">
+                                <AlertTriangle className="w-5 h-5" />
+                                <span className="font-semibold">Delete Trip?</span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-4">
+                                This action cannot be undone. All itinerary data will be permanently deleted.
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(trip.id)}
+                                  disabled={deletingTrip === trip.id}
+                                  className="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                                >
+                                  {deletingTrip === trip.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                                  ) : (
+                                    'Delete'
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 );

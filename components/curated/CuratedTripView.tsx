@@ -19,6 +19,8 @@ import TripMap from './TripMap';
 import CreatorCard from './CreatorCard';
 import CreatorProfile from './CreatorProfile';
 import DayTimeline from './DayTimeline';
+import TripImageUpload from './TripImageUpload';
+import AuthModal from '@/components/auth/AuthModal';
 
 interface Activity {
   id: string;
@@ -90,12 +92,39 @@ interface CuratedTripViewProps {
   onBack?: () => void;
 }
 
+interface TripImage {
+  id: string;
+  image_url: string;
+  display_order: number;
+}
+
 export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) {
   const router = useRouter();
   const [activeDay, setActiveDay] = useState(1);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [tripImages, setTripImages] = useState<TripImage[]>([]);
   const dayRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloning, setCloning] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const cloneButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Fetch trip images
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        const response = await fetch(`/api/trips/${trip.id}/images`);
+        if (response.ok) {
+          const data = await response.json();
+          setTripImages(data.images || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch trip images:', error);
+      }
+    };
+    fetchImages();
+  }, [trip.id]);
 
   // Group activities by day
   const activitiesByDay = (trip.itinerary_items || []).reduce((acc, item) => {
@@ -178,6 +207,43 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
     setSaved(!saved);
     // TODO: Implement actual save/favorite functionality
   };
+
+  const handleClone = async () => {
+    setCloning(true);
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/clone`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.requiresAuth) {
+          setShowCloneModal(false);
+          setShowAuthModal(true);
+          return;
+        }
+        throw new Error(data.error || 'Failed to clone trip');
+      }
+
+      // Success - redirect to cloned trip
+      router.push(`/trips/${data.tripId}`);
+    } catch (error) {
+      console.error('Clone error:', error);
+    } finally {
+      setCloning(false);
+    }
+  };
+
+  const handleAuthSuccess = async () => {
+    setShowAuthModal(false);
+    // Retry clone after successful auth
+    setShowCloneModal(true);
+  };
+
+  // Check if trip date has passed (for clone button visibility)
+  // If no specific date, show clone for public/curated trips
+  const canShowCloneButton = trip.visibility === 'public' || trip.visibility === 'curated';
 
   const handleBack = () => {
     if (onBack) {
@@ -326,6 +392,61 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
               >
                 <Heart className={`w-5 h-5 ${saved ? 'fill-current' : ''}`} />
               </button>
+
+              {/* Clone Button with Dropdown */}
+              {canShowCloneButton && (
+                <div className="relative">
+                  <button
+                    ref={cloneButtonRef}
+                    onClick={() => setShowCloneModal(!showCloneModal)}
+                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
+                    title="Clone this trip"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span className="hidden sm:inline">Clone</span>
+                  </button>
+
+                  {/* Clone Confirmation Dropdown */}
+                  {showCloneModal && (
+                    <>
+                      {/* Backdrop to close on click outside */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowCloneModal(false)}
+                      />
+                      <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-50">
+                        <div className="flex items-start gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <Copy className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900">Clone this trip?</h3>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Create your own copy of this itinerary to customize and plan your adventure.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setShowCloneModal(false)}
+                            className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleClone}
+                            disabled={cloning}
+                            className="flex-1 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {cloning ? 'Cloning...' : 'Proceed to clone'}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {trip.share_code && trip.visibility !== 'private' && (
                 <button
                   onClick={handleCopyShareLink}
@@ -407,11 +528,11 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
           {/* Right Column - Map & Creator Card (40%) */}
           <div className="w-full lg:w-2/5 order-1 lg:order-2">
             <div className="lg:sticky lg:top-16 space-y-3 lg:h-[calc(100vh-80px)] lg:flex lg:flex-col">
-              {/* Creator Card */}
+              {/* Creator Card - collapsed by default */}
               <CreatorCard
                 creator={creator}
                 curatorInfo={curatorInfo}
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
 
               {/* Map - fills remaining viewport height on desktop, fixed on mobile */}
@@ -454,15 +575,34 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                 </div>
               )}
             </div>
+
           </div>
         </div>
       </div>
+
+      {/* Trip Photos Section - separate from main layout so it's always visible when scrolling */}
+      {isOwner && (
+        <div className="max-w-7xl mx-auto px-4 pb-6">
+          <TripImageUpload
+            tripId={trip.id}
+            images={tripImages}
+            onImagesChange={setTripImages}
+          />
+        </div>
+      )}
 
       {/* Full Creator Profile (Bottom) */}
       <CreatorProfile
         creator={creator}
         curatorInfo={curatorInfo}
         paymentLinks={trip.payment_links}
+      />
+
+      {/* Auth Modal for cloning when not logged in */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={handleAuthSuccess}
       />
     </div>
   );
