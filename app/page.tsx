@@ -400,7 +400,11 @@ export default function HomePage() {
     // URL will be set by handleSave
   }, [shareUrl, handleSave]);
 
-  const handleUpdateVisibility = useCallback(async (newVisibility: ItineraryVisibility, newCuratorInfo?: CuratorInfo) => {
+  const handleUpdateVisibility = useCallback(async (
+    newVisibility: ItineraryVisibility,
+    newCuratorInfo?: CuratorInfo,
+    newMarketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string }
+  ) => {
     setVisibility(newVisibility);
     if (newCuratorInfo) {
       setCuratorInfo(newCuratorInfo);
@@ -415,6 +419,10 @@ export default function HomePage() {
           body: JSON.stringify({
             visibility: newVisibility,
             curatorInfo: newVisibility === 'curated' ? newCuratorInfo : undefined,
+            marketplace_needs: newVisibility === 'marketplace' ? newMarketplaceSettings?.serviceNeeds : undefined,
+            marketplace_budget_min: newVisibility === 'marketplace' ? newMarketplaceSettings?.budgetMin : undefined,
+            marketplace_budget_max: newVisibility === 'marketplace' ? newMarketplaceSettings?.budgetMax : undefined,
+            marketplace_notes: newVisibility === 'marketplace' ? newMarketplaceSettings?.notes : undefined,
           }),
         });
 

@@ -179,7 +179,10 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { title, visibility, curatorInfo, chatHistory, itinerary, travelers, destination } = body;
+    const {
+      title, visibility, curatorInfo, chatHistory, itinerary, travelers, destination,
+      marketplace_needs, marketplace_budget_min, marketplace_budget_max, marketplace_notes
+    } = body;
 
     // Check if user has edit permissions
     const permissionCheck = await query(
@@ -251,8 +254,34 @@ export async function PATCH(
       updates.push(`curator_experience = NULL`);
     }
 
+    // Handle marketplace fields for 'marketplace' visibility
+    if (visibility === 'marketplace') {
+      if (marketplace_needs !== undefined) {
+        updates.push(`marketplace_needs = $${paramIndex++}`);
+        values.push(JSON.stringify(marketplace_needs));
+      }
+      if (marketplace_budget_min !== undefined) {
+        updates.push(`marketplace_budget_min = $${paramIndex++}`);
+        values.push(marketplace_budget_min);
+      }
+      if (marketplace_budget_max !== undefined) {
+        updates.push(`marketplace_budget_max = $${paramIndex++}`);
+        values.push(marketplace_budget_max);
+      }
+      if (marketplace_notes !== undefined) {
+        updates.push(`marketplace_notes = $${paramIndex++}`);
+        values.push(marketplace_notes);
+      }
+    } else if (visibility && visibility !== 'marketplace') {
+      // Clear marketplace fields if switching away from marketplace
+      updates.push(`marketplace_needs = NULL`);
+      updates.push(`marketplace_budget_min = NULL`);
+      updates.push(`marketplace_budget_max = NULL`);
+      updates.push(`marketplace_notes = NULL`);
+    }
+
     // Allow empty updates if we're just refreshing the trip
-    if (updates.length === 0 && !chatHistory && !itinerary && !travelers) {
+    if (updates.length === 0 && !chatHistory && !itinerary && !travelers && !marketplace_needs) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
     }
 

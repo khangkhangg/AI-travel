@@ -11,6 +11,11 @@ import {
   Check,
   Link,
   ChevronDown,
+  Compass,
+  Car,
+  Heart,
+  Sparkles,
+  Hotel,
 } from 'lucide-react';
 import {
   ItineraryVisibility,
@@ -20,13 +25,23 @@ import {
   CuratorInfo,
 } from '@/lib/types/user';
 
+type ServiceNeedType = 'guide' | 'hotel' | 'transport' | 'experience' | 'health';
+
+interface MarketplaceSettings {
+  serviceNeeds: ServiceNeedType[];
+  budgetMin?: number;
+  budgetMax?: number;
+  notes?: string;
+}
+
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   shareUrl: string;
   currentVisibility: ItineraryVisibility;
   curatorInfo?: CuratorInfo;
-  onUpdateVisibility: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo) => void;
+  marketplaceSettings?: MarketplaceSettings;
+  onUpdateVisibility: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo, marketplaceSettings?: MarketplaceSettings) => void;
   isUpdating?: boolean;
   anchorRef?: React.RefObject<HTMLElement>;
 }
@@ -79,12 +94,21 @@ const experienceOptions: { value: CuratorExperience; label: string }[] = [
   { value: 'local_expert', label: 'Local expert / Tour guide' },
 ];
 
+const marketplaceServiceTypes = [
+  { id: 'guide' as ServiceNeedType, label: 'Tour Guide', icon: Compass, description: 'Local guide services' },
+  { id: 'hotel' as ServiceNeedType, label: 'Hotel', icon: Hotel, description: 'Accommodation booking' },
+  { id: 'transport' as ServiceNeedType, label: 'Transport', icon: Car, description: 'Rides & transfers' },
+  { id: 'experience' as ServiceNeedType, label: 'Experience', icon: Sparkles, description: 'Activities & tours' },
+  { id: 'health' as ServiceNeedType, label: 'Health', icon: Heart, description: 'Travel health services' },
+];
+
 export default function ShareModal({
   isOpen,
   onClose,
   shareUrl,
   currentVisibility,
   curatorInfo,
+  marketplaceSettings,
   onUpdateVisibility,
   isUpdating = false,
   anchorRef,
@@ -97,6 +121,14 @@ export default function ShareModal({
       experience: 'visited_2_5',
     }
   );
+  const [localMarketplaceSettings, setLocalMarketplaceSettings] = useState<MarketplaceSettings>(
+    marketplaceSettings || {
+      serviceNeeds: [],
+      budgetMin: undefined,
+      budgetMax: undefined,
+      notes: '',
+    }
+  );
   const [copied, setCopied] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -105,7 +137,10 @@ export default function ShareModal({
     if (curatorInfo) {
       setLocalCuratorInfo(curatorInfo);
     }
-  }, [currentVisibility, curatorInfo]);
+    if (marketplaceSettings) {
+      setLocalMarketplaceSettings(marketplaceSettings);
+    }
+  }, [currentVisibility, curatorInfo, marketplaceSettings]);
 
   useEffect(() => {
     if (copied) {
@@ -132,16 +167,28 @@ export default function ShareModal({
     setCopied(true);
   };
 
+  const toggleServiceNeed = (serviceId: ServiceNeedType) => {
+    setLocalMarketplaceSettings(prev => ({
+      ...prev,
+      serviceNeeds: prev.serviceNeeds.includes(serviceId)
+        ? prev.serviceNeeds.filter(s => s !== serviceId)
+        : [...prev.serviceNeeds, serviceId],
+    }));
+  };
+
   const handleUpdateVisibility = () => {
     if (selectedVisibility === 'curated') {
-      onUpdateVisibility(selectedVisibility, localCuratorInfo);
+      onUpdateVisibility(selectedVisibility, localCuratorInfo, undefined);
+    } else if (selectedVisibility === 'marketplace') {
+      onUpdateVisibility(selectedVisibility, undefined, localMarketplaceSettings);
     } else {
       onUpdateVisibility(selectedVisibility);
     }
   };
 
   const hasChanges = selectedVisibility !== currentVisibility ||
-    (selectedVisibility === 'curated' && JSON.stringify(localCuratorInfo) !== JSON.stringify(curatorInfo));
+    (selectedVisibility === 'curated' && JSON.stringify(localCuratorInfo) !== JSON.stringify(curatorInfo)) ||
+    (selectedVisibility === 'marketplace' && JSON.stringify(localMarketplaceSettings) !== JSON.stringify(marketplaceSettings));
 
   if (!isOpen) return null;
 
@@ -199,6 +246,78 @@ export default function ShareModal({
                   {isSelected && <Check className="w-3 h-3 text-white" />}
                 </div>
               </button>
+
+              {/* Marketplace Fields - shown when marketplace is selected */}
+              {option.value === 'marketplace' && isSelected && (
+                <div className="mt-3 ml-12 p-4 bg-blue-50 rounded-xl border border-blue-200 space-y-4">
+                  <p className="text-sm font-medium text-blue-800">What services do you need?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {marketplaceServiceTypes.map(service => {
+                      const ServiceIcon = service.icon;
+                      const isChecked = localMarketplaceSettings.serviceNeeds.includes(service.id);
+                      return (
+                        <button
+                          key={service.id}
+                          onClick={() => toggleServiceNeed(service.id)}
+                          className={`flex items-center gap-2 p-2 rounded-lg text-left text-sm transition-all ${
+                            isChecked
+                              ? 'bg-blue-100 border border-blue-300'
+                              : 'bg-white border border-gray-200 hover:border-blue-200'
+                          }`}
+                        >
+                          <ServiceIcon className={`w-4 h-4 ${isChecked ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <span className={isChecked ? 'text-blue-700 font-medium' : 'text-gray-600'}>
+                            {service.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-blue-700 mb-1.5">
+                      Budget range (optional)
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="Min $"
+                        value={localMarketplaceSettings.budgetMin || ''}
+                        onChange={(e) => setLocalMarketplaceSettings(prev => ({
+                          ...prev,
+                          budgetMin: e.target.value ? parseInt(e.target.value) : undefined
+                        }))}
+                        className="flex-1 px-3 py-1.5 text-sm bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300/50"
+                      />
+                      <span className="text-gray-400 self-center">-</span>
+                      <input
+                        type="number"
+                        placeholder="Max $"
+                        value={localMarketplaceSettings.budgetMax || ''}
+                        onChange={(e) => setLocalMarketplaceSettings(prev => ({
+                          ...prev,
+                          budgetMax: e.target.value ? parseInt(e.target.value) : undefined
+                        }))}
+                        className="flex-1 px-3 py-1.5 text-sm bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300/50"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-blue-700 mb-1.5">
+                      Notes for providers (optional)
+                    </label>
+                    <textarea
+                      placeholder="Any specific requirements or preferences..."
+                      value={localMarketplaceSettings.notes || ''}
+                      onChange={(e) => setLocalMarketplaceSettings(prev => ({
+                        ...prev,
+                        notes: e.target.value
+                      }))}
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300/50 resize-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Curator Fields - shown when curated is selected */}
               {option.value === 'curated' && isSelected && (

@@ -25,6 +25,8 @@ import {
   Lock,
   Loader2,
   Upload,
+  Compass,
+  Star,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -96,12 +98,38 @@ export default function ProfilePage() {
   const [profileVisibility, setProfileVisibility] = useState<'public' | 'private'>('public');
   const [savingVisibility, setSavingVisibility] = useState(false);
 
+  // Guide mode state
+  const [isGuide, setIsGuide] = useState(false);
+  const [guideDetails, setGuideDetails] = useState<{
+    experience_level?: 'beginner' | 'intermediate' | 'expert';
+    specialties?: string[];
+    coverage_areas?: string[];
+    hourly_rate?: number;
+    bio?: string;
+  }>({});
+  const [savingGuideMode, setSavingGuideMode] = useState(false);
+  const [editingGuideDetails, setEditingGuideDetails] = useState(false);
+
   // Bio word count
   const bioWordCount = countWords(editForm.bio);
 
   useEffect(() => {
     fetchProfile();
+    fetchGuideMode();
   }, []);
+
+  const fetchGuideMode = async () => {
+    try {
+      const response = await fetch('/api/users/guide-mode');
+      if (response.ok) {
+        const data = await response.json();
+        setIsGuide(data.is_guide || false);
+        setGuideDetails(data.guide_details || {});
+      }
+    } catch (err) {
+      console.error('Failed to fetch guide mode:', err);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -305,6 +333,56 @@ export default function ProfilePage() {
       setError(err.message);
     } finally {
       setSavingVisibility(false);
+    }
+  };
+
+  const handleToggleGuideMode = async () => {
+    setSavingGuideMode(true);
+    try {
+      const response = await fetch('/api/users/guide-mode', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_guide: !isGuide }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsGuide(data.is_guide);
+        if (data.is_guide && !editingGuideDetails) {
+          setEditingGuideDetails(true);
+        }
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to update guide mode');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingGuideMode(false);
+    }
+  };
+
+  const handleSaveGuideDetails = async () => {
+    setSavingGuideMode(true);
+    try {
+      const response = await fetch('/api/users/guide-mode', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guide_details: guideDetails }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGuideDetails(data.guide_details || {});
+        setEditingGuideDetails(false);
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to save guide details');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingGuideMode(false);
     }
   };
 
@@ -986,6 +1064,193 @@ export default function ProfilePage() {
                   <button className="text-sm text-emerald-600 hover:underline">
                     Verify Now
                   </button>
+                )}
+              </div>
+
+              {/* Guide Mode */}
+              <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <Compass className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">Guide Mode</p>
+                      <p className="text-sm text-gray-600">
+                        Offer your expertise as a local guide for travelers
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleGuideMode}
+                    disabled={savingGuideMode}
+                    className={`relative w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+                      isGuide ? 'bg-amber-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    {savingGuideMode ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="w-4 h-4 text-white animate-spin" />
+                      </div>
+                    ) : (
+                      <div
+                        className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                          isGuide ? 'left-7' : 'left-1'
+                        }`}
+                      />
+                    )}
+                  </button>
+                </div>
+
+                {isGuide && (
+                  <div className="mt-4 pt-4 border-t border-amber-200">
+                    {editingGuideDetails ? (
+                      <div className="space-y-4">
+                        {/* Experience Level */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Experience Level
+                          </label>
+                          <select
+                            value={guideDetails.experience_level || ''}
+                            onChange={(e) => setGuideDetails(prev => ({
+                              ...prev,
+                              experience_level: e.target.value as any
+                            }))}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          >
+                            <option value="">Select experience level</option>
+                            <option value="beginner">Beginner (1-2 years)</option>
+                            <option value="intermediate">Intermediate (3-5 years)</option>
+                            <option value="expert">Expert (5+ years)</option>
+                          </select>
+                        </div>
+
+                        {/* Specialties */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Specialties
+                          </label>
+                          <input
+                            type="text"
+                            value={guideDetails.specialties?.join(', ') || ''}
+                            onChange={(e) => setGuideDetails(prev => ({
+                              ...prev,
+                              specialties: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                            }))}
+                            placeholder="e.g., Food tours, History, Adventure, Photography"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Separate with commas</p>
+                        </div>
+
+                        {/* Coverage Areas */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Coverage Areas
+                          </label>
+                          <input
+                            type="text"
+                            value={guideDetails.coverage_areas?.join(', ') || ''}
+                            onChange={(e) => setGuideDetails(prev => ({
+                              ...prev,
+                              coverage_areas: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+                            }))}
+                            placeholder="e.g., Tokyo, Kyoto, Osaka"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Cities or regions you can guide in</p>
+                        </div>
+
+                        {/* Hourly Rate */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Hourly Rate (USD)
+                          </label>
+                          <input
+                            type="number"
+                            value={guideDetails.hourly_rate || ''}
+                            onChange={(e) => setGuideDetails(prev => ({
+                              ...prev,
+                              hourly_rate: e.target.value ? parseInt(e.target.value) : undefined
+                            }))}
+                            placeholder="e.g., 50"
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                        </div>
+
+                        {/* Guide Bio */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Guide Bio
+                          </label>
+                          <textarea
+                            value={guideDetails.bio || ''}
+                            onChange={(e) => setGuideDetails(prev => ({
+                              ...prev,
+                              bio: e.target.value
+                            }))}
+                            placeholder="Tell travelers about your experience, what makes your tours unique..."
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                          />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditingGuideDetails(false)}
+                            className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleSaveGuideDetails}
+                            disabled={savingGuideMode}
+                            className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                          >
+                            {savingGuideMode ? 'Saving...' : 'Save Details'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {guideDetails.experience_level && (
+                          <div className="flex items-center gap-2">
+                            <Star className="w-4 h-4 text-amber-500" />
+                            <span className="text-sm text-gray-600">
+                              {guideDetails.experience_level.charAt(0).toUpperCase() + guideDetails.experience_level.slice(1)} Guide
+                            </span>
+                          </div>
+                        )}
+                        {guideDetails.specialties && guideDetails.specialties.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {guideDetails.specialties.map((specialty, i) => (
+                              <span key={i} className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">
+                                {specialty}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {guideDetails.coverage_areas && guideDetails.coverage_areas.length > 0 && (
+                          <p className="text-sm text-gray-600">
+                            <MapPin className="w-4 h-4 inline mr-1" />
+                            {guideDetails.coverage_areas.join(', ')}
+                          </p>
+                        )}
+                        {guideDetails.hourly_rate && (
+                          <p className="text-sm font-medium text-gray-900">
+                            ${guideDetails.hourly_rate}/hour
+                          </p>
+                        )}
+                        <button
+                          onClick={() => setEditingGuideDetails(true)}
+                          className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                        >
+                          Edit Guide Details
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 

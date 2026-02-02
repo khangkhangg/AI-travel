@@ -91,7 +91,8 @@ interface ItineraryDisplayProps {
   shareUrl?: string;
   visibility?: ItineraryVisibility;
   curatorInfo?: CuratorInfo;
-  onUpdateVisibility?: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo) => Promise<void>;
+  marketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string };
+  onUpdateVisibility?: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo, marketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string }) => Promise<void>;
 }
 
 interface HotelResult {
@@ -143,6 +144,7 @@ export default function ItineraryDisplay({
   shareUrl,
   visibility = 'private',
   curatorInfo,
+  marketplaceSettings,
   onUpdateVisibility,
 }: ItineraryDisplayProps) {
   const [editingActivity, setEditingActivity] = useState<string | null>(null);
@@ -467,11 +469,15 @@ export default function ItineraryDisplay({
     }
   };
 
-  const handleUpdateVisibility = async (newVisibility: ItineraryVisibility, newCuratorInfo?: CuratorInfo) => {
+  const handleUpdateVisibility = async (
+    newVisibility: ItineraryVisibility,
+    newCuratorInfo?: CuratorInfo,
+    newMarketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string }
+  ) => {
     if (onUpdateVisibility) {
       setIsUpdatingVisibility(true);
       try {
-        await onUpdateVisibility(newVisibility, newCuratorInfo);
+        await onUpdateVisibility(newVisibility, newCuratorInfo, newMarketplaceSettings);
         setShowShareModal(false);
       } finally {
         setIsUpdatingVisibility(false);
@@ -631,6 +637,7 @@ export default function ItineraryDisplay({
                         shareUrl={shareUrl}
                         currentVisibility={visibility}
                         curatorInfo={curatorInfo}
+                        marketplaceSettings={marketplaceSettings}
                         onUpdateVisibility={handleUpdateVisibility}
                         isUpdating={isUpdatingVisibility}
                       />

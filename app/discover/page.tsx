@@ -15,6 +15,12 @@ import {
   Globe,
   Sparkles,
   ChevronDown,
+  Building2,
+  Compass,
+  Car,
+  Heart,
+  Hotel,
+  DollarSign,
 } from 'lucide-react';
 import { Itinerary, UserSummary } from '@/lib/types/user';
 
@@ -50,11 +56,39 @@ function DiscoverLoading() {
   );
 }
 
+interface MarketplaceTrip {
+  id: string;
+  title: string;
+  city: string;
+  start_date: string;
+  num_people: number;
+  marketplace_needs: string[];
+  marketplace_budget_min?: number;
+  marketplace_budget_max?: number;
+  creator_name: string;
+  creator_avatar?: string;
+  activity_count: number;
+  proposal_count: number;
+  service_needs: Array<{ service_type: string; notes?: string }>;
+}
+
+const SERVICE_ICONS: Record<string, any> = {
+  guide: Compass,
+  hotel: Hotel,
+  transport: Car,
+  experience: Sparkles,
+  health: Heart,
+};
+
 function DiscoverContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [activeTab, setActiveTab] = useState<'itineraries' | 'marketplace'>(
+    searchParams.get('tab') === 'marketplace' ? 'marketplace' : 'itineraries'
+  );
   const [itineraries, setItineraries] = useState<ItineraryWithMeta[]>([]);
+  const [marketplaceTrips, setMarketplaceTrips] = useState<MarketplaceTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
 
@@ -62,6 +96,7 @@ function DiscoverContent() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [selectedServiceType, setSelectedServiceType] = useState<string>('');
   const [dateRange, setDateRange] = useState({
     start: searchParams.get('startDate') || '',
     end: searchParams.get('endDate') || '',
@@ -100,9 +135,37 @@ function DiscoverContent() {
     }
   }, [searchQuery, dateRange, selectedInterests, groupSize]);
 
+  const fetchMarketplace = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.set('destination', searchQuery);
+      if (selectedServiceType) params.set('serviceType', selectedServiceType);
+      if (dateRange.start) params.set('startDateFrom', dateRange.start);
+      if (dateRange.end) params.set('startDateTo', dateRange.end);
+      if (groupSize) params.set('travelers', groupSize.toString());
+
+      const response = await fetch(`/api/marketplace?${params.toString()}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setMarketplaceTrips(data.trips || []);
+        setTotal(data.pagination?.total || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch marketplace:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, selectedServiceType, dateRange, groupSize]);
+
   useEffect(() => {
-    fetchItineraries();
-  }, [fetchItineraries]);
+    if (activeTab === 'itineraries') {
+      fetchItineraries();
+    } else {
+      fetchMarketplace();
+    }
+  }, [activeTab, fetchItineraries, fetchMarketplace]);
 
   const handleClone = async (id: string) => {
     try {
@@ -157,19 +220,56 @@ function DiscoverContent() {
                 <ArrowLeft className="w-5 h-5" />
               </Link>
               <div>
-                <h1 className="font-bold text-gray-900">Discover Itineraries</h1>
+                <h1 className="font-bold text-gray-900">Discover</h1>
                 <p className="text-xs text-gray-500">
-                  {total} public itineraries to inspire your next trip
+                  {total} {activeTab === 'itineraries' ? 'public itineraries' : 'marketplace opportunities'}
                 </p>
               </div>
             </div>
-            <Link
-              href="/trip/new"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+            <div className="flex items-center gap-3">
+              {activeTab === 'marketplace' && (
+                <Link
+                  href="/business/register"
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Join as Business
+                </Link>
+              )}
+              <Link
+                href="/trip/new"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                Create Trip
+              </Link>
+            </div>
+          </div>
+
+          {/* Tab Switcher */}
+          <div className="flex gap-1 pb-2">
+            <button
+              onClick={() => setActiveTab('itineraries')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                activeTab === 'itineraries'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
             >
-              <Sparkles className="w-4 h-4" />
-              Create Your Own
-            </Link>
+              <Globe className="w-4 h-4 inline mr-2" />
+              Public Itineraries
+            </button>
+            <button
+              onClick={() => setActiveTab('marketplace')}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                activeTab === 'marketplace'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Building2 className="w-4 h-4 inline mr-2" />
+              Business Marketplace
+            </button>
           </div>
         </div>
       </header>
@@ -312,31 +412,59 @@ function DiscoverContent() {
               </div>
             ))}
           </div>
-        ) : itineraries.length > 0 ? (
+        ) : activeTab === 'itineraries' ? (
+          itineraries.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {itineraries.map((itinerary) => (
+                <ItineraryCard
+                  key={itinerary.id}
+                  itinerary={itinerary}
+                  onClone={() => handleClone(itinerary.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <Globe className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No itineraries found
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {hasActiveFilters
+                  ? 'Try adjusting your filters or search terms'
+                  : 'Be the first to share your travel plans!'}
+              </p>
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+          )
+        ) : marketplaceTrips.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {itineraries.map((itinerary) => (
-              <ItineraryCard
-                key={itinerary.id}
-                itinerary={itinerary}
-                onClone={() => handleClone(itinerary.id)}
-              />
+            {marketplaceTrips.map((trip) => (
+              <MarketplaceTripCard key={trip.id} trip={trip} />
             ))}
           </div>
         ) : (
           <div className="text-center py-16">
-            <Globe className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No itineraries found
+              No marketplace trips found
             </h3>
             <p className="text-gray-500 mb-6">
               {hasActiveFilters
-                ? 'Try adjusting your filters or search terms'
-                : 'Be the first to share your travel plans!'}
+                ? 'Try adjusting your filters'
+                : 'No travelers are looking for services yet'}
             </p>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-emerald-600 hover:text-emerald-700 font-medium"
+                className="text-blue-600 hover:text-blue-700 font-medium"
               >
                 Clear all filters
               </button>
@@ -497,5 +625,98 @@ function ItineraryCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const serviceNeeds = trip.marketplace_needs || [];
+
+  return (
+    <Link
+      href={`/trips/${trip.id}`}
+      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow group block"
+    >
+      {/* Header with gradient */}
+      <div className="relative h-40 bg-gradient-to-br from-blue-500 to-indigo-600">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute bottom-4 left-4 right-4">
+          <h3 className="text-lg font-bold text-white line-clamp-2 mb-1">{trip.title}</h3>
+          <div className="flex items-center gap-2 text-white/90 text-sm">
+            <MapPin className="w-4 h-4" />
+            <span>{trip.city}</span>
+          </div>
+        </div>
+        <div className="absolute top-3 right-3 px-2 py-1 bg-blue-400/90 text-white text-xs font-medium rounded-full">
+          {trip.proposal_count} proposal{trip.proposal_count !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-4">
+        {/* Date & People */}
+        <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+          <span className="flex items-center gap-1">
+            <Calendar className="w-4 h-4" />
+            {formatDate(trip.start_date)}
+          </span>
+          {trip.num_people && (
+            <span className="flex items-center gap-1">
+              <Users className="w-4 h-4" />
+              {trip.num_people} traveler{trip.num_people !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Services Needed */}
+        {serviceNeeds.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-1.5">Services needed:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {serviceNeeds.map((service) => {
+                const Icon = SERVICE_ICONS[service] || Building2;
+                return (
+                  <span
+                    key={service}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full capitalize"
+                  >
+                    <Icon className="w-3 h-3" />
+                    {service}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Budget */}
+        {(trip.marketplace_budget_min || trip.marketplace_budget_max) && (
+          <div className="flex items-center gap-1 text-sm text-emerald-600 mb-3">
+            <DollarSign className="w-4 h-4" />
+            <span>
+              Budget: ${trip.marketplace_budget_min || 0} - ${trip.marketplace_budget_max || '∞'}
+            </span>
+          </div>
+        )}
+
+        {/* Creator */}
+        <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+          {trip.creator_avatar ? (
+            <img src={trip.creator_avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+              <span className="text-xs font-medium text-blue-600">
+                {trip.creator_name?.[0] || '?'}
+              </span>
+            </div>
+          )}
+          <span className="text-sm text-gray-600">{trip.creator_name}</span>
+        </div>
+      </div>
+    </Link>
   );
 }
