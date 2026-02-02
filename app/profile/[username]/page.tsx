@@ -31,6 +31,14 @@ function LoadingState() {
 
 type ProfileDesign = 'journey' | 'explorer' | 'wanderer';
 
+interface GuideDetails {
+  experience_level?: 'beginner' | 'intermediate' | 'expert';
+  specialties?: string[];
+  coverage_areas?: string[];
+  hourly_rate?: number;
+  bio?: string;
+}
+
 interface PublicProfileData {
   user: {
     id: string;
@@ -41,6 +49,8 @@ interface PublicProfileData {
     location?: string;
     profileVisibility?: string;
     createdAt: string;
+    isGuide?: boolean;
+    guideDetails?: GuideDetails;
   };
   isOwner: boolean;
   socialLinks: { id: string; platform: string; value: string }[];
@@ -212,6 +222,8 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
     onFollow: handleFollow,
     onUnfollow: handleUnfollow,
     itineraries: profile.trips,
+    isGuide: profile.user.isGuide,
+    guideDetails: profile.user.guideDetails,
   };
 
   // Render the selected design

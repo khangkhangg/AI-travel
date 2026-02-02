@@ -12,6 +12,8 @@ import {
   Lock,
   Globe,
   Heart,
+  Compass,
+  Star,
 } from 'lucide-react';
 import { UserProfile, SOCIAL_PLATFORMS, PAYMENT_PLATFORMS, BADGE_DEFINITIONS, SocialPlatform, PaymentPlatform } from '@/lib/types/user';
 import dynamic from 'next/dynamic';
@@ -24,6 +26,14 @@ const TravelMapWithWishlist = dynamic(() => import('../TravelMapWithWishlist'), 
   loading: () => <div className="h-[400px] bg-zinc-900 rounded-xl animate-pulse" />,
 });
 
+interface GuideDetails {
+  experience_level?: 'beginner' | 'intermediate' | 'expert';
+  specialties?: string[];
+  coverage_areas?: string[];
+  hourly_rate?: number;
+  bio?: string;
+}
+
 interface ProfileDesignProps {
   profile: UserProfile;
   isOwner: boolean;
@@ -32,6 +42,8 @@ interface ProfileDesignProps {
   onFollow?: () => void;
   onUnfollow?: () => void;
   itineraries?: any[];
+  isGuide?: boolean;
+  guideDetails?: GuideDetails;
 }
 
 export default function JourneyDesign({
@@ -42,6 +54,8 @@ export default function JourneyDesign({
   onFollow,
   onUnfollow,
   itineraries = [],
+  isGuide,
+  guideDetails,
 }: ProfileDesignProps) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -240,6 +254,109 @@ export default function JourneyDesign({
         </div>
       </section>
 
+      {/* Guide For Hire Section */}
+      {isGuide && guideDetails && (
+        <section className="py-12 px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-amber-600/20 border border-amber-500/30">
+              {/* Background pattern */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-4 right-4 w-32 h-32 rounded-full bg-amber-400 blur-3xl" />
+                <div className="absolute bottom-4 left-4 w-24 h-24 rounded-full bg-orange-400 blur-2xl" />
+              </div>
+
+              <div className="relative p-8">
+                <div className="flex flex-col lg:flex-row lg:items-start gap-8">
+                  {/* Left side - Header and rate */}
+                  <div className="lg:w-1/3">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                        <Compass className="w-6 h-6 text-amber-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-white tracking-tight">AVAILABLE</h3>
+                        <p className="text-amber-400 text-sm font-semibold">AS GUIDE</p>
+                      </div>
+                    </div>
+
+                    {/* Experience Level */}
+                    {guideDetails.experience_level && (
+                      <div className="flex items-center gap-2 mb-4">
+                        {[...Array(guideDetails.experience_level === 'expert' ? 3 : guideDetails.experience_level === 'intermediate' ? 2 : 1)].map((_, i) => (
+                          <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />
+                        ))}
+                        {[...Array(3 - (guideDetails.experience_level === 'expert' ? 3 : guideDetails.experience_level === 'intermediate' ? 2 : 1))].map((_, i) => (
+                          <Star key={i} className="w-5 h-5 text-zinc-600" />
+                        ))}
+                        <span className="text-zinc-300 text-sm ml-2 capitalize">
+                          {guideDetails.experience_level} Guide
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Hourly Rate */}
+                    {guideDetails.hourly_rate && (
+                      <div className="mb-4">
+                        <p className="text-4xl font-black text-white">
+                          ${guideDetails.hourly_rate}
+                          <span className="text-lg font-normal text-zinc-400">/hour</span>
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Specialties */}
+                    {guideDetails.specialties && guideDetails.specialties.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {guideDetails.specialties.map((specialty, i) => (
+                          <span
+                            key={i}
+                            className="px-3 py-1.5 bg-amber-500/20 text-amber-300 text-sm font-medium rounded-full border border-amber-500/30"
+                          >
+                            {specialty}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right side - Bio and coverage */}
+                  <div className="lg:w-2/3">
+                    {/* Guide Bio */}
+                    {guideDetails.bio && (
+                      <div className="bg-zinc-900/50 rounded-xl p-6 mb-4 border border-zinc-800">
+                        <p className="text-zinc-300 leading-relaxed italic">
+                          "{guideDetails.bio}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Coverage Areas */}
+                    {guideDetails.coverage_areas && guideDetails.coverage_areas.length > 0 && (
+                      <div className="flex items-center gap-2 text-zinc-300 mb-6">
+                        <MapPin className="w-5 h-5 text-amber-400" />
+                        <span className="font-medium">Available in:</span>
+                        <span>{guideDetails.coverage_areas.join(', ')}</span>
+                      </div>
+                    )}
+
+                    {/* CTA Button */}
+                    <button
+                      onClick={() => {
+                        const socialSection = document.querySelector('#connect-section');
+                        socialSection?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-900 font-bold rounded-xl transition-colors"
+                    >
+                      Contact for Tours
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Gamified Badge Grid */}
       {(badgeLevels.length > 0 || profile.badges.filter(b => BADGE_DEFINITIONS[b.badgeType as keyof typeof BADGE_DEFINITIONS]).length > 0) && (
         <section className="py-12 px-6">
@@ -396,7 +513,7 @@ export default function JourneyDesign({
       )}
 
       {/* Social & Tips */}
-      <section className="py-16 px-6">
+      <section id="connect-section" className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             {profile.socialLinks.length > 0 && (

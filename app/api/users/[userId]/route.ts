@@ -20,7 +20,7 @@ export async function GET(
     // Try to find user by ID first (only if it looks like a UUID), then by username
     if (isUuid) {
       userResult = await query(
-        `SELECT id, full_name, avatar_url, bio, location, username, profile_visibility, created_at
+        `SELECT id, full_name, avatar_url, bio, location, username, profile_visibility, created_at, is_guide, guide_details
          FROM users WHERE id = $1`,
         [userId]
       );
@@ -29,7 +29,7 @@ export async function GET(
     // If not found by ID (or not a UUID), try username
     if (!userResult || userResult.rows.length === 0) {
       userResult = await query(
-        `SELECT id, full_name, avatar_url, bio, location, username, profile_visibility, created_at
+        `SELECT id, full_name, avatar_url, bio, location, username, profile_visibility, created_at, is_guide, guide_details
          FROM users WHERE LOWER(username) = LOWER($1)`,
         [userId]
       );
@@ -153,6 +153,8 @@ export async function GET(
         location: user.location,
         profileVisibility: user.profile_visibility || 'public',
         createdAt: user.created_at,
+        isGuide: user.is_guide || false,
+        guideDetails: user.guide_details || null,
       },
       isOwner,
       followersCount,
