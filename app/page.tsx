@@ -10,7 +10,7 @@ import PopularDestinations from '@/components/landing/PopularDestinations';
 import CuratedItineraries from '@/components/landing/CuratedItineraries';
 import MarketplaceItineraries from '@/components/landing/MarketplaceItineraries';
 import GlassCTA from '@/components/landing/GlassCTA';
-import ChatPanel from '@/components/landing/ChatPanel';
+import ChatPanel, { AIMetrics } from '@/components/landing/ChatPanel';
 import ItineraryDisplay from '@/components/landing/ItineraryDisplay';
 import { MarketplaceSettings } from '@/components/landing/ShareModal';
 import AuthModal from '@/components/auth/AuthModal';
@@ -96,6 +96,7 @@ export default function HomePage() {
   const [pendingAutoSave, setPendingAutoSave] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingTrip, setIsLoadingTrip] = useState(false);
+  const [aiMetrics, setAIMetrics] = useState<AIMetrics | null>(null);
 
   // Check auth state and restore pending session on mount
   useEffect(() => {
@@ -305,6 +306,7 @@ export default function HomePage() {
   }, []);
 
   const handleItineraryGenerated = useCallback((newItinerary: ItineraryDay[]) => {
+    console.log('[page] handleItineraryGenerated called with', newItinerary.length, 'days');
     // Add IDs to activities if missing
     const itineraryWithIds = newItinerary.map(day => ({
       ...day,
@@ -314,6 +316,7 @@ export default function HomePage() {
       })),
     }));
     setItinerary(itineraryWithIds);
+    console.log('[page] setItinerary called, itinerary state updated');
   }, []);
 
   const handleItineraryChange = useCallback((newItinerary: ItineraryDay[]) => {
@@ -329,6 +332,10 @@ export default function HomePage() {
       setHasUnsavedChanges(true);
     }
   }, [isSaved]);
+
+  const handleAIMetricsUpdate = useCallback((metrics: AIMetrics) => {
+    setAIMetrics(metrics);
+  }, []);
 
   const handleHotelSelect = useCallback((day: number, hotel: HotelResult | null) => {
     setSelectedHotels(prev => {
@@ -366,6 +373,7 @@ export default function HomePage() {
           visibility,
           curatorInfo: visibility === 'curated' ? curatorInfo : undefined,
           chatHistory: chatMessages,
+          aiMetrics: aiMetrics,
         }),
       });
 
@@ -392,7 +400,7 @@ export default function HomePage() {
     } finally {
       setIsSaving(false);
     }
-  }, [tripContext, itinerary, travelers, currentTripId, visibility, curatorInfo, isLoggedIn, chatMessages]);
+  }, [tripContext, itinerary, travelers, currentTripId, visibility, curatorInfo, isLoggedIn, chatMessages, aiMetrics]);
 
   const handleShare = useCallback(async () => {
     if (!shareUrl) {
@@ -588,6 +596,7 @@ export default function HomePage() {
               onContextUpdate={handleContextUpdate}
               onItineraryGenerated={handleItineraryGenerated}
               onMessagesChange={setChatMessages}
+              onAIMetricsUpdate={handleAIMetricsUpdate}
             />
           </div>
         </div>
@@ -647,6 +656,7 @@ export default function HomePage() {
                   onContextUpdate={handleContextUpdate}
                   onItineraryGenerated={handleItineraryGenerated}
                   onMessagesChange={setChatMessages}
+                  onAIMetricsUpdate={handleAIMetricsUpdate}
                 />
               </div>
             </div>

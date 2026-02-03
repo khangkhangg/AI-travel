@@ -181,7 +181,9 @@ export async function PATCH(
     const body = await request.json();
     const {
       title, visibility, curatorInfo, chatHistory, itinerary, travelers, destination,
-      marketplace_needs, marketplace_budget_min, marketplace_budget_max, marketplace_notes
+      start_date,
+      marketplace_needs, marketplace_budget_min, marketplace_budget_max, marketplace_notes,
+      aiMetrics
     } = body;
 
     // Check if user has edit permissions
@@ -207,6 +209,11 @@ export async function PATCH(
     if (destination !== undefined) {
       updates.push(`city = $${paramIndex++}`);
       values.push(destination);
+    }
+
+    if (start_date !== undefined) {
+      updates.push(`start_date = $${paramIndex++}`);
+      values.push(start_date || null);
     }
 
     if (visibility !== undefined) {
@@ -280,8 +287,31 @@ export async function PATCH(
       updates.push(`marketplace_notes = NULL`);
     }
 
+    // Handle AI metrics update
+    if (aiMetrics) {
+      if (aiMetrics.tokensUsed !== undefined) {
+        updates.push(`tokens_used = $${paramIndex++}`);
+        values.push(aiMetrics.tokensUsed);
+      }
+      if (aiMetrics.cost !== undefined) {
+        updates.push(`total_cost = $${paramIndex++}`);
+        values.push(aiMetrics.cost);
+      }
+      // Look up ai_model_id if we have a model name
+      if (aiMetrics.model) {
+        const modelResult = await query(
+          'SELECT id FROM ai_models WHERE name = $1 LIMIT 1',
+          [aiMetrics.model]
+        );
+        if (modelResult.rows.length > 0) {
+          updates.push(`ai_model_id = $${paramIndex++}`);
+          values.push(modelResult.rows[0].id);
+        }
+      }
+    }
+
     // Allow empty updates if we're just refreshing the trip
-    if (updates.length === 0 && !chatHistory && !itinerary && !travelers && !marketplace_needs) {
+    if (updates.length === 0 && !chatHistory && !itinerary && !travelers && !marketplace_needs && !aiMetrics) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
     }
 

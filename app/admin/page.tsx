@@ -38,6 +38,12 @@ import {
   GripVertical,
   ExternalLink,
   Pin,
+  ScanEye,
+  Briefcase,
+  Building2,
+  FileCheck,
+  FileX,
+  MapPin,
 } from 'lucide-react';
 
 import { INTEREST_CATEGORIES } from '@/lib/types/user';
@@ -91,6 +97,7 @@ export default function AdminDashboard() {
   const [models, setModels] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [recentQueries, setRecentQueries] = useState<any[]>([]);
+  const [queriesAiOnly, setQueriesAiOnly] = useState(false);
   const [modelPerformance, setModelPerformance] = useState<any[]>([]);
   // User management state
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -144,6 +151,56 @@ export default function AdminDashboard() {
   const [creatorSearchResults, setCreatorSearchResults] = useState<any[]>([]);
   const [searchingCreators, setSearchingCreators] = useState(false);
   const [featuredSaveStatus, setFeaturedSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [addFeaturedUntil, setAddFeaturedUntil] = useState('');
+  // eKYC AI Verification
+  const [ekycEnabled, setEkycEnabled] = useState(false);
+  const [ekycModel, setEkycModel] = useState('deepseek-vl2');
+  const [visionModels, setVisionModels] = useState<any[]>([]);
+  const [deepseekApiKey, setDeepseekApiKey] = useState('');
+  const [showDeepseekApiKey, setShowDeepseekApiKey] = useState(false);
+  const [alibabaApiKey, setAlibabaApiKey] = useState('');
+  const [showAlibabaApiKey, setShowAlibabaApiKey] = useState(false);
+  const [zhipuApiKey, setZhipuApiKey] = useState('');
+  const [showZhipuApiKey, setShowZhipuApiKey] = useState(false);
+  const [ekycKeyTestStatus, setEkycKeyTestStatus] = useState<{ provider: string; status: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ provider: '', status: 'idle' });
+  const [ekycSaveStatus, setEkycSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  // Business Management
+  const [businesses, setBusinesses] = useState<any[]>([]);
+  const [businessStats, setBusinessStats] = useState<any>(null);
+  const [businessesLoading, setBusinessesLoading] = useState(false);
+  const [businessSearch, setBusinessSearch] = useState('');
+  const [businessFilter, setBusinessFilter] = useState<'all' | 'active' | 'inactive' | 'verified' | 'pending'>('all');
+  const [businessTypeFilter, setBusinessTypeFilter] = useState('');
+  const [selectedBusiness, setSelectedBusiness] = useState<any>(null);
+  const [businessDetailLoading, setBusinessDetailLoading] = useState(false);
+  const [businessActionMenu, setBusinessActionMenu] = useState<string | null>(null);
+  const [businessEditMode, setBusinessEditMode] = useState(false);
+  const [businessEditForm, setBusinessEditForm] = useState<any>({});
+  const [businessConfirmModal, setBusinessConfirmModal] = useState<{
+    type: 'activate' | 'deactivate' | 'delete' | 'verify' | 'unverify' | null;
+    loading: boolean;
+  }>({ type: null, loading: false });
+  const [documentPreview, setDocumentPreview] = useState<{ url: string; type: string } | null>(null);
+  const [rejectDocModal, setRejectDocModal] = useState<{ docType: string; reason: string; loading: boolean } | null>(null);
+  const [uploadingFile, setUploadingFile] = useState<{ type: string; progress: boolean } | null>(null);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [adminInfo, setAdminInfo] = useState<{ username: string; displayName: string; email: string } | null>(null);
+  const [changePasswordModal, setChangePasswordModal] = useState<{
+    open: boolean;
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+    loading: boolean;
+    error: string | null;
+  }>({ open: false, currentPassword: '', newPassword: '', confirmPassword: '', loading: false, error: null });
+  const [profileInfoModal, setProfileInfoModal] = useState<{
+    open: boolean;
+    displayName: string;
+    email: string;
+    loading: boolean;
+    error: string | null;
+    success: boolean;
+  }>({ open: false, displayName: '', email: '', loading: false, error: null, success: false });
   const router = useRouter();
 
   const PROFILE_DESIGNS = [
@@ -152,9 +209,25 @@ export default function AdminDashboard() {
     { id: 'wanderer' as const, name: 'WANDERER', description: 'Full-bleed gradient hero with horizontal scrolling cards', preview: 'bg-gradient-to-br from-emerald-500 to-cyan-500' },
   ];
 
+  // Fetch admin info on mount
+  useEffect(() => {
+    const fetchAdminInfo = async () => {
+      try {
+        const res = await fetch('/api/admin/login');
+        if (res.ok) {
+          const data = await res.json();
+          setAdminInfo(data);
+        }
+      } catch {
+        // Ignore errors
+      }
+    };
+    fetchAdminInfo();
+  }, []);
+
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, businessSearch, businessFilter, businessTypeFilter, queriesAiOnly]);
 
   const fetchData = async () => {
     try {
@@ -167,7 +240,7 @@ export default function AdminDashboard() {
         const data = await res.json();
         setStats(data);
       } else if (activeTab === 'queries') {
-        const res = await fetch('/api/admin/queries?limit=10');
+        const res = await fetch(`/api/admin/queries?limit=20${queriesAiOnly ? '&aiOnly=true' : ''}`);
         const data = await res.json();
         setRecentQueries(data.queries || []);
       } else if (activeTab === 'analytics') {
@@ -195,6 +268,22 @@ export default function AdminDashboard() {
           }
         } finally {
           setFeaturedLoading(false);
+        }
+      } else if (activeTab === 'businesses') {
+        setBusinessesLoading(true);
+        try {
+          const params = new URLSearchParams();
+          if (businessSearch) params.set('search', businessSearch);
+          if (businessFilter !== 'all') params.set('status', businessFilter);
+          if (businessTypeFilter) params.set('type', businessTypeFilter);
+          const res = await fetch(`/api/admin/businesses?${params.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            setBusinesses(data.businesses || []);
+            setBusinessStats(data.stats);
+          }
+        } finally {
+          setBusinessesLoading(false);
         }
       } else if (activeTab === 'settings') {
         const res = await fetch('/api/admin/settings');
@@ -224,6 +313,30 @@ export default function AdminDashboard() {
           }
         } catch (e) {
           // Default to 'journey' if not found
+        }
+
+        // Fetch eKYC settings
+        try {
+          const ekycEnabledRes = await fetch('/api/admin/site-settings?key=ekyc_enabled');
+          if (ekycEnabledRes.ok) {
+            const ekycData = await ekycEnabledRes.json();
+            setEkycEnabled(ekycData.value === 'true' || ekycData.value === '"true"');
+          }
+          const ekycModelRes = await fetch('/api/admin/site-settings?key=ekyc_model');
+          if (ekycModelRes.ok) {
+            const modelData = await ekycModelRes.json();
+            if (modelData.value) {
+              setEkycModel(modelData.value.replace(/"/g, ''));
+            }
+          }
+          // Fetch vision models
+          const modelsRes = await fetch('/api/admin/models/vision');
+          if (modelsRes.ok) {
+            const modelsData = await modelsRes.json();
+            setVisionModels(modelsData.models || []);
+          }
+        } catch (e) {
+          console.error('Failed to fetch eKYC settings:', e);
         }
       }
     } catch (error) {
@@ -595,13 +708,111 @@ export default function AdminDashboard() {
               <Settings className="w-6 h-6 text-teal-600" />
               <h1 className="text-2xl font-bold text-gray-900">Super Admin Control Panel</h1>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
-            </button>
+            {/* Admin User Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setAdminMenuOpen(!adminMenuOpen)}
+                className="flex items-center gap-2 p-1 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white font-semibold text-sm">
+                  {adminInfo?.displayName
+                    ? adminInfo.displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                    : 'SA'}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <div className="text-sm font-medium text-gray-900">{adminInfo?.displayName || 'Super Admin'}</div>
+                  <div className="text-xs text-gray-500">Administrator</div>
+                </div>
+              </button>
+
+              {/* Dropdown Menu */}
+              {adminMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setAdminMenuOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <div className="font-medium text-gray-900">{adminInfo?.displayName || 'Super Admin'}</div>
+                      <div className="text-sm text-gray-500">{adminInfo?.email || ''}</div>
+                    </div>
+
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setAdminMenuOpen(false);
+                          // Navigate to profile if exists
+                          router.push('/profile');
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <Users className="w-4 h-4 text-gray-400" />
+                        View Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAdminMenuOpen(false);
+                          setProfileInfoModal({
+                            open: true,
+                            displayName: adminInfo?.displayName || '',
+                            email: adminInfo?.email || '',
+                            loading: false,
+                            error: null,
+                            success: false,
+                          });
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <Edit2 className="w-4 h-4 text-gray-400" />
+                        Edit Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAdminMenuOpen(false);
+                          setChangePasswordModal({
+                            open: true,
+                            currentPassword: '',
+                            newPassword: '',
+                            confirmPassword: '',
+                            loading: false,
+                            error: null,
+                          });
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <Key className="w-4 h-4 text-gray-400" />
+                        Change Password
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAdminMenuOpen(false);
+                          // Show settings or edit info
+                          setActiveTab('settings');
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <Settings className="w-4 h-4 text-gray-400" />
+                        Admin Settings
+                      </button>
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-1">
+                      <button
+                        onClick={() => {
+                          setAdminMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -689,6 +900,19 @@ export default function AdminDashboard() {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('businesses')}
+              className={`px-6 py-4 font-medium transition ${
+                activeTab === 'businesses'
+                  ? 'border-b-2 border-teal-600 text-teal-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Briefcase className="w-4 h-4" />
+                <span>Businesses</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('settings')}
               className={`px-6 py-4 font-medium transition ${
                 activeTab === 'settings'
@@ -707,63 +931,224 @@ export default function AdminDashboard() {
         {/* Overview Tab */}
         {activeTab === 'overview' && stats && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <Users className="w-8 h-8 text-blue-600" />
-                  <span className="text-2xl font-bold text-gray-900">
-                    {stats.totalUsers || 0}
-                  </span>
+            {/* Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-blue-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Total Users</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total_users?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-green-600 mt-1">+{stats.users_today || 0} today</p>
+                  </div>
+                  <Users className="w-10 h-10 text-blue-500 opacity-80" />
                 </div>
-                <div className="text-sm text-gray-600">Total Users</div>
               </div>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <Activity className="w-8 h-8 text-green-600" />
-                  <span className="text-2xl font-bold text-gray-900">
-                    {stats.totalTrips || 0}
-                  </span>
+              <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Total Trips</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total_trips?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-green-600 mt-1">+{stats.trips_today || 0} today</p>
+                  </div>
+                  <Activity className="w-10 h-10 text-green-500 opacity-80" />
                 </div>
-                <div className="text-sm text-gray-600">Trips Generated</div>
               </div>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <DollarSign className="w-8 h-8 text-purple-600" />
-                  <span className="text-2xl font-bold text-gray-900">
-                    ${stats.totalCost?.toFixed(2) || '0.00'}
-                  </span>
+              <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">AI Cost (Total)</p>
+                    <p className="text-2xl font-bold text-gray-900">${parseFloat(stats.total_cost || 0).toFixed(2)}</p>
+                    <p className="text-xs text-gray-500 mt-1">${parseFloat(stats.cost_this_month || 0).toFixed(2)} this month</p>
+                  </div>
+                  <DollarSign className="w-10 h-10 text-purple-500 opacity-80" />
                 </div>
-                <div className="text-sm text-gray-600">Total Cost</div>
               </div>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <Zap className="w-8 h-8 text-orange-600" />
-                  <span className="text-2xl font-bold text-gray-900">
-                    {stats.totalTokens?.toLocaleString() || 0}
-                  </span>
+              <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-500">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Tokens Used</p>
+                    <p className="text-2xl font-bold text-gray-900">{parseInt(stats.total_tokens || 0).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 mt-1">{parseInt(stats.tokens_this_month || 0).toLocaleString()} this month</p>
+                  </div>
+                  <Zap className="w-10 h-10 text-orange-500 opacity-80" />
                 </div>
-                <div className="text-sm text-gray-600">Tokens Used</div>
               </div>
             </div>
 
-            {/* Recent Activity */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Platform Activity (Last 30 Days)</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Average Response Time</span>
-                  <span className="font-semibold">{stats.avgResponseTime?.toFixed(0) || 0}ms</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Success Rate</span>
-                  <span className="font-semibold">{stats.successRate?.toFixed(1) || 0}%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Premium Users</span>
-                  <span className="font-semibold">{stats.premiumUsers || 0}</span>
-                </div>
+            {/* Secondary Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <p className="text-sm text-gray-500">Active Users (7d)</p>
+                <p className="text-xl font-bold text-gray-900">{stats.active_users || 0}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <p className="text-sm text-gray-500">AI Generated</p>
+                <p className="text-xl font-bold text-gray-900">{stats.ai_generated_trips || 0}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <p className="text-sm text-gray-500">Total Views</p>
+                <p className="text-xl font-bold text-gray-900">{parseInt(stats.total_views || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <p className="text-sm text-gray-500">Total Clones</p>
+                <p className="text-xl font-bold text-gray-900">{parseInt(stats.total_clones || 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <p className="text-sm text-gray-500">Featured Creators</p>
+                <p className="text-xl font-bold text-gray-900">{stats.featured_creators_count || 0}</p>
               </div>
             </div>
+
+            {/* Three Column Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Performance Metrics */}
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-teal-600" />
+                  Performance (30 Days)
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Avg Response Time</span>
+                    <span className="font-semibold">{parseFloat(stats.avg_response_time || 0).toFixed(0)}ms</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Success Rate</span>
+                    <span className="font-semibold text-green-600">{parseFloat(stats.success_rate || 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Premium Users</span>
+                    <span className="font-semibold">{stats.premium_users || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Users This Week</span>
+                    <span className="font-semibold">{stats.users_this_week || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Trips This Week</span>
+                    <span className="font-semibold">{stats.trips_this_week || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Business Stats */}
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-indigo-600" />
+                  Business Partners
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Total Businesses</span>
+                    <span className="font-semibold">{stats.total_businesses || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Verified (eKYC)</span>
+                    <span className="font-semibold text-green-600">{stats.verified_businesses || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Active</span>
+                    <span className="font-semibold">{stats.active_businesses || 0}</span>
+                  </div>
+                  {stats.total_businesses > 0 && (
+                    <div className="pt-2 border-t">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-500">Verification Rate</span>
+                        <span className="font-medium">
+                          {((stats.verified_businesses || 0) / stats.total_businesses * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Top Destinations */}
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-rose-600" />
+                  Top Destinations
+                </h3>
+                {stats.topDestinations && stats.topDestinations.length > 0 ? (
+                  <div className="space-y-3">
+                    {stats.topDestinations.map((dest: any, index: number) => (
+                      <div key={index} className="flex justify-between items-center">
+                        <span className="text-gray-600 truncate flex-1">{dest.city}</span>
+                        <span className="font-semibold text-sm bg-gray-100 px-2 py-0.5 rounded">
+                          {dest.trip_count} trips
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-sm">No destination data yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* AI Model Usage */}
+            {stats.modelUsage && stats.modelUsage.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <Server className="w-5 h-5 text-cyan-600" />
+                  AI Model Usage
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-sm text-gray-500 border-b">
+                        <th className="pb-3 font-medium">Model</th>
+                        <th className="pb-3 font-medium">Provider</th>
+                        <th className="pb-3 font-medium text-right">Uses</th>
+                        <th className="pb-3 font-medium text-right">Tokens</th>
+                        <th className="pb-3 font-medium text-right">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {stats.modelUsage.map((model: any, index: number) => (
+                        <tr key={index} className="text-sm">
+                          <td className="py-3 font-medium text-gray-900">{model.display_name}</td>
+                          <td className="py-3 text-gray-600 capitalize">{model.provider}</td>
+                          <td className="py-3 text-right">{model.usage_count}</td>
+                          <td className="py-3 text-right">{parseInt(model.tokens_used || 0).toLocaleString()}</td>
+                          <td className="py-3 text-right">${parseFloat(model.total_cost || 0).toFixed(4)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Activity Timeline */}
+            {stats.activityTimeline && stats.activityTimeline.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-6">
+                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-emerald-600" />
+                  Activity (Last 7 Days)
+                </h3>
+                <div className="grid grid-cols-7 gap-2">
+                  {stats.activityTimeline.slice().reverse().map((day: any, index: number) => {
+                    const maxTrips = Math.max(...stats.activityTimeline.map((d: any) => parseInt(d.trips) || 1));
+                    const height = Math.max(20, (parseInt(day.trips) / maxTrips) * 100);
+                    return (
+                      <div key={index} className="flex flex-col items-center">
+                        <div className="w-full flex flex-col items-center justify-end h-24">
+                          <div
+                            className="w-full bg-gradient-to-t from-teal-500 to-emerald-400 rounded-t"
+                            style={{ height: `${height}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 mt-2">
+                          {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                        </div>
+                        <div className="text-xs font-medium text-gray-700">{day.trips}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -859,44 +1244,97 @@ export default function AdminDashboard() {
         {activeTab === 'queries' && (
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold">Recent Trip Generations</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Last 10 trip generation requests
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Recent Trip Generations</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {queriesAiOnly ? 'AI-generated trips only' : 'All trips (including manual)'}
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-sm text-gray-600">AI Only</span>
+                  <button
+                    type="button"
+                    onClick={() => setQueriesAiOnly(!queriesAiOnly)}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${
+                      queriesAiOnly ? 'bg-teal-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        queriesAiOnly ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </label>
+              </div>
             </div>
             <div className="divide-y divide-gray-200">
-              {recentQueries.map((query, index) => (
-                <div key={index} className="p-6 hover:bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="font-medium text-gray-900">{query.title}</span>
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
-                          {query.ai_model_display_name || 'Unknown Model'}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div>User: {query.user_email}</div>
-                        <div>
-                          {query.start_date} to {query.end_date} • {query.num_people} people
-                          {query.city && ` • ${query.city}`}
+              {recentQueries.length === 0 ? (
+                <div className="p-12 text-center">
+                  <Database className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">
+                    {queriesAiOnly
+                      ? 'No AI-generated trips found'
+                      : 'No trip generations yet'}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {queriesAiOnly
+                      ? 'Try disabling the AI Only filter to see all trips'
+                      : 'Trips will appear here once generated'}
+                  </p>
+                </div>
+              ) : (
+                recentQueries.map((query, index) => (
+                  <div key={index} className="p-6 hover:bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="font-medium text-gray-900">{query.title}</span>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            query.ai_model_display_name
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {query.ai_model_display_name || 'Manual Creation'}
+                          </span>
                         </div>
-                        <div>Travel Type: {query.travel_type?.join(', ')}</div>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <div>User: {query.user_email || 'Unknown'}</div>
+                          <div>
+                            {query.start_date} to {query.end_date}
+                            {query.num_people && ` • ${query.num_people} people`}
+                            {query.city && ` • ${query.city}`}
+                          </div>
+                          {query.travel_type && query.travel_type.length > 0 && (
+                            <div>Travel Type: {query.travel_type.join(', ')}</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div className="text-gray-900 font-medium">
-                        {query.generation_time_ms}ms
-                      </div>
-                      <div className="text-gray-600">{query.tokens_used} tokens</div>
-                      <div className="text-gray-600">${query.total_cost?.toFixed(4)}</div>
-                      <div className="text-gray-500 text-xs mt-1">
-                        {new Date(query.created_at).toLocaleString()}
+                      <div className="text-right text-sm">
+                        {query.ai_model_display_name ? (
+                          <>
+                            <div className="text-gray-900 font-medium">
+                              {query.generation_time_ms ? `${query.generation_time_ms}ms` : '-'}
+                            </div>
+                            <div className="text-gray-600">
+                              {query.tokens_used ? `${query.tokens_used.toLocaleString()} tokens` : '-'}
+                            </div>
+                            <div className="text-gray-600">
+                              {query.total_cost ? `$${query.total_cost.toFixed(4)}` : '-'}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-gray-400 text-xs">No AI metrics</div>
+                        )}
+                        <div className="text-gray-500 text-xs mt-1">
+                          {new Date(query.created_at).toLocaleString()}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}
@@ -1307,6 +1745,7 @@ export default function AdminDashboard() {
                         setCreatorSearch('');
                         setCreatorSearchResults([]);
                         setAddFeaturedCategory('');
+                        setAddFeaturedUntil('');
                       }}
                       className="p-2 text-gray-400 hover:text-gray-600"
                     >
@@ -1327,6 +1766,23 @@ export default function AdminDashboard() {
                           <option key={id} value={id}>{cat.emoji} {cat.label}</option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Featured Until Date */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Featured Until <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={addFeaturedUntil}
+                        onChange={(e) => setAddFeaturedUntil(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        placeholder="Select end date"
+                        title="Featured until date"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">Leave empty for permanent featuring</p>
                     </div>
 
                     {/* Creator Search */}
@@ -1382,6 +1838,7 @@ export default function AdminDashboard() {
                                   body: JSON.stringify({
                                     userId: creator.id,
                                     category: addFeaturedCategory,
+                                    featuredUntil: addFeaturedUntil || null,
                                   }),
                                 });
                                 if (res.ok) {
@@ -1390,6 +1847,7 @@ export default function AdminDashboard() {
                                   setCreatorSearch('');
                                   setCreatorSearchResults([]);
                                   setAddFeaturedCategory('');
+                                  setAddFeaturedUntil('');
                                   fetchData();
                                 } else {
                                   const data = await res.json();
@@ -1436,6 +1894,1185 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Businesses Tab */}
+        {activeTab === 'businesses' && (
+          <div className="space-y-6">
+            {/* Header with Stats */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Business Management</h2>
+                  <p className="text-sm text-gray-500 mt-1">Manage registered businesses, verification status, and eKYC documents</p>
+                </div>
+                <button
+                  onClick={() => fetchData()}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Refresh
+                </button>
+              </div>
+
+              {/* Stats Cards */}
+              {businessStats && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
+                      <Building2 className="w-4 h-4" />
+                      Total
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{businessStats.total || 0}</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-green-600 text-sm mb-1">
+                      <CheckCircle className="w-4 h-4" />
+                      Active
+                    </div>
+                    <div className="text-2xl font-bold text-green-700">{businessStats.active || 0}</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-red-600 text-sm mb-1">
+                      <Ban className="w-4 h-4" />
+                      Inactive
+                    </div>
+                    <div className="text-2xl font-bold text-red-700">{businessStats.inactive || 0}</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-blue-600 text-sm mb-1">
+                      <FileCheck className="w-4 h-4" />
+                      Verified
+                    </div>
+                    <div className="text-2xl font-bold text-blue-700">{businessStats.verified || 0}</div>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-amber-600 text-sm mb-1">
+                      <ScanEye className="w-4 h-4" />
+                      Pending eKYC
+                    </div>
+                    <div className="text-2xl font-bold text-amber-700">{businessStats.pendingVerification || 0}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Filters and Search */}
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Search */}
+                <div className="flex-1 min-w-[250px]">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search businesses..."
+                      value={businessSearch}
+                      onChange={(e) => setBusinessSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Status Filter */}
+                <select
+                  value={businessFilter}
+                  onChange={(e) => setBusinessFilter(e.target.value as any)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="verified">eKYC Verified</option>
+                  <option value="pending">Pending Verification</option>
+                </select>
+
+                {/* Type Filter */}
+                <select
+                  value={businessTypeFilter}
+                  onChange={(e) => setBusinessTypeFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">All Types</option>
+                  <option value="restaurant">Restaurant</option>
+                  <option value="hotel">Hotel</option>
+                  <option value="tour_operator">Tour Operator</option>
+                  <option value="attraction">Attraction</option>
+                  <option value="transportation">Transportation</option>
+                  <option value="retail">Retail</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Business List */}
+            <div className="bg-white rounded-lg shadow-sm">
+              {businessesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+                </div>
+              ) : businesses.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Building2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No businesses found</p>
+                  <p className="text-sm">Try adjusting your filters</p>
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">eKYC</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {businesses.map((business) => (
+                      <tr
+                        key={business.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={async (e) => {
+                          // Don't open panel if clicking on action menu
+                          if ((e.target as HTMLElement).closest('.action-menu-container')) return;
+                          setBusinessDetailLoading(true);
+                          try {
+                            const res = await fetch(`/api/admin/businesses/${business.id}`);
+                            if (res.ok) {
+                              const data = await res.json();
+                              setSelectedBusiness({ ...data.business, documents: data.documents });
+                            }
+                          } finally {
+                            setBusinessDetailLoading(false);
+                          }
+                        }}
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {business.logoUrl ? (
+                              <img src={business.logoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                                <Building2 className="w-5 h-5 text-gray-400" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium text-gray-900">{business.name}</div>
+                              {business.location && (
+                                <div className="text-sm text-gray-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {business.location}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm">
+                            <div className="font-medium text-gray-900">{business.ownerName || 'N/A'}</div>
+                            <div className="text-gray-500">{business.ownerEmail || 'N/A'}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 capitalize">
+                            {business.businessType?.replace('_', ' ') || 'N/A'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            business.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {business.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {business.ekycVerified ? (
+                            <span className="flex items-center gap-1 text-green-600 text-sm">
+                              <FileCheck className="w-4 h-4" />
+                              Verified
+                            </span>
+                          ) : business.hasDocuments ? (
+                            <span className="flex items-center gap-1 text-amber-600 text-sm">
+                              <ScanEye className="w-4 h-4" />
+                              Pending
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">Not Started</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {new Date(business.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-right action-menu-container">
+                          <div className="relative">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBusinessActionMenu(businessActionMenu === business.id ? null : business.id);
+                              }}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition"
+                            >
+                              <MoreVertical className="w-4 h-4 text-gray-500" />
+                            </button>
+                            {businessActionMenu === business.id && (
+                              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                <button
+                                  onClick={async () => {
+                                    setBusinessActionMenu(null);
+                                    setBusinessDetailLoading(true);
+                                    try {
+                                      const res = await fetch(`/api/admin/businesses/${business.id}`);
+                                      if (res.ok) {
+                                        const data = await res.json();
+                                        setSelectedBusiness({ ...data.business, documents: data.documents });
+                                      }
+                                    } finally {
+                                      setBusinessDetailLoading(false);
+                                    }
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  View Details
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    setBusinessActionMenu(null);
+                                    const action = business.isActive ? 'deactivate' : 'activate';
+                                    if (confirm(`Are you sure you want to ${action} this business?`)) {
+                                      const res = await fetch(`/api/admin/businesses/${business.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ isActive: !business.isActive }),
+                                      });
+                                      if (res.ok) {
+                                        fetchData();
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  {business.isActive ? (
+                                    <>
+                                      <Ban className="w-4 h-4" />
+                                      Deactivate
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="w-4 h-4" />
+                                      Activate
+                                    </>
+                                  )}
+                                </button>
+                                {business.hasDocuments && !business.ekycVerified && (
+                                  <button
+                                    onClick={async () => {
+                                      setBusinessActionMenu(null);
+                                      setBusinessDetailLoading(true);
+                                      try {
+                                        const res = await fetch(`/api/admin/businesses/${business.id}`);
+                                        if (res.ok) {
+                                          const data = await res.json();
+                                          setSelectedBusiness({ ...data.business, documents: data.documents });
+                                        }
+                                      } finally {
+                                        setBusinessDetailLoading(false);
+                                      }
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-amber-600 hover:bg-amber-50 flex items-center gap-2"
+                                  >
+                                    <ScanEye className="w-4 h-4" />
+                                    Review Documents
+                                  </button>
+                                )}
+                                <hr className="my-1" />
+                                <button
+                                  onClick={async () => {
+                                    setBusinessActionMenu(null);
+                                    if (confirm('Are you sure you want to permanently delete this business? This action cannot be undone.')) {
+                                      const res = await fetch(`/api/admin/businesses/${business.id}`, {
+                                        method: 'DELETE',
+                                      });
+                                      if (res.ok) {
+                                        fetchData();
+                                      }
+                                    }
+                                  }}
+                                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete Business
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Business Detail Slide-in Panel */}
+            {selectedBusiness && (
+              <>
+                {/* Backdrop */}
+                <div
+                  className="fixed inset-0 bg-black/30 z-40"
+                  onClick={() => {
+                    if (!businessConfirmModal.type) {
+                      setSelectedBusiness(null);
+                      setBusinessEditMode(false);
+                    }
+                  }}
+                />
+                {/* Slide-in Panel */}
+                <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-out overflow-auto">
+                  {/* Confirmation Modal Overlay */}
+                  {businessConfirmModal.type && (
+                    <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+                      <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+                        <div className="text-center">
+                          {businessConfirmModal.type === 'delete' ? (
+                            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                              <Trash2 className="w-6 h-6 text-red-600" />
+                            </div>
+                          ) : businessConfirmModal.type === 'deactivate' ? (
+                            <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                              <Ban className="w-6 h-6 text-amber-600" />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                              <CheckCircle className="w-6 h-6 text-green-600" />
+                            </div>
+                          )}
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            {businessConfirmModal.type === 'delete' && 'Delete Business'}
+                            {businessConfirmModal.type === 'activate' && 'Activate Business'}
+                            {businessConfirmModal.type === 'deactivate' && 'Deactivate Business'}
+                            {businessConfirmModal.type === 'verify' && 'Verify eKYC'}
+                            {businessConfirmModal.type === 'unverify' && 'Unverify eKYC'}
+                          </h3>
+                          <p className="text-gray-600 text-sm mb-6">
+                            {businessConfirmModal.type === 'delete' && 'This action cannot be undone. All data associated with this business will be permanently removed.'}
+                            {businessConfirmModal.type === 'activate' && 'This will make the business visible and active on the platform.'}
+                            {businessConfirmModal.type === 'deactivate' && 'This will hide the business from the platform. Users will not be able to find or interact with it.'}
+                            {businessConfirmModal.type === 'verify' && 'This will mark the business as eKYC verified. Make sure you have reviewed all documents.'}
+                            {businessConfirmModal.type === 'unverify' && 'This will remove the eKYC verification status from this business.'}
+                          </p>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => setBusinessConfirmModal({ type: null, loading: false })}
+                              disabled={businessConfirmModal.loading}
+                              className="flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={async () => {
+                                setBusinessConfirmModal(prev => ({ ...prev, loading: true }));
+                                try {
+                                  if (businessConfirmModal.type === 'delete') {
+                                    const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}`, { method: 'DELETE' });
+                                    if (res.ok) {
+                                      setSelectedBusiness(null);
+                                      setBusinessEditMode(false);
+                                      fetchData();
+                                    }
+                                  } else if (businessConfirmModal.type === 'activate' || businessConfirmModal.type === 'deactivate') {
+                                    const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ isActive: businessConfirmModal.type === 'activate' }),
+                                    });
+                                    if (res.ok) {
+                                      const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                      if (refreshRes.ok) {
+                                        const refreshData = await refreshRes.json();
+                                        setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                      }
+                                      fetchData();
+                                    }
+                                  } else if (businessConfirmModal.type === 'verify' || businessConfirmModal.type === 'unverify') {
+                                    const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ ekycVerified: businessConfirmModal.type === 'verify' }),
+                                    });
+                                    if (res.ok) {
+                                      const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                      if (refreshRes.ok) {
+                                        const refreshData = await refreshRes.json();
+                                        setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                      }
+                                      fetchData();
+                                    }
+                                  }
+                                } finally {
+                                  setBusinessConfirmModal({ type: null, loading: false });
+                                }
+                              }}
+                              disabled={businessConfirmModal.loading}
+                              className={`flex-1 py-2 px-4 rounded-lg font-medium text-white transition disabled:opacity-50 flex items-center justify-center gap-2 ${
+                                businessConfirmModal.type === 'delete' ? 'bg-red-600 hover:bg-red-700' :
+                                businessConfirmModal.type === 'deactivate' ? 'bg-amber-600 hover:bg-amber-700' :
+                                'bg-green-600 hover:bg-green-700'
+                              }`}
+                            >
+                              {businessConfirmModal.loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                              Confirm
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Panel Header */}
+                  <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                    <div className="flex items-center gap-3">
+                      {selectedBusiness.logoUrl ? (
+                        <img src={selectedBusiness.logoUrl} alt="" className="w-12 h-12 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <Building2 className="w-6 h-6 text-gray-400" />
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">{selectedBusiness.name || 'Unnamed Business'}</h3>
+                        <p className="text-sm text-gray-500 capitalize">{selectedBusiness.businessType?.replace('_', ' ') || 'Unknown Type'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!businessEditMode && (
+                        <button
+                          onClick={() => {
+                            setBusinessEditMode(true);
+                            setBusinessEditForm({
+                              name: selectedBusiness.name || '',
+                              description: selectedBusiness.description || '',
+                              businessType: selectedBusiness.businessType || '',
+                              location: selectedBusiness.location || '',
+                              phone: selectedBusiness.phone || '',
+                              website: selectedBusiness.website || '',
+                            });
+                          }}
+                          className="p-2 hover:bg-gray-100 rounded-lg transition"
+                          title="Edit Business"
+                        >
+                          <Edit2 className="w-5 h-5 text-gray-500" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setSelectedBusiness(null);
+                          setBusinessEditMode(false);
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition"
+                      >
+                        <X className="w-5 h-5 text-gray-500" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {/* Edit Mode Form */}
+                    {businessEditMode ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-gray-900">Edit Business Information</h4>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setBusinessEditMode(false)}
+                              className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    businessName: businessEditForm.name,
+                                    description: businessEditForm.description,
+                                    businessType: businessEditForm.businessType,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                  if (refreshRes.ok) {
+                                    const refreshData = await refreshRes.json();
+                                    setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                  }
+                                  setBusinessEditMode(false);
+                                  fetchData();
+                                }
+                              }}
+                              className="px-3 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition flex items-center gap-1"
+                            >
+                              <Save className="w-4 h-4" />
+                              Save
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 bg-gray-50 rounded-lg p-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Business Name</label>
+                            <input
+                              type="text"
+                              value={businessEditForm.name}
+                              onChange={(e) => setBusinessEditForm({ ...businessEditForm, name: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Business Type</label>
+                            <select
+                              value={businessEditForm.businessType}
+                              onChange={(e) => setBusinessEditForm({ ...businessEditForm, businessType: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            >
+                              <option value="">Select Type</option>
+                              <option value="guide">Guide</option>
+                              <option value="hotel">Hotel</option>
+                              <option value="transport">Transport</option>
+                              <option value="experience">Experience</option>
+                              <option value="restaurant">Restaurant</option>
+                              <option value="tour_operator">Tour Operator</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <textarea
+                              value={businessEditForm.description}
+                              onChange={(e) => setBusinessEditForm({ ...businessEditForm, description: e.target.value })}
+                              rows={3}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* File Uploads Section */}
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-medium text-gray-900">Upload Files</h4>
+
+                          {/* Logo Upload */}
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Business Logo</label>
+                            <div className="flex items-center gap-4">
+                              {selectedBusiness.logoUrl ? (
+                                <img src={selectedBusiness.logoUrl} alt="Logo" className="w-16 h-16 rounded-lg object-cover" />
+                              ) : (
+                                <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
+                                  <Building2 className="w-8 h-8 text-gray-400" />
+                                </div>
+                              )}
+                              <div className="flex-1">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    setUploadingFile({ type: 'logo', progress: true });
+                                    try {
+                                      const formData = new FormData();
+                                      formData.append('file', file);
+                                      formData.append('type', 'logo');
+                                      const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}/upload`, {
+                                        method: 'POST',
+                                        body: formData,
+                                      });
+                                      if (res.ok) {
+                                        const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                        if (refreshRes.ok) {
+                                          const refreshData = await refreshRes.json();
+                                          setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                        }
+                                        fetchData();
+                                      } else {
+                                        const err = await res.json();
+                                        alert(err.error || 'Upload failed');
+                                      }
+                                    } finally {
+                                      setUploadingFile(null);
+                                      e.target.value = '';
+                                    }
+                                  }}
+                                  className="hidden"
+                                  id="logo-upload"
+                                />
+                                <label
+                                  htmlFor="logo-upload"
+                                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition ${
+                                    uploadingFile?.type === 'logo'
+                                      ? 'bg-gray-200 text-gray-500'
+                                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {uploadingFile?.type === 'logo' ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Uploading...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="w-4 h-4" />
+                                      Upload Logo
+                                    </>
+                                  )}
+                                </label>
+                                <p className="text-xs text-gray-500 mt-1">JPEG, PNG, WebP. Max 10MB</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Verification Documents */}
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-3">Verification Documents</label>
+                            <div className="space-y-3">
+                              {/* Business License */}
+                              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded-lg bg-blue-50">
+                                    <FileCheck className="w-5 h-5 text-blue-600" />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">Business License</div>
+                                    <div className="text-xs text-gray-500">
+                                      {selectedBusiness.documents?.find((d: any) => d.documentType === 'business_license')
+                                        ? 'Uploaded'
+                                        : 'Not uploaded'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      setUploadingFile({ type: 'business_license', progress: true });
+                                      try {
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        formData.append('type', 'business_license');
+                                        const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}/upload`, {
+                                          method: 'POST',
+                                          body: formData,
+                                        });
+                                        if (res.ok) {
+                                          const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                          if (refreshRes.ok) {
+                                            const refreshData = await refreshRes.json();
+                                            setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                          }
+                                          fetchData();
+                                        } else {
+                                          const err = await res.json();
+                                          alert(err.error || 'Upload failed');
+                                        }
+                                      } finally {
+                                        setUploadingFile(null);
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                    className="hidden"
+                                    id="license-upload"
+                                  />
+                                  <label
+                                    htmlFor="license-upload"
+                                    className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer transition ${
+                                      uploadingFile?.type === 'business_license'
+                                        ? 'bg-gray-200 text-gray-500'
+                                        : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+                                    }`}
+                                  >
+                                    {uploadingFile?.type === 'business_license' ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Uploading...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="w-4 h-4" />
+                                        Upload
+                                      </>
+                                    )}
+                                  </label>
+                                </div>
+                              </div>
+
+                              {/* Owner ID */}
+                              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 rounded-lg bg-purple-50">
+                                    <Users className="w-5 h-5 text-purple-600" />
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">Owner ID</div>
+                                    <div className="text-xs text-gray-500">
+                                      {selectedBusiness.documents?.find((d: any) => d.documentType === 'owner_id')
+                                        ? 'Uploaded'
+                                        : 'Not uploaded'}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (!file) return;
+                                      setUploadingFile({ type: 'owner_id', progress: true });
+                                      try {
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        formData.append('type', 'owner_id');
+                                        const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}/upload`, {
+                                          method: 'POST',
+                                          body: formData,
+                                        });
+                                        if (res.ok) {
+                                          const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                          if (refreshRes.ok) {
+                                            const refreshData = await refreshRes.json();
+                                            setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                          }
+                                          fetchData();
+                                        } else {
+                                          const err = await res.json();
+                                          alert(err.error || 'Upload failed');
+                                        }
+                                      } finally {
+                                        setUploadingFile(null);
+                                        e.target.value = '';
+                                      }
+                                    }}
+                                    className="hidden"
+                                    id="ownerid-upload"
+                                  />
+                                  <label
+                                    htmlFor="ownerid-upload"
+                                    className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer transition ${
+                                      uploadingFile?.type === 'owner_id'
+                                        ? 'bg-gray-200 text-gray-500'
+                                        : 'bg-teal-50 text-teal-700 hover:bg-teal-100'
+                                    }`}
+                                  >
+                                    {uploadingFile?.type === 'owner_id' ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Uploading...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="w-4 h-4" />
+                                        Upload
+                                      </>
+                                    )}
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">Accepted: JPEG, PNG, WebP, PDF. Max 10MB each</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Quick Actions */}
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setBusinessConfirmModal({
+                              type: selectedBusiness.isActive ? 'deactivate' : 'activate',
+                              loading: false
+                            })}
+                            className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
+                              selectedBusiness.isActive
+                                ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                                : 'bg-green-50 text-green-700 hover:bg-green-100'
+                            }`}
+                          >
+                            {selectedBusiness.isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={() => setBusinessConfirmModal({ type: 'delete', loading: false })}
+                            className="py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
+                            title="Delete Business"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Status Cards with eKYC Toggle */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className={`p-4 rounded-lg ${selectedBusiness.isActive ? 'bg-green-50' : 'bg-red-50'}`}>
+                            <div className="text-sm text-gray-600 mb-1">Account Status</div>
+                            <div className={`font-semibold ${selectedBusiness.isActive ? 'text-green-700' : 'text-red-700'}`}>
+                              {selectedBusiness.isActive ? 'Active' : 'Inactive'}
+                            </div>
+                          </div>
+                          <div className={`p-4 rounded-lg ${selectedBusiness.ekycVerified ? 'bg-green-50' : 'bg-amber-50'}`}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm text-gray-600 mb-1">eKYC Status</div>
+                                <div className={`font-semibold ${selectedBusiness.ekycVerified ? 'text-green-700' : 'text-amber-700'}`}>
+                                  {selectedBusiness.ekycVerified ? 'Verified' : 'Pending'}
+                                </div>
+                              </div>
+                              {/* eKYC Toggle */}
+                              <button
+                                onClick={() => setBusinessConfirmModal({
+                                  type: selectedBusiness.ekycVerified ? 'unverify' : 'verify',
+                                  loading: false
+                                })}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  selectedBusiness.ekycVerified ? 'bg-green-600' : 'bg-gray-300'
+                                }`}
+                                title={selectedBusiness.ekycVerified ? 'Click to unverify' : 'Click to verify'}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    selectedBusiness.ekycVerified ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Business Info */}
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-medium text-gray-500">Business Information</h4>
+                          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Building2 className="w-4 h-4 text-gray-400" />
+                              <span>{selectedBusiness.name || 'N/A'}</span>
+                            </div>
+                            {selectedBusiness.handle && (
+                              <div className="flex items-center gap-2 text-gray-700">
+                                <span className="text-gray-400 w-4 h-4 flex items-center justify-center text-sm">@</span>
+                                <span>{selectedBusiness.handle}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <MapPin className="w-4 h-4 text-gray-400" />
+                              <span>{selectedBusiness.location || 'No location'}</span>
+                            </div>
+                            {selectedBusiness.phone && (
+                              <div className="flex items-center gap-2 text-gray-700">
+                                <span className="text-gray-400 w-4 h-4 flex items-center justify-center text-sm">📞</span>
+                                <span>{selectedBusiness.phone}</span>
+                              </div>
+                            )}
+                            {selectedBusiness.website && (
+                              <div className="flex items-center gap-2 text-gray-700">
+                                <ExternalLink className="w-4 h-4 text-gray-400" />
+                                <a href={selectedBusiness.website} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline truncate">
+                                  {selectedBusiness.website}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Owner Info */}
+                        <div className="space-y-4">
+                          <h4 className="text-sm font-medium text-gray-500">Owner Information</h4>
+                          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Users className="w-4 h-4 text-gray-400" />
+                              <span>{selectedBusiness.ownerName || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Mail className="w-4 h-4 text-gray-400" />
+                              <span>{selectedBusiness.ownerEmail || 'N/A'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Created Date */}
+                        <div className="text-sm text-gray-500">
+                          Created: {selectedBusiness.createdAt ? new Date(selectedBusiness.createdAt).toLocaleDateString() : 'Unknown'}
+                        </div>
+
+                        {/* Description */}
+                        {selectedBusiness.description && (
+                          <div>
+                            <h4 className="text-sm font-medium text-gray-500 mb-2">Description</h4>
+                            <p className="text-gray-700">{selectedBusiness.description}</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Verification Documents */}
+                    {selectedBusiness.documents && selectedBusiness.documents.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 mb-3">Verification Documents</h4>
+                        <div className="space-y-4">
+                          {selectedBusiness.documents.map((doc: any) => (
+                            <div key={doc.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                              {/* Document Image Preview */}
+                              {doc.documentUrl && (
+                                <div
+                                  className="relative bg-gray-100 cursor-pointer group"
+                                  onClick={() => setDocumentPreview({ url: doc.documentUrl, type: doc.documentType })}
+                                >
+                                  <img
+                                    src={doc.documentUrl}
+                                    alt={doc.documentType}
+                                    className="w-full h-48 object-contain"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition flex items-center justify-center">
+                                    <div className="opacity-0 group-hover:opacity-100 transition bg-white/90 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700">
+                                      Click to enlarge
+                                    </div>
+                                  </div>
+                                  {/* Status Badge */}
+                                  <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium ${
+                                    doc.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                    doc.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                    'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {doc.status === 'approved' ? 'Approved' :
+                                     doc.status === 'rejected' ? 'Rejected' : 'Pending Review'}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Document Info & Actions */}
+                              <div className="p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${
+                                      doc.status === 'approved' ? 'bg-green-100' :
+                                      doc.status === 'rejected' ? 'bg-red-100' :
+                                      'bg-amber-100'
+                                    }`}>
+                                      {doc.status === 'approved' ? (
+                                        <FileCheck className="w-5 h-5 text-green-600" />
+                                      ) : doc.status === 'rejected' ? (
+                                        <FileX className="w-5 h-5 text-red-600" />
+                                      ) : (
+                                        <ScanEye className="w-5 h-5 text-amber-600" />
+                                      )}
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-900 capitalize">
+                                        {doc.documentType.replace('_', ' ')}
+                                      </div>
+                                      <div className="text-sm text-gray-500">
+                                        Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={doc.documentUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition"
+                                    title="Open in new tab"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                </div>
+
+                                {/* Action Buttons for Pending Documents */}
+                                {doc.status === 'pending' && (
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={async () => {
+                                        const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}/verify`, {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            documentType: doc.documentType,
+                                            action: 'approve',
+                                          }),
+                                        });
+                                        if (res.ok) {
+                                          const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                          if (refreshRes.ok) {
+                                            const refreshData = await refreshRes.json();
+                                            setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                          }
+                                          fetchData();
+                                        }
+                                      }}
+                                      className="flex-1 py-2 px-4 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
+                                    >
+                                      <CheckCircle className="w-4 h-4" />
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => setRejectDocModal({ docType: doc.documentType, reason: '', loading: false })}
+                                      className="flex-1 py-2 px-4 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2"
+                                    >
+                                      <FileX className="w-4 h-4" />
+                                      Reject
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* Rejection Reason Display */}
+                                {doc.status === 'rejected' && doc.rejectionReason && (
+                                  <div className="mt-3 p-3 bg-red-50 rounded-lg text-sm text-red-700">
+                                    <span className="font-medium">Rejection Reason:</span> {doc.rejectionReason}
+                                  </div>
+                                )}
+
+                                {/* AI Analysis Display */}
+                                {doc.aiAnalysis && (
+                                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                                    <div className="text-sm font-medium text-blue-700 mb-1">AI Analysis</div>
+                                    <div className="text-sm text-blue-600">
+                                      Confidence: {(doc.aiAnalysis.confidence * 100).toFixed(0)}%
+                                    </div>
+                                    {doc.aiAnalysis.extractedData && (
+                                      <div className="mt-2 text-xs text-gray-600">
+                                        {Object.entries(doc.aiAnalysis.extractedData).map(([key, value]) => (
+                                          <div key={key} className="flex">
+                                            <span className="font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                                            <span className="ml-2">{String(value)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+
+                  {/* Document Preview Modal */}
+                  {documentPreview && (
+                    <div
+                      className="absolute inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+                      onClick={() => setDocumentPreview(null)}
+                    >
+                      <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setDocumentPreview(null)}
+                          className="absolute -top-12 right-0 p-2 text-white hover:bg-white/20 rounded-lg transition"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                        <div className="text-white text-center mb-2 capitalize">
+                          {documentPreview.type.replace('_', ' ')}
+                        </div>
+                        <img
+                          src={documentPreview.url}
+                          alt={documentPreview.type}
+                          className="max-w-full max-h-[80vh] object-contain rounded-lg"
+                        />
+                        <a
+                          href={documentPreview.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 flex items-center justify-center gap-2 text-white hover:text-teal-300 transition"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Open in new tab
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rejection Reason Modal */}
+                  {rejectDocModal && (
+                    <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+                      <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                            <FileX className="w-5 h-5 text-red-600" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">Reject Document</h3>
+                            <p className="text-sm text-gray-500 capitalize">{rejectDocModal.docType.replace('_', ' ')}</p>
+                          </div>
+                        </div>
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Reason for rejection <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            value={rejectDocModal.reason}
+                            onChange={(e) => setRejectDocModal({ ...rejectDocModal, reason: e.target.value })}
+                            placeholder="Please provide a clear reason for rejecting this document..."
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                          />
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setRejectDocModal(null)}
+                            disabled={rejectDocModal.loading}
+                            className="flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!rejectDocModal.reason.trim()) return;
+                              setRejectDocModal({ ...rejectDocModal, loading: true });
+                              try {
+                                const res = await fetch(`/api/admin/businesses/${selectedBusiness.id}/verify`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    documentType: rejectDocModal.docType,
+                                    action: 'reject',
+                                    rejectionReason: rejectDocModal.reason,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  const refreshRes = await fetch(`/api/admin/businesses/${selectedBusiness.id}`);
+                                  if (refreshRes.ok) {
+                                    const refreshData = await refreshRes.json();
+                                    setSelectedBusiness({ ...refreshData.business, documents: refreshData.documents });
+                                  }
+                                  fetchData();
+                                  setRejectDocModal(null);
+                                }
+                              } catch {
+                                setRejectDocModal({ ...rejectDocModal, loading: false });
+                              }
+                            }}
+                            disabled={rejectDocModal.loading || !rejectDocModal.reason.trim()}
+                            className="flex-1 py-2 px-4 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                          >
+                            {rejectDocModal.loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Reject Document
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -2151,6 +3788,337 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* eKYC AI Verification */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
+                    <ScanEye className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">AI Document Verification (eKYC)</h3>
+                    <p className="text-sm text-gray-600">Use AI vision models to verify business documents</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* eKYC Enable Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">Enable AI Document Verification</p>
+                    <p className="text-sm text-gray-500">
+                      Automatically analyze uploaded business documents using AI vision models
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const newValue = !ekycEnabled;
+                      setEkycEnabled(newValue);
+                      await fetch('/api/admin/site-settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: 'ekyc_enabled', value: String(newValue) }),
+                      });
+                    }}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      ekycEnabled ? 'bg-cyan-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                        ekycEnabled ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {ekycEnabled && (
+                  <>
+                    {/* Vision Model Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Vision AI Model
+                      </label>
+                      <select
+                        value={ekycModel}
+                        onChange={async (e) => {
+                          setEkycModel(e.target.value);
+                          await fetch('/api/admin/site-settings', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: 'ekyc_model', value: e.target.value }),
+                          });
+                        }}
+                        className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all"
+                      >
+                        <option value="deepseek-vl2">DeepSeek VL2 via SiliconFlow - Cheapest (~¥0.99/M tokens)</option>
+                        <option value="qwen-vl-plus">Qwen-VL Plus (Alibaba) - Good balance (~$0.58/M tokens)</option>
+                        <option value="glm-4v">GLM-4V (Zhipu) - Premium (~$1.40/M tokens)</option>
+                      </select>
+                      <p className="mt-2 text-sm text-gray-500">
+                        All models can analyze ID documents and business licenses
+                      </p>
+                    </div>
+
+                    {/* API Keys Section */}
+                    <div className="pt-4 border-t border-gray-200">
+                      <h4 className="font-medium text-gray-900 mb-4">Vision AI API Keys</h4>
+                      <div className="space-y-4">
+                        {/* SiliconFlow API Key (for DeepSeek VL2) */}
+                        <div className={`p-4 rounded-xl border ${ekycModel === 'deepseek-vl2' ? 'border-cyan-300 bg-cyan-50' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">SiliconFlow (DeepSeek VL2)</span>
+                              {ekycModel === 'deepseek-vl2' && (
+                                <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 rounded-full text-xs font-medium">Active</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                setEkycKeyTestStatus({ provider: 'siliconflow', status: 'testing' });
+                                try {
+                                  const res = await fetch('/api/admin/test-vision-key', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ provider: 'siliconflow', apiKey: deepseekApiKey }),
+                                  });
+                                  const data = await res.json();
+                                  setEkycKeyTestStatus({
+                                    provider: 'siliconflow',
+                                    status: data.success ? 'success' : 'error',
+                                    message: data.message,
+                                  });
+                                } catch (e: any) {
+                                  setEkycKeyTestStatus({ provider: 'siliconflow', status: 'error', message: e.message });
+                                }
+                                setTimeout(() => setEkycKeyTestStatus({ provider: '', status: 'idle' }), 5000);
+                              }}
+                              disabled={!deepseekApiKey || ekycKeyTestStatus.provider === 'siliconflow' && ekycKeyTestStatus.status === 'testing'}
+                              className="text-sm text-cyan-600 hover:text-cyan-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {ekycKeyTestStatus.provider === 'siliconflow' && ekycKeyTestStatus.status === 'testing' ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Testing...</>
+                              ) : (
+                                <><RefreshCw className="w-3 h-3" /> Test Key</>
+                              )}
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showDeepseekApiKey ? 'text' : 'password'}
+                              value={deepseekApiKey}
+                              onChange={(e) => setDeepseekApiKey(e.target.value)}
+                              placeholder="sk-..."
+                              className="w-full px-3 py-2 pr-10 text-sm rounded-lg border border-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowDeepseekApiKey(!showDeepseekApiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showDeepseekApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {ekycKeyTestStatus.provider === 'siliconflow' && ekycKeyTestStatus.status !== 'idle' && ekycKeyTestStatus.status !== 'testing' && (
+                            <p className={`mt-2 text-xs flex items-center gap-1 ${ekycKeyTestStatus.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                              {ekycKeyTestStatus.status === 'success' ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                              {ekycKeyTestStatus.message}
+                            </p>
+                          )}
+                          <p className="mt-2 text-xs text-gray-500">
+                            Get your key from <a href="https://siliconflow.cn" target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline">siliconflow.cn</a> (hosts DeepSeek VL2)
+                          </p>
+                        </div>
+
+                        {/* Alibaba (Qwen) API Key */}
+                        <div className={`p-4 rounded-xl border ${ekycModel === 'qwen-vl-plus' ? 'border-cyan-300 bg-cyan-50' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">Alibaba (Qwen-VL)</span>
+                              {ekycModel === 'qwen-vl-plus' && (
+                                <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 rounded-full text-xs font-medium">Active</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                setEkycKeyTestStatus({ provider: 'alibaba', status: 'testing' });
+                                try {
+                                  const res = await fetch('/api/admin/test-vision-key', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ provider: 'alibaba', apiKey: alibabaApiKey }),
+                                  });
+                                  const data = await res.json();
+                                  setEkycKeyTestStatus({
+                                    provider: 'alibaba',
+                                    status: data.success ? 'success' : 'error',
+                                    message: data.message,
+                                  });
+                                } catch (e: any) {
+                                  setEkycKeyTestStatus({ provider: 'alibaba', status: 'error', message: e.message });
+                                }
+                                setTimeout(() => setEkycKeyTestStatus({ provider: '', status: 'idle' }), 5000);
+                              }}
+                              disabled={!alibabaApiKey || ekycKeyTestStatus.provider === 'alibaba' && ekycKeyTestStatus.status === 'testing'}
+                              className="text-sm text-cyan-600 hover:text-cyan-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {ekycKeyTestStatus.provider === 'alibaba' && ekycKeyTestStatus.status === 'testing' ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Testing...</>
+                              ) : (
+                                <><RefreshCw className="w-3 h-3" /> Test Key</>
+                              )}
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showAlibabaApiKey ? 'text' : 'password'}
+                              value={alibabaApiKey}
+                              onChange={(e) => setAlibabaApiKey(e.target.value)}
+                              placeholder="sk-..."
+                              className="w-full px-3 py-2 pr-10 text-sm rounded-lg border border-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowAlibabaApiKey(!showAlibabaApiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showAlibabaApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {ekycKeyTestStatus.provider === 'alibaba' && ekycKeyTestStatus.status !== 'idle' && ekycKeyTestStatus.status !== 'testing' && (
+                            <p className={`mt-2 text-xs flex items-center gap-1 ${ekycKeyTestStatus.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                              {ekycKeyTestStatus.status === 'success' ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                              {ekycKeyTestStatus.message}
+                            </p>
+                          )}
+                          <p className="mt-2 text-xs text-gray-500">
+                            Get your key from <a href="https://dashscope.console.aliyun.com" target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline">dashscope.console.aliyun.com</a>
+                          </p>
+                        </div>
+
+                        {/* Zhipu (GLM-4V) API Key */}
+                        <div className={`p-4 rounded-xl border ${ekycModel === 'glm-4v' ? 'border-cyan-300 bg-cyan-50' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">Zhipu (GLM-4V)</span>
+                              {ekycModel === 'glm-4v' && (
+                                <span className="px-2 py-0.5 bg-cyan-100 text-cyan-700 rounded-full text-xs font-medium">Active</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                setEkycKeyTestStatus({ provider: 'zhipu', status: 'testing' });
+                                try {
+                                  const res = await fetch('/api/admin/test-vision-key', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ provider: 'zhipu', apiKey: zhipuApiKey }),
+                                  });
+                                  const data = await res.json();
+                                  setEkycKeyTestStatus({
+                                    provider: 'zhipu',
+                                    status: data.success ? 'success' : 'error',
+                                    message: data.message,
+                                  });
+                                } catch (e: any) {
+                                  setEkycKeyTestStatus({ provider: 'zhipu', status: 'error', message: e.message });
+                                }
+                                setTimeout(() => setEkycKeyTestStatus({ provider: '', status: 'idle' }), 5000);
+                              }}
+                              disabled={!zhipuApiKey || ekycKeyTestStatus.provider === 'zhipu' && ekycKeyTestStatus.status === 'testing'}
+                              className="text-sm text-cyan-600 hover:text-cyan-700 disabled:opacity-50 flex items-center gap-1"
+                            >
+                              {ekycKeyTestStatus.provider === 'zhipu' && ekycKeyTestStatus.status === 'testing' ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Testing...</>
+                              ) : (
+                                <><RefreshCw className="w-3 h-3" /> Test Key</>
+                              )}
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showZhipuApiKey ? 'text' : 'password'}
+                              value={zhipuApiKey}
+                              onChange={(e) => setZhipuApiKey(e.target.value)}
+                              placeholder="..."
+                              className="w-full px-3 py-2 pr-10 text-sm rounded-lg border border-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowZhipuApiKey(!showZhipuApiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showZhipuApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {ekycKeyTestStatus.provider === 'zhipu' && ekycKeyTestStatus.status !== 'idle' && ekycKeyTestStatus.status !== 'testing' && (
+                            <p className={`mt-2 text-xs flex items-center gap-1 ${ekycKeyTestStatus.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                              {ekycKeyTestStatus.status === 'success' ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                              {ekycKeyTestStatus.message}
+                            </p>
+                          )}
+                          <p className="mt-2 text-xs text-gray-500">
+                            Get your key from <a href="https://open.bigmodel.cn" target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline">open.bigmodel.cn</a>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Save API Keys Button */}
+                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
+                        <div>
+                          {ekycSaveStatus === 'success' && (
+                            <span className="text-green-600 text-sm flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4" /> API keys saved!
+                            </span>
+                          )}
+                          {ekycSaveStatus === 'error' && (
+                            <span className="text-red-600 text-sm flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4" /> Failed to save
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            setEkycSaveStatus('saving');
+                            try {
+                              const res = await fetch('/api/admin/settings', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  deepseekApiKey: deepseekApiKey || undefined,
+                                  alibabaApiKey: alibabaApiKey || undefined,
+                                  zhipuApiKey: zhipuApiKey || undefined,
+                                }),
+                              });
+                              if (res.ok) {
+                                setEkycSaveStatus('success');
+                                setDeepseekApiKey('');
+                                setAlibabaApiKey('');
+                                setZhipuApiKey('');
+                              } else {
+                                setEkycSaveStatus('error');
+                              }
+                            } catch {
+                              setEkycSaveStatus('error');
+                            }
+                            setTimeout(() => setEkycSaveStatus('idle'), 3000);
+                          }}
+                          disabled={ekycSaveStatus === 'saving' || (!deepseekApiKey && !alibabaApiKey && !zhipuApiKey)}
+                          className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 disabled:opacity-50 transition-colors"
+                        >
+                          {ekycSaveStatus === 'saving' ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                          ) : (
+                            <><Save className="w-4 h-4" /> Save API Keys</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
             {/* Profile Design */}
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-6 border-b border-gray-200">
@@ -2254,6 +4222,357 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {/* Change Password Modal */}
+      {changePasswordModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setChangePasswordModal({ ...changePasswordModal, open: false })}
+          />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center">
+                  <Key className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Change Password</h3>
+              </div>
+              <button
+                onClick={() => setChangePasswordModal({ ...changePasswordModal, open: false })}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {changePasswordModal.error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm">{changePasswordModal.error}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={changePasswordModal.currentPassword}
+                  onChange={(e) => setChangePasswordModal({
+                    ...changePasswordModal,
+                    currentPassword: e.target.value,
+                    error: null,
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="Enter current password"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={changePasswordModal.newPassword}
+                  onChange={(e) => setChangePasswordModal({
+                    ...changePasswordModal,
+                    newPassword: e.target.value,
+                    error: null,
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="Enter new password (min 6 characters)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={changePasswordModal.confirmPassword}
+                  onChange={(e) => setChangePasswordModal({
+                    ...changePasswordModal,
+                    confirmPassword: e.target.value,
+                    error: null,
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="Confirm new password"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setChangePasswordModal({ ...changePasswordModal, open: false })}
+                disabled={changePasswordModal.loading}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  // Validation
+                  if (!changePasswordModal.currentPassword) {
+                    setChangePasswordModal({ ...changePasswordModal, error: 'Please enter your current password' });
+                    return;
+                  }
+                  if (!changePasswordModal.newPassword) {
+                    setChangePasswordModal({ ...changePasswordModal, error: 'Please enter a new password' });
+                    return;
+                  }
+                  if (changePasswordModal.newPassword.length < 6) {
+                    setChangePasswordModal({ ...changePasswordModal, error: 'New password must be at least 6 characters' });
+                    return;
+                  }
+                  if (changePasswordModal.newPassword !== changePasswordModal.confirmPassword) {
+                    setChangePasswordModal({ ...changePasswordModal, error: 'Passwords do not match' });
+                    return;
+                  }
+
+                  setChangePasswordModal({ ...changePasswordModal, loading: true, error: null });
+
+                  try {
+                    const res = await fetch('/api/admin/login', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        currentPassword: changePasswordModal.currentPassword,
+                        newPassword: changePasswordModal.newPassword,
+                      }),
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                      setChangePasswordModal({
+                        ...changePasswordModal,
+                        loading: false,
+                        error: data.error || 'Failed to change password',
+                      });
+                      return;
+                    }
+
+                    // Success - close modal and show success message
+                    setChangePasswordModal({
+                      open: false,
+                      currentPassword: '',
+                      newPassword: '',
+                      confirmPassword: '',
+                      loading: false,
+                      error: null,
+                    });
+
+                    // Update admin info if returned
+                    if (data.admin) {
+                      setAdminInfo(data.admin);
+                    }
+                  } catch {
+                    setChangePasswordModal({
+                      ...changePasswordModal,
+                      loading: false,
+                      error: 'An error occurred. Please try again.',
+                    });
+                  }
+                }}
+                disabled={changePasswordModal.loading}
+                className="flex-1 py-2 px-4 rounded-lg font-medium bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {changePasswordModal.loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {changePasswordModal.loading ? 'Changing...' : 'Change Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Info Modal */}
+      {profileInfoModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setProfileInfoModal({ ...profileInfoModal, open: false })}
+          />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center">
+                  <Edit2 className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Edit Profile</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfileInfoModal({ ...profileInfoModal, open: false })}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+                title="Close"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {profileInfoModal.error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm">{profileInfoModal.error}</span>
+              </div>
+            )}
+
+            {profileInfoModal.success && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2 text-green-700">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm">Profile updated successfully!</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={profileInfoModal.displayName}
+                  onChange={(e) => setProfileInfoModal({
+                    ...profileInfoModal,
+                    displayName: e.target.value,
+                    error: null,
+                    success: false,
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="Enter display name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={profileInfoModal.email}
+                  onChange={(e) => setProfileInfoModal({
+                    ...profileInfoModal,
+                    email: e.target.value,
+                    error: null,
+                    success: false,
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  placeholder="Enter email address"
+                />
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={adminInfo?.username || ''}
+                  disabled
+                  placeholder="Username"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setProfileInfoModal({ ...profileInfoModal, open: false })}
+                disabled={profileInfoModal.loading}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  // Validation
+                  if (!profileInfoModal.displayName.trim()) {
+                    setProfileInfoModal({ ...profileInfoModal, error: 'Display name is required' });
+                    return;
+                  }
+                  if (!profileInfoModal.email.trim()) {
+                    setProfileInfoModal({ ...profileInfoModal, error: 'Email is required' });
+                    return;
+                  }
+                  // Basic email validation
+                  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileInfoModal.email)) {
+                    setProfileInfoModal({ ...profileInfoModal, error: 'Please enter a valid email address' });
+                    return;
+                  }
+
+                  setProfileInfoModal({ ...profileInfoModal, loading: true, error: null, success: false });
+
+                  try {
+                    const res = await fetch('/api/admin/login', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        displayName: profileInfoModal.displayName.trim(),
+                        email: profileInfoModal.email.trim(),
+                      }),
+                    });
+
+                    const data = await res.json();
+
+                    if (!res.ok) {
+                      setProfileInfoModal({
+                        ...profileInfoModal,
+                        loading: false,
+                        error: data.error || 'Failed to update profile',
+                      });
+                      return;
+                    }
+
+                    // Update admin info
+                    if (data.admin) {
+                      setAdminInfo(data.admin);
+                    }
+
+                    // Show success message
+                    setProfileInfoModal({
+                      ...profileInfoModal,
+                      loading: false,
+                      error: null,
+                      success: true,
+                    });
+
+                    // Auto-close after 1.5 seconds
+                    setTimeout(() => {
+                      setProfileInfoModal({
+                        open: false,
+                        displayName: '',
+                        email: '',
+                        loading: false,
+                        error: null,
+                        success: false,
+                      });
+                    }, 1500);
+                  } catch {
+                    setProfileInfoModal({
+                      ...profileInfoModal,
+                      loading: false,
+                      error: 'An error occurred. Please try again.',
+                    });
+                  }
+                }}
+                disabled={profileInfoModal.loading}
+                className="flex-1 py-2 px-4 rounded-lg font-medium bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:from-teal-600 hover:to-emerald-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {profileInfoModal.loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                {profileInfoModal.loading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

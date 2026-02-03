@@ -5,7 +5,8 @@ import { cookies } from 'next/headers';
 // Check admin auth
 async function isAdmin() {
   const cookieStore = await cookies();
-  return cookieStore.get('admin_authenticated')?.value === 'true';
+  const session = cookieStore.get('admin_session');
+  return !!session?.value;
 }
 
 // DELETE - Remove a featured creator

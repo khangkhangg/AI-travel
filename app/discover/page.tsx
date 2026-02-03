@@ -10,7 +10,6 @@ import {
   Users,
   Copy,
   Eye,
-  ArrowLeft,
   Filter,
   Globe,
   Sparkles,
@@ -22,6 +21,7 @@ import {
   Hotel,
   DollarSign,
 } from 'lucide-react';
+import Header from '@/components/landing/Header';
 import { Itinerary, UserSummary } from '@/lib/types/user';
 import { CreatorHoverCard } from '@/components/creators';
 
@@ -87,19 +87,15 @@ function DiscoverContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<'itineraries' | 'marketplace'>(
-    searchParams.get('tab') === 'marketplace' ? 'marketplace' : 'itineraries'
-  );
   const [itineraries, setItineraries] = useState<ItineraryWithMeta[]>([]);
   const [marketplaceTrips, setMarketplaceTrips] = useState<MarketplaceTrip[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [total, setTotal] = useState(0);
+  const [loadingItineraries, setLoadingItineraries] = useState(true);
+  const [loadingMarketplace, setLoadingMarketplace] = useState(true);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [selectedServiceType, setSelectedServiceType] = useState<string>('');
   const [dateRange, setDateRange] = useState({
     start: searchParams.get('startDate') || '',
     end: searchParams.get('endDate') || '',
@@ -107,7 +103,7 @@ function DiscoverContent() {
   const [groupSize, setGroupSize] = useState<number | null>(null);
 
   const fetchItineraries = useCallback(async () => {
-    setLoading(true);
+    setLoadingItineraries(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.set('destination', searchQuery);
@@ -118,7 +114,6 @@ function DiscoverContent() {
       const data = await response.json();
 
       if (response.ok) {
-        // Client-side filtering for interests (can be moved to API later)
         let filtered = data.itineraries;
         if (selectedInterests.length > 0) {
           filtered = filtered.filter((i: ItineraryWithMeta) =>
@@ -129,21 +124,19 @@ function DiscoverContent() {
           filtered = filtered.filter((i: ItineraryWithMeta) => i.groupSize >= groupSize);
         }
         setItineraries(filtered);
-        setTotal(data.total);
       }
     } catch (err) {
       console.error('Failed to fetch itineraries:', err);
     } finally {
-      setLoading(false);
+      setLoadingItineraries(false);
     }
   }, [searchQuery, dateRange, selectedInterests, groupSize]);
 
   const fetchMarketplace = useCallback(async () => {
-    setLoading(true);
+    setLoadingMarketplace(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.set('destination', searchQuery);
-      if (selectedServiceType) params.set('serviceType', selectedServiceType);
       if (dateRange.start) params.set('startDateFrom', dateRange.start);
       if (dateRange.end) params.set('startDateTo', dateRange.end);
       if (groupSize) params.set('travelers', groupSize.toString());
@@ -153,22 +146,19 @@ function DiscoverContent() {
 
       if (response.ok) {
         setMarketplaceTrips(data.trips || []);
-        setTotal(data.pagination?.total || 0);
       }
     } catch (err) {
       console.error('Failed to fetch marketplace:', err);
     } finally {
-      setLoading(false);
+      setLoadingMarketplace(false);
     }
-  }, [searchQuery, selectedServiceType, dateRange, groupSize]);
+  }, [searchQuery, dateRange, groupSize]);
 
+  // Fetch both on mount and when filters change
   useEffect(() => {
-    if (activeTab === 'itineraries') {
-      fetchItineraries();
-    } else {
-      fetchMarketplace();
-    }
-  }, [activeTab, fetchItineraries, fetchMarketplace]);
+    fetchItineraries();
+    fetchMarketplace();
+  }, [fetchItineraries, fetchMarketplace]);
 
   const handleClone = async (id: string) => {
     try {
@@ -214,68 +204,37 @@ function DiscoverContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="text-gray-600 hover:text-gray-800">
-                <ArrowLeft className="w-5 h-5" />
-              </Link>
-              <div>
-                <h1 className="font-bold text-gray-900">Discover</h1>
-                <p className="text-xs text-gray-500">
-                  {total} {activeTab === 'itineraries' ? 'public itineraries' : 'marketplace opportunities'}
-                </p>
-              </div>
+      <Header />
+
+      {/* Compact Gradient Banner */}
+      <div className="pt-16 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">Discover</h1>
+              <p className="text-emerald-100 text-sm">
+                Explore curated itineraries and service opportunities
+              </p>
             </div>
             <div className="flex items-center gap-3">
-              {activeTab === 'marketplace' && (
-                <Link
-                  href="/business/register"
-                  className="hidden sm:flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <Building2 className="w-4 h-4" />
-                  Join as Business
-                </Link>
-              )}
+              <Link
+                href="/business/register"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg font-medium hover:bg-white/30 transition-colors"
+              >
+                <Building2 className="w-4 h-4" />
+                Join as Business
+              </Link>
               <Link
                 href="/trip/new"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors"
               >
                 <Sparkles className="w-4 h-4" />
                 Create Trip
               </Link>
             </div>
           </div>
-
-          {/* Tab Switcher */}
-          <div className="flex gap-1 pb-2">
-            <button
-              onClick={() => setActiveTab('itineraries')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                activeTab === 'itineraries'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Globe className="w-4 h-4 inline mr-2" />
-              Public Itineraries
-            </button>
-            <button
-              onClick={() => setActiveTab('marketplace')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                activeTab === 'marketplace'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Building2 className="w-4 h-4 inline mr-2" />
-              Business Marketplace
-            </button>
-          </div>
         </div>
-      </header>
+      </div>
 
       {/* Search & Filters Bar */}
       <div className="bg-white border-b border-gray-100 py-4">
@@ -398,8 +357,9 @@ function DiscoverContent() {
       </div>
 
       {/* Results */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {loading ? (
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-10">
+        {/* Loading State */}
+        {(loadingItineraries && loadingMarketplace) ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
@@ -415,64 +375,75 @@ function DiscoverContent() {
               </div>
             ))}
           </div>
-        ) : activeTab === 'itineraries' ? (
-          itineraries.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {itineraries.map((itinerary) => (
-                <ItineraryCard
-                  key={itinerary.id}
-                  itinerary={itinerary}
-                  onClone={() => handleClone(itinerary.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <Globe className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                No itineraries found
-              </h3>
-              <p className="text-gray-500 mb-6">
-                {hasActiveFilters
-                  ? 'Try adjusting your filters or search terms'
-                  : 'Be the first to share your travel plans!'}
-              </p>
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="text-emerald-600 hover:text-emerald-700 font-medium"
-                >
-                  Clear all filters
-                </button>
-              )}
-            </div>
-          )
-        ) : marketplaceTrips.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {marketplaceTrips.map((trip) => (
-              <MarketplaceTripCard key={trip.id} trip={trip} />
-            ))}
-          </div>
         ) : (
-          <div className="text-center py-16">
-            <Building2 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No marketplace trips found
-            </h3>
-            <p className="text-gray-500 mb-6">
-              {hasActiveFilters
-                ? 'Try adjusting your filters'
-                : 'No travelers are looking for services yet'}
-            </p>
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Clear all filters
-              </button>
+          <>
+            {/* Public Itineraries Section */}
+            {itineraries.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Public Itineraries</h2>
+                    <p className="text-sm text-gray-500">{itineraries.length} curated trips to explore</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {itineraries.map((itinerary) => (
+                    <ItineraryCard
+                      key={itinerary.id}
+                      itinerary={itinerary}
+                      onClone={() => handleClone(itinerary.id)}
+                    />
+                  ))}
+                </div>
+              </section>
             )}
-          </div>
+
+            {/* Business Marketplace Section */}
+            {marketplaceTrips.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-teal-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Business Marketplace</h2>
+                    <p className="text-sm text-gray-500">{marketplaceTrips.length} travelers looking for services</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {marketplaceTrips.map((trip) => (
+                    <MarketplaceTripCard key={trip.id} trip={trip} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Empty State - only show if both are empty */}
+            {itineraries.length === 0 && marketplaceTrips.length === 0 && (
+              <div className="text-center py-16">
+                <Globe className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Nothing found
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  {hasActiveFilters
+                    ? 'Try adjusting your filters or search terms'
+                    : 'Be the first to share your travel plans!'}
+                </p>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>
@@ -651,34 +622,39 @@ function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
   return (
     <Link
       href={`/trips/${trip.id}`}
-      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow group block"
+      className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-teal-200 transition-all group block"
     >
-      {/* Header with gradient */}
-      <div className="relative h-40 bg-gradient-to-br from-blue-500 to-indigo-600">
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-4 left-4 right-4">
-          <h3 className="text-lg font-bold text-white line-clamp-2 mb-1">{trip.title}</h3>
-          <div className="flex items-center gap-2 text-white/90 text-sm">
-            <MapPin className="w-4 h-4" />
-            <span>{trip.city}</span>
-          </div>
+      {/* Compact Header Strip */}
+      <div className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-teal-600 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-white/90" />
+          <span className="text-sm font-medium text-white">Looking for services</span>
         </div>
-        <div className="absolute top-3 right-3 px-2 py-1 bg-blue-400/90 text-white text-xs font-medium rounded-full">
-          {trip.proposal_count} proposal{trip.proposal_count !== 1 ? 's' : ''}
-        </div>
+        <span className="px-2 py-0.5 bg-white/20 text-white text-xs font-medium rounded-full">
+          {trip.proposal_count} bid{trip.proposal_count !== 1 ? 's' : ''}
+        </span>
       </div>
 
       {/* Content */}
       <div className="p-4">
+        {/* Title & Location */}
+        <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-teal-700 transition-colors">
+          {trip.title}
+        </h3>
+        <div className="flex items-center gap-1.5 text-gray-600 text-sm mb-3">
+          <MapPin className="w-4 h-4 text-gray-400" />
+          <span>{trip.city}</span>
+        </div>
+
         {/* Date & People */}
         <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-          <span className="flex items-center gap-1">
-            <Calendar className="w-4 h-4" />
+          <span className="flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-gray-400" />
             {formatDate(trip.start_date)}
           </span>
           {trip.num_people && (
-            <span className="flex items-center gap-1">
-              <Users className="w-4 h-4" />
+            <span className="flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-gray-400" />
               {trip.num_people} traveler{trip.num_people !== 1 ? 's' : ''}
             </span>
           )}
@@ -687,14 +663,13 @@ function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
         {/* Services Needed */}
         {serviceNeeds.length > 0 && (
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1.5">Services needed:</p>
             <div className="flex flex-wrap gap-1.5">
               {serviceNeeds.map((service) => {
                 const Icon = SERVICE_ICONS[service] || Building2;
                 return (
                   <span
                     key={service}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full capitalize"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 text-teal-700 text-xs font-medium rounded-full capitalize"
                   >
                     <Icon className="w-3 h-3" />
                     {service}
@@ -707,10 +682,10 @@ function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
 
         {/* Budget */}
         {(trip.marketplace_budget_min || trip.marketplace_budget_max) && (
-          <div className="flex items-center gap-1 text-sm text-emerald-600 mb-3">
+          <div className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium mb-3">
             <DollarSign className="w-4 h-4" />
             <span>
-              Budget: ${trip.marketplace_budget_min || 0} - ${trip.marketplace_budget_max || '∞'}
+              ${trip.marketplace_budget_min || 0} - ${trip.marketplace_budget_max || '∞'}
             </span>
           </div>
         )}
@@ -729,11 +704,11 @@ function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
               <img
                 src={trip.creator_avatar}
                 alt=""
-                className="w-6 h-6 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
+                className="w-6 h-6 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-teal-300 transition-all"
               />
             ) : (
-              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all">
-                <span className="text-xs font-medium text-blue-600">
+              <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-teal-300 transition-all">
+                <span className="text-xs font-medium text-teal-600">
                   {trip.creator_name?.[0] || '?'}
                 </span>
               </div>

@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Users, Loader2 } from 'lucide-react';
-import { CreatorCard, FeaturedSection, CreatorFilters } from '@/components/creators';
+import { Users, Loader2, Search, Filter, ChevronDown, MapPin } from 'lucide-react';
+import Header from '@/components/landing/Header';
+import { CreatorCard, FeaturedSection } from '@/components/creators';
 import { Creator, CreatorCategory, INTEREST_CATEGORIES, InterestCategory } from '@/lib/types/user';
 
 interface FeaturedCategories {
@@ -41,6 +42,26 @@ export default function CreatorsPage() {
   const [loadingFeatured, setLoadingFeatured] = useState(true);
   const [loadingCreators, setLoadingCreators] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // UI state
+  const [showFilters, setShowFilters] = useState(false);
+
+  const hasActiveFilters = search || category !== 'all' || interests.length > 0 || city;
+
+  const clearFilters = () => {
+    setSearch('');
+    setCategory('all');
+    setInterests([]);
+    setCity('');
+  };
+
+  const toggleInterest = (interestId: string) => {
+    if (interests.includes(interestId)) {
+      setInterests(interests.filter((i) => i !== interestId));
+    } else {
+      setInterests([...interests, interestId]);
+    }
+  };
 
   // Update URL when filters change
   useEffect(() => {
@@ -133,16 +154,141 @@ export default function CreatorsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex items-center gap-3 mb-2">
-            <Users className="w-8 h-8" />
-            <h1 className="text-3xl font-bold">Discover Creators</h1>
-          </div>
-          <p className="text-emerald-100 text-lg">
+      <Header />
+
+      {/* Compact Gradient Banner */}
+      <div className="pt-16 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <h1 className="text-2xl font-bold">Discover Creators</h1>
+          <p className="text-emerald-100 text-sm">
             Find local experts and travel enthusiasts who share amazing itineraries
           </p>
+        </div>
+      </div>
+
+      {/* Search & Filters Bar */}
+      <div className="bg-white border-b border-gray-100 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search creators by name..."
+                className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-100 border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none"
+              />
+            </div>
+
+            {/* City Dropdown */}
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <select
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                title="Filter by city"
+                className={`pl-9 pr-8 py-3 rounded-xl border appearance-none bg-white cursor-pointer transition-colors ${
+                  city
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <option value="">All Cities</option>
+                {availableCities.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-colors ${
+                showFilters || (category !== 'all' || interests.length > 0)
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <Filter className="w-5 h-5" />
+              Filters
+              {(category !== 'all' || interests.length > 0) && (
+                <span className="px-1.5 py-0.5 text-xs bg-emerald-500 text-white rounded-full">
+                  {(category !== 'all' ? 1 : 0) + interests.length}
+                </span>
+              )}
+              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-xl animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-medium text-gray-900">Filter by</h3>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm text-emerald-600 hover:text-emerald-700"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+
+              {/* Creator Type */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-600 mb-2">
+                  Creator Type
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { value: 'all', label: 'All Creators' },
+                    { value: 'guide', label: 'Verified Guides' },
+                    { value: 'local_expert', label: 'Local Experts' },
+                    { value: 'regular', label: 'Regular Creators' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setCategory(option.value as CreatorCategory | 'all')}
+                      className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                        category === option.value
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Interests */}
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">
+                  Interests
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {Object.values(INTEREST_CATEGORIES).map((interest) => (
+                    <button
+                      key={interest.id}
+                      onClick={() => toggleInterest(interest.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${
+                        interests.includes(interest.id)
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300'
+                      }`}
+                    >
+                      <span>{interest.emoji}</span>
+                      {interest.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -168,19 +314,6 @@ export default function CreatorsPage() {
             })}
           </div>
         )}
-
-        {/* Filters */}
-        <CreatorFilters
-          search={search}
-          onSearchChange={setSearch}
-          category={category}
-          onCategoryChange={setCategory}
-          interests={interests}
-          onInterestsChange={setInterests}
-          city={city}
-          onCityChange={setCity}
-          availableCities={availableCities}
-        />
 
         {/* Results Header */}
         <div className="flex items-center justify-between mb-6">

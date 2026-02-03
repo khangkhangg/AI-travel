@@ -85,6 +85,14 @@ interface SelectedHotels {
   [day: number]: HotelResult;
 }
 
+export interface AIMetrics {
+  model: string;
+  provider: string;
+  tokensUsed: number;
+  cost: number;
+  responseCount: number;
+}
+
 interface ChatPanelProps {
   initialPrompt?: string;
   initialMessages?: Message[];
@@ -94,6 +102,7 @@ interface ChatPanelProps {
   onConversationStart?: () => void;
   onContextUpdate?: (context: TripContext) => void;
   onMessagesChange?: (messages: Message[]) => void;
+  onAIMetricsUpdate?: (metrics: AIMetrics) => void;
 }
 
 const smartTags = [
@@ -442,7 +451,7 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
   timestamp: new Date(),
 };
 
-export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange }: ChatPanelProps) {
+export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(
     initialMessages && initialMessages.length > 0
       ? initialMessages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
@@ -466,6 +475,13 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     budget?: string;
     travelers?: string;
   }>({});
+  const [aiMetrics, setAIMetrics] = useState<AIMetrics>({
+    model: '',
+    provider: '',
+    tokensUsed: 0,
+    cost: 0,
+    responseCount: 0,
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandMenuRef = useRef<HTMLDivElement>(null);
@@ -894,11 +910,33 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
           return newMessages;
         });
 
+        // Update AI metrics from response (wrapped in try/catch to not break itinerary flow)
+        try {
+          if (data.aiMetrics) {
+            setAIMetrics((prev) => {
+              const updated = {
+                model: data.aiMetrics.model || prev.model,
+                provider: data.aiMetrics.provider || prev.provider,
+                tokensUsed: prev.tokensUsed + (data.aiMetrics.tokensUsed || 0),
+                cost: prev.cost + (data.aiMetrics.cost || 0),
+                responseCount: prev.responseCount + 1,
+              };
+              // Notify parent of metrics update
+              onAIMetricsUpdate?.(updated);
+              return updated;
+            });
+          }
+        } catch (metricsError) {
+          console.error('Error updating AI metrics:', metricsError);
+        }
+
         // Parse itinerary from response
         const parsedItinerary = parseItineraryFromResponse(data.message);
+        console.log('[ChatPanel] Parsed itinerary:', parsedItinerary.length, 'days');
         if (parsedItinerary.length > 0) {
           setItinerary(parsedItinerary);
           // Stay on chat tab - don't auto-switch to itinerary
+          console.log('[ChatPanel] Calling onItineraryGenerated');
           onItineraryGenerated?.(parsedItinerary);
         }
       } else {

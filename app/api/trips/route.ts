@@ -46,21 +46,35 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { destination, duration, itinerary, travelers, visibility = 'private', curatorInfo, chatHistory } = body;
+    const { destination, duration, itinerary, travelers, visibility = 'private', curatorInfo, chatHistory, aiMetrics } = body;
 
     // Generate unique share code
     const shareCode = generateShareCode();
     const title = destination ? `Trip to ${destination}` : 'My Trip';
 
+    // Look up ai_model_id if we have AI metrics with a model name
+    let aiModelId = null;
+    if (aiMetrics?.model) {
+      const modelResult = await query(
+        'SELECT id FROM ai_models WHERE name = $1 LIMIT 1',
+        [aiMetrics.model]
+      );
+      if (modelResult.rows.length > 0) {
+        aiModelId = modelResult.rows[0].id;
+      }
+    }
+
     // Create trip - use city column for destination since schema uses that
     // Include curator info fields if visibility is 'curated'
+    // Include AI metrics if available
     const tripResult = await query(
       `INSERT INTO trips (
         user_id, title, city, description,
         visibility, share_code, generated_content, chat_history,
         curator_is_local, curator_years_lived, curator_experience,
+        ai_model_id, tokens_used, total_cost,
         created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
       RETURNING *`,
       [
         user.id,
@@ -74,6 +88,9 @@ export async function POST(request: NextRequest) {
         visibility === 'curated' ? curatorInfo?.isLocal : null,
         visibility === 'curated' ? curatorInfo?.yearsLived : null,
         visibility === 'curated' ? curatorInfo?.experience : null,
+        aiModelId,
+        aiMetrics?.tokensUsed || null,
+        aiMetrics?.cost || null,
       ]
     );
 

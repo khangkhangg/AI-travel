@@ -372,6 +372,21 @@ export async function POST(request: NextRequest) {
       envChanged = true;
     }
 
+    // Vision AI API keys (for eKYC)
+    // Note: deepseekApiKey is stored as SILICONFLOW_API_KEY since DeepSeek VL2 uses SiliconFlow API
+    if (body.deepseekApiKey && !body.deepseekApiKey.includes('...')) {
+      envUpdates['SILICONFLOW_API_KEY'] = body.deepseekApiKey;
+      envChanged = true;
+    }
+    if (body.alibabaApiKey && !body.alibabaApiKey.includes('...')) {
+      envUpdates['ALIBABA_API_KEY'] = body.alibabaApiKey;
+      envChanged = true;
+    }
+    if (body.zhipuApiKey && !body.zhipuApiKey.includes('...')) {
+      envUpdates['ZHIPU_API_KEY'] = body.zhipuApiKey;
+      envChanged = true;
+    }
+
     if (Object.keys(envUpdates).length > 0) {
       await updateEnvFile(envUpdates);
     }

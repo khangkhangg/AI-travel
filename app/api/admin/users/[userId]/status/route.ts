@@ -5,8 +5,8 @@ import { cookies } from 'next/headers';
 // Simple admin auth check
 async function isAdmin() {
   const cookieStore = await cookies();
-  const adminSession = cookieStore.get('admin_session');
-  return adminSession?.value === process.env.ADMIN_PASSWORD;
+  const session = cookieStore.get('admin_session');
+  return !!session?.value;
 }
 
 // PATCH - Update user status (ban/activate)

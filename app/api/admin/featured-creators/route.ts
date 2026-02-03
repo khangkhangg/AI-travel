@@ -6,7 +6,8 @@ import { INTEREST_CATEGORIES } from '@/lib/types/user';
 // Check admin auth
 async function isAdmin() {
   const cookieStore = await cookies();
-  return cookieStore.get('admin_authenticated')?.value === 'true';
+  const session = cookieStore.get('admin_session');
+  return !!session?.value;
 }
 
 // GET - List all featured creators by category

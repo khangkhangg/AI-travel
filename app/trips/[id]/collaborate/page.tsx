@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Clock, Users, Plus, Link as LinkIcon, Settings, Calendar, DollarSign,
+  Edit3, Loader2, MapPin,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import KanbanBoard from '@/components/collaborate/KanbanBoard';
@@ -31,6 +32,12 @@ export default function CollaboratePage() {
   const [editingTimes, setEditingTimes] = useState(false);
   const [editingDates, setEditingDates] = useState(false);
   const [discussionRefreshKey, setDiscussionRefreshKey] = useState(0);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
+  const [savingTitle, setSavingTitle] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [editingLocationValue, setEditingLocationValue] = useState('');
+  const [savingLocation, setSavingLocation] = useState(false);
 
   // Fetch trip data
   const fetchTrip = useCallback(async () => {
@@ -436,6 +443,84 @@ export default function CollaboratePage() {
     fetchCosts();
   };
 
+  // Handle title editing
+  const handleStartEditTitle = () => {
+    setEditingTitleValue(trip?.title || '');
+    setEditingTitle(true);
+  };
+
+  const handleSaveTitle = async () => {
+    const trimmedTitle = editingTitleValue.trim();
+    if (!trimmedTitle || trimmedTitle === trip?.title) {
+      setEditingTitle(false);
+      return;
+    }
+
+    setSavingTitle(true);
+    try {
+      const response = await fetch(`/api/trips/${tripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: trimmedTitle }),
+      });
+
+      if (response.ok) {
+        setTrip(prev => prev ? { ...prev, title: trimmedTitle } : prev);
+      } else {
+        alert('Failed to update title');
+      }
+    } catch (error) {
+      console.error('Failed to update title:', error);
+    } finally {
+      setSavingTitle(false);
+      setEditingTitle(false);
+    }
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditingTitle(false);
+    setEditingTitleValue('');
+  };
+
+  // Handle location editing
+  const handleStartEditLocation = () => {
+    setEditingLocationValue(trip?.city || '');
+    setEditingLocation(true);
+  };
+
+  const handleSaveLocation = async () => {
+    const trimmedLocation = editingLocationValue.trim();
+    if (trimmedLocation === trip?.city) {
+      setEditingLocation(false);
+      return;
+    }
+
+    setSavingLocation(true);
+    try {
+      const response = await fetch(`/api/trips/${tripId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination: trimmedLocation }),
+      });
+
+      if (response.ok) {
+        setTrip(prev => prev ? { ...prev, city: trimmedLocation } : prev);
+      } else {
+        alert('Failed to update location');
+      }
+    } catch (error) {
+      console.error('Failed to update location:', error);
+    } finally {
+      setSavingLocation(false);
+      setEditingLocation(false);
+    }
+  };
+
+  const handleCancelEditLocation = () => {
+    setEditingLocation(false);
+    setEditingLocationValue('');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -500,10 +585,63 @@ export default function CollaboratePage() {
 
                 <div className="h-6 w-px bg-gray-300" />
 
-                <h1 className="text-lg font-bold text-gray-900">{trip.title}</h1>
+                {editingTitle ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editingTitleValue}
+                      onChange={(e) => setEditingTitleValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveTitle();
+                        else if (e.key === 'Escape') handleCancelEditTitle();
+                      }}
+                      onBlur={handleSaveTitle}
+                      disabled={savingTitle}
+                      autoFocus
+                      className="px-2 py-1 text-lg font-bold border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                      placeholder="Trip name"
+                    />
+                    {savingTitle && <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />}
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleStartEditTitle}
+                    className="group/title flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                    title="Click to edit title"
+                  >
+                    <h1 className="text-lg font-bold text-gray-900 group-hover/title:text-emerald-600">{trip.title}</h1>
+                    <Edit3 className="w-3.5 h-3.5 opacity-0 group-hover/title:opacity-50 transition-opacity" />
+                  </button>
+                )}
 
-                {trip.city && (
-                  <span className="text-sm text-gray-500">• {trip.city}</span>
+                {editingLocation ? (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-500" />
+                    <input
+                      type="text"
+                      value={editingLocationValue}
+                      onChange={(e) => setEditingLocationValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveLocation();
+                        else if (e.key === 'Escape') handleCancelEditLocation();
+                      }}
+                      onBlur={handleSaveLocation}
+                      disabled={savingLocation}
+                      autoFocus
+                      className="px-2 py-0.5 text-sm border border-emerald-300 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                      placeholder="Enter location"
+                    />
+                    {savingLocation && <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />}
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleStartEditLocation}
+                    className={`group/loc flex items-center gap-1 text-sm hover:text-emerald-600 transition-colors ${trip.city ? 'text-gray-500' : 'text-orange-400'}`}
+                    title="Click to edit location"
+                  >
+                    <span>• {trip.city || 'Add location'}</span>
+                    <Edit3 className="w-3 h-3 opacity-0 group-hover/loc:opacity-50 transition-opacity" />
+                  </button>
                 )}
               </div>
 

@@ -125,9 +125,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Calculate tokens used and cost
+    const tokensUsed = data.usage?.total_tokens || 0;
+    const promptTokens = data.usage?.prompt_tokens || 0;
+    const completionTokens = data.usage?.completion_tokens || 0;
+
+    // Deepseek pricing: ~$0.14/1M input tokens, ~$0.28/1M output tokens (estimate)
+    const inputCost = (promptTokens / 1000000) * 0.14;
+    const outputCost = (completionTokens / 1000000) * 0.28;
+    const cost = inputCost + outputCost;
+
     return NextResponse.json({
       message: assistantMessage,
       usage: data.usage,
+      aiMetrics: {
+        model: 'deepseek-chat',
+        provider: 'deepseek',
+        tokensUsed,
+        promptTokens,
+        completionTokens,
+        cost,
+      },
     });
   } catch (error) {
     console.error('Chat API error:', error);
