@@ -6,17 +6,24 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-// Fetch business data for metadata generation
-async function getBusinessData(id: string) {
+// Helper to check if string is a UUID
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+// Fetch business data for metadata generation (supports ID or handle)
+async function getBusinessData(identifier: string) {
   try {
+    const isId = isUUID(identifier);
     const result = await query(
       `SELECT b.*, bd.details as business_details,
         u.full_name as owner_name, u.avatar_url as owner_avatar
        FROM businesses b
        LEFT JOIN business_details bd ON bd.business_id = b.id
        LEFT JOIN users u ON u.id = b.user_id
-       WHERE b.id = $1 AND b.is_active = true`,
-      [id]
+       WHERE ${isId ? 'b.id = $1' : 'b.handle = $1'} AND b.is_active = true`,
+      [identifier]
     );
 
     if (result.rows.length === 0) {
@@ -57,7 +64,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     : '';
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://ai-travel.com';
-  const pageUrl = `${baseUrl}/business/${id}`;
+  // Use handle for canonical URL if available (better SEO)
+  const pageUrl = `${baseUrl}/business/${business.handle || business.id}`;
 
   return {
     title,
@@ -119,7 +127,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 // Generate JSON-LD structured data for rich snippets
 // Safe to use with dangerouslySetInnerHTML as JSON.stringify escapes all special chars
 function generateJsonLd(business: any, baseUrl: string): string {
-  const pageUrl = `${baseUrl}/business/${business.id}`;
+  const pageUrl = `${baseUrl}/business/${business.handle || business.id}`;
 
   // LocalBusiness schema
   const localBusinessSchema = {

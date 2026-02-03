@@ -43,6 +43,7 @@ interface Business {
   business_name: string;
   description: string;
   logo_url?: string;
+  handle?: string;
   coverage_areas: CoverageArea[];
   contact_info: ContactInfo;
   social_links: SocialLinks;
@@ -125,6 +126,7 @@ export default function BusinessDashboardPage() {
           business_name: b.business_name,
           description: b.description || '',
           logo_url: b.logo_url,
+          handle: b.handle,
           coverage_areas: b.coverage_areas || [],
           contact_info: b.contact_info || {},
           social_links: b.social_links || {},
@@ -160,6 +162,7 @@ export default function BusinessDashboardPage() {
   const handleSaveProfile = async (data: Partial<{
     businessName: string;
     description: string;
+    handle: string;
     coverageAreas: CoverageArea[];
     contactInfo: ContactInfo;
     socialLinks: SocialLinks;
@@ -172,6 +175,7 @@ export default function BusinessDashboardPage() {
       body: JSON.stringify({
         business_name: data.businessName,
         description: data.description,
+        handle: data.handle,
         coverage_areas: data.coverageAreas,
         contact_info: data.contactInfo,
         social_links: data.socialLinks,
@@ -247,6 +251,7 @@ export default function BusinessDashboardPage() {
               businessType: business.business_type,
               description: business.description,
               logoUrl: business.logo_url,
+              handle: business.handle,
               coverageAreas: business.coverage_areas,
               contactInfo: business.contact_info,
               socialLinks: business.social_links,

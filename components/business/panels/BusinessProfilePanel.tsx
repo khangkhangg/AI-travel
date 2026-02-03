@@ -13,6 +13,8 @@ import {
   Check,
   Loader2,
   Upload,
+  Link,
+  AlertCircle,
 } from 'lucide-react';
 
 interface CoverageArea {
@@ -40,6 +42,7 @@ interface BusinessProfilePanelProps {
     businessType: string;
     description: string;
     logoUrl?: string;
+    handle?: string;
     coverageAreas: CoverageArea[];
     contactInfo: ContactInfo;
     socialLinks: SocialLinks;
@@ -47,6 +50,7 @@ interface BusinessProfilePanelProps {
   onSave: (data: Partial<{
     businessName: string;
     description: string;
+    handle: string;
     coverageAreas: CoverageArea[];
     contactInfo: ContactInfo;
     socialLinks: SocialLinks;
@@ -63,27 +67,56 @@ export default function BusinessProfilePanel({
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [handleError, setHandleError] = useState<string | null>(null);
 
   // Form states for business info
   const [businessName, setBusinessName] = useState(business.businessName);
   const [description, setDescription] = useState(business.description);
+  const [handle, setHandle] = useState(business.handle || '');
   const [coverageAreas, setCoverageAreas] = useState<CoverageArea[]>(business.coverageAreas);
 
   // Form states for contact/social
   const [contactInfo, setContactInfo] = useState<ContactInfo>(business.contactInfo);
   const [socialLinks, setSocialLinks] = useState<SocialLinks>(business.socialLinks);
 
+  const validateHandle = (value: string): boolean => {
+    if (!value) return true; // Empty is allowed
+    const handleRegex = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
+    return handleRegex.test(value);
+  };
+
+  const handleHandleChange = (value: string) => {
+    // Auto-format: lowercase, replace spaces with hyphens
+    const formatted = value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    setHandle(formatted);
+    if (formatted && !validateHandle(formatted)) {
+      setHandleError('3-50 characters. Only lowercase letters, numbers, and hyphens. Must start and end with letter or number.');
+    } else {
+      setHandleError(null);
+    }
+  };
+
   const handleSave = async () => {
+    if (handle && !validateHandle(handle)) {
+      setHandleError('Invalid handle format');
+      return;
+    }
+
     setSaving(true);
+    setHandleError(null);
     try {
       if (subSection === 'business-info') {
-        await onSave({ businessName, description, coverageAreas });
+        await onSave({ businessName, description, handle, coverageAreas });
       } else {
         await onSave({ contactInfo, socialLinks });
       }
       setIsEditing(false);
-    } catch (error) {
-      console.error('Failed to save:', error);
+    } catch (error: any) {
+      if (error.message?.includes('handle') || error.message?.includes('taken')) {
+        setHandleError(error.message);
+      } else {
+        console.error('Failed to save:', error);
+      }
     } finally {
       setSaving(false);
     }
@@ -190,6 +223,51 @@ export default function BusinessProfilePanel({
               />
             ) : (
               <p className="text-gray-900">{business.businessName}</p>
+            )}
+          </div>
+
+          {/* Handle / Custom URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <span className="flex items-center gap-2">
+                <Link className="w-4 h-4" />
+                Custom URL Handle
+              </span>
+            </label>
+            {isEditing ? (
+              <div>
+                <div className="flex items-center">
+                  <span className="px-4 py-2.5 bg-gray-100 border border-r-0 border-gray-200 rounded-l-lg text-gray-500 text-sm">
+                    /business/
+                  </span>
+                  <input
+                    type="text"
+                    value={handle}
+                    onChange={(e) => handleHandleChange(e.target.value)}
+                    placeholder="your-business-name"
+                    className={`flex-1 px-4 py-2.5 border rounded-r-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+                      handleError ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                  />
+                </div>
+                {handleError && (
+                  <p className="mt-1.5 text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {handleError}
+                  </p>
+                )}
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Create a memorable URL for your business profile. Leave empty to use the default ID.
+                </p>
+              </div>
+            ) : (
+              <div>
+                {business.handle ? (
+                  <p className="text-gray-900 font-mono text-sm">/business/{business.handle}</p>
+                ) : (
+                  <p className="text-gray-500 text-sm">Not set - using default ID</p>
+                )}
+              </div>
             )}
           </div>
 

@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/auth/supabase';
 import { query } from '@/lib/db';
 
-// GET - get business by ID
+// Helper to check if string is a UUID
+function isUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+// GET - get business by ID or handle
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,13 +19,15 @@ export async function GET(
     // Check if user is logged in
     const user = await getUser();
 
+    // Determine if looking up by UUID or handle
+    const isId = isUUID(id);
     const result = await query(
       `SELECT b.*, bd.details as business_details,
         u.full_name as owner_name, u.avatar_url as owner_avatar, u.username as owner_username
        FROM businesses b
        LEFT JOIN business_details bd ON bd.business_id = b.id
        LEFT JOIN users u ON u.id = b.user_id
-       WHERE b.id = $1`,
+       WHERE ${isId ? 'b.id = $1' : 'b.handle = $1'}`,
       [id]
     );
 
@@ -27,17 +35,19 @@ export async function GET(
       return NextResponse.json({ error: 'Business not found' }, { status: 404 });
     }
 
+    const businessId = result.rows[0].id;
+
     // Get services
     const servicesResult = await query(
       'SELECT * FROM business_services WHERE business_id = $1 AND is_active = true',
-      [id]
+      [businessId]
     );
 
     // Get recent proposals count
     const proposalsResult = await query(
       `SELECT COUNT(*) as count FROM marketplace_proposals
        WHERE business_id = $1 AND status IN ('pending', 'accepted')`,
-      [id]
+      [businessId]
     );
 
     const business = {
@@ -92,14 +102,42 @@ export async function PATCH(
       contact_info,
       social_links,
       details,
-      is_active
+      is_active,
+      handle
     } = body;
+
+    // Validate handle if provided
+    if (handle !== undefined) {
+      // Handle must be lowercase, alphanumeric with hyphens, 3-50 chars
+      const handleRegex = /^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/;
+      if (handle && !handleRegex.test(handle)) {
+        return NextResponse.json({
+          error: 'Invalid handle. Use 3-50 lowercase letters, numbers, and hyphens. Must start and end with letter or number.'
+        }, { status: 400 });
+      }
+
+      // Check uniqueness
+      if (handle) {
+        const existingHandle = await query(
+          'SELECT id FROM businesses WHERE handle = $1 AND id != $2',
+          [handle, id]
+        );
+        if (existingHandle.rows.length > 0) {
+          return NextResponse.json({ error: 'This handle is already taken' }, { status: 400 });
+        }
+      }
+    }
 
     // Update business
     const updates: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
+    if (handle !== undefined) {
+      updates.push(`handle = $${paramIndex}`);
+      values.push(handle || null);
+      paramIndex++;
+    }
     if (business_name !== undefined) {
       updates.push(`business_name = $${paramIndex}`);
       values.push(business_name);
