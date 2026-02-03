@@ -23,6 +23,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { Itinerary, UserSummary } from '@/lib/types/user';
+import { CreatorHoverCard } from '@/components/creators';
 
 const INTERESTS = [
   { id: 'food', label: 'Food & Dining', emoji: '🍜' },
@@ -65,7 +66,9 @@ interface MarketplaceTrip {
   marketplace_needs: string[];
   marketplace_budget_min?: number;
   marketplace_budget_max?: number;
+  creator_id?: string;
   creator_name: string;
+  creator_username?: string;
   creator_avatar?: string;
   activity_count: number;
   proposal_count: number;
@@ -535,19 +538,28 @@ function ItineraryCard({
       <div className="p-5">
         {/* Author */}
         <div className="flex items-center gap-3 mb-3">
-          {itinerary.user?.avatarUrl ? (
-            <img
-              src={itinerary.user.avatarUrl}
-              alt=""
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-              <span className="text-sm font-medium text-emerald-600">
-                {itinerary.user?.fullName?.[0] || '?'}
-              </span>
-            </div>
-          )}
+          <CreatorHoverCard
+            creator={{
+              id: itinerary.user?.id,
+              username: (itinerary.user as any)?.username,
+              fullName: itinerary.user?.fullName,
+              avatarUrl: itinerary.user?.avatarUrl,
+            }}
+          >
+            {itinerary.user?.avatarUrl ? (
+              <img
+                src={itinerary.user.avatarUrl}
+                alt=""
+                className="w-8 h-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-emerald-300 transition-all"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-emerald-300 transition-all">
+                <span className="text-sm font-medium text-emerald-600">
+                  {itinerary.user?.fullName?.[0] || '?'}
+                </span>
+              </div>
+            )}
+          </CreatorHoverCard>
           <div>
             <p className="text-sm font-medium text-gray-900">
               {itinerary.user?.fullName || 'Anonymous'}
@@ -705,15 +717,28 @@ function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
 
         {/* Creator */}
         <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
-          {trip.creator_avatar ? (
-            <img src={trip.creator_avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-              <span className="text-xs font-medium text-blue-600">
-                {trip.creator_name?.[0] || '?'}
-              </span>
-            </div>
-          )}
+          <CreatorHoverCard
+            creator={{
+              id: trip.creator_id,
+              username: trip.creator_username,
+              fullName: trip.creator_name,
+              avatarUrl: trip.creator_avatar,
+            }}
+          >
+            {trip.creator_avatar ? (
+              <img
+                src={trip.creator_avatar}
+                alt=""
+                className="w-6 h-6 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all"
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all">
+                <span className="text-xs font-medium text-blue-600">
+                  {trip.creator_name?.[0] || '?'}
+                </span>
+              </div>
+            )}
+          </CreatorHoverCard>
           <span className="text-sm text-gray-600">{trip.creator_name}</span>
         </div>
       </div>

@@ -32,7 +32,15 @@ import {
   Search,
   MoreVertical,
   Calendar,
+  Star,
+  Plus,
+  X,
+  GripVertical,
+  ExternalLink,
+  Pin,
 } from 'lucide-react';
+
+import { INTEREST_CATEGORIES } from '@/lib/types/user';
 
 interface AppSettings {
   deepseekApiKey: string;
@@ -127,6 +135,15 @@ export default function AdminDashboard() {
   // Profile Design
   const [profileDesign, setProfileDesign] = useState<'journey' | 'explorer' | 'wanderer'>('journey');
   const [profileDesignSaveStatus, setProfileDesignSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  // Featured Creators
+  const [featuredCreators, setFeaturedCreators] = useState<Record<string, any[]>>({});
+  const [featuredLoading, setFeaturedLoading] = useState(false);
+  const [showAddFeaturedModal, setShowAddFeaturedModal] = useState(false);
+  const [addFeaturedCategory, setAddFeaturedCategory] = useState('');
+  const [creatorSearch, setCreatorSearch] = useState('');
+  const [creatorSearchResults, setCreatorSearchResults] = useState<any[]>([]);
+  const [searchingCreators, setSearchingCreators] = useState(false);
+  const [featuredSaveStatus, setFeaturedSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const router = useRouter();
 
   const PROFILE_DESIGNS = [
@@ -167,6 +184,17 @@ export default function AdminDashboard() {
           }
         } finally {
           setUsersLoading(false);
+        }
+      } else if (activeTab === 'featured') {
+        setFeaturedLoading(true);
+        try {
+          const res = await fetch('/api/admin/featured-creators');
+          if (res.ok) {
+            const data = await res.json();
+            setFeaturedCreators(data.byCategory || {});
+          }
+        } finally {
+          setFeaturedLoading(false);
         }
       } else if (activeTab === 'settings') {
         const res = await fetch('/api/admin/settings');
@@ -648,6 +676,19 @@ export default function AdminDashboard() {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('featured')}
+              className={`px-6 py-4 font-medium transition ${
+                activeTab === 'featured'
+                  ? 'border-b-2 border-teal-600 text-teal-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Star className="w-4 h-4" />
+                <span>Featured</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('settings')}
               className={`px-6 py-4 font-medium transition ${
                 activeTab === 'settings'
@@ -1110,6 +1151,288 @@ export default function AdminDashboard() {
                         )}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Featured Creators Tab */}
+        {activeTab === 'featured' && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Featured Creators Management</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Manage which creators are featured on the /creators page by category
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowAddFeaturedModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Featured
+                </button>
+              </div>
+            </div>
+
+            {featuredLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* Category Sections */}
+                {Object.entries(INTEREST_CATEGORIES).map(([categoryId, category]) => {
+                  const creators = featuredCreators[categoryId] || [];
+                  return (
+                    <div key={categoryId} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                      <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{category.emoji}</span>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{category.label}</h4>
+                            <p className="text-sm text-gray-500">{creators.length} featured creators</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setAddFeaturedCategory(categoryId);
+                            setShowAddFeaturedModal(true);
+                          }}
+                          className="p-2 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </div>
+                      {creators.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500">
+                          <Star className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                          <p>No featured creators in this category</p>
+                          <p className="text-xs mt-1">Algorithmic suggestions will be shown instead</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {creators.map((creator: any, index: number) => (
+                            <div
+                              key={creator.id}
+                              className="p-4 flex items-center gap-4 hover:bg-gray-50 transition-colors"
+                            >
+                              <div className="text-gray-300 cursor-move">
+                                <GripVertical className="w-5 h-5" />
+                              </div>
+                              <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                                {creator.avatar_url ? (
+                                  <img src={creator.avatar_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                                    <span className="text-white font-medium">{(creator.full_name || 'U')[0].toUpperCase()}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-gray-900 truncate">{creator.full_name || 'Unknown'}</p>
+                                  {creator.username && (
+                                    <span className="text-sm text-gray-500">@{creator.username}</span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-500 truncate">{creator.location || 'No location'}</p>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-gray-500">
+                                <span>{creator.itinerary_count || 0} itineraries</span>
+                                <span>•</span>
+                                <span>{creator.total_clones || 0} clones</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={`/profile/${creator.username}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/api/admin/featured-creators/${creator.featured_id}`, {
+                                      method: 'DELETE',
+                                    });
+                                    fetchData();
+                                  }}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Preview Button */}
+                <div className="flex justify-center">
+                  <a
+                    href="/creators"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Preview /creators Page
+                  </a>
+                </div>
+              </>
+            )}
+
+            {/* Add Featured Modal */}
+            {showAddFeaturedModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+                  <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold">Add Featured Creator</h3>
+                      <p className="text-sm text-gray-500">Search for a creator to feature</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowAddFeaturedModal(false);
+                        setCreatorSearch('');
+                        setCreatorSearchResults([]);
+                        setAddFeaturedCategory('');
+                      }}
+                      className="p-2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+                    {/* Category Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                      <select
+                        value={addFeaturedCategory}
+                        onChange={(e) => setAddFeaturedCategory(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                      >
+                        <option value="">Select a category...</option>
+                        {Object.entries(INTEREST_CATEGORIES).map(([id, cat]) => (
+                          <option key={id} value={id}>{cat.emoji} {cat.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Creator Search */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Search Creators</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={creatorSearch}
+                          onChange={async (e) => {
+                            setCreatorSearch(e.target.value);
+                            if (e.target.value.length >= 2) {
+                              setSearchingCreators(true);
+                              try {
+                                const res = await fetch(`/api/creators?search=${encodeURIComponent(e.target.value)}&limit=10`);
+                                if (res.ok) {
+                                  const data = await res.json();
+                                  setCreatorSearchResults(data.creators || []);
+                                }
+                              } finally {
+                                setSearchingCreators(false);
+                              }
+                            } else {
+                              setCreatorSearchResults([]);
+                            }
+                          }}
+                          placeholder="Search by name or username..."
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                        {searchingCreators && (
+                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Search Results */}
+                    {creatorSearchResults.length > 0 && (
+                      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-60 overflow-y-auto">
+                        {creatorSearchResults.map((creator: any) => (
+                          <button
+                            key={creator.id}
+                            onClick={async () => {
+                              if (!addFeaturedCategory) {
+                                alert('Please select a category first');
+                                return;
+                              }
+                              setFeaturedSaveStatus('saving');
+                              try {
+                                const res = await fetch('/api/admin/featured-creators', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    userId: creator.id,
+                                    category: addFeaturedCategory,
+                                  }),
+                                });
+                                if (res.ok) {
+                                  setFeaturedSaveStatus('success');
+                                  setShowAddFeaturedModal(false);
+                                  setCreatorSearch('');
+                                  setCreatorSearchResults([]);
+                                  setAddFeaturedCategory('');
+                                  fetchData();
+                                } else {
+                                  const data = await res.json();
+                                  alert(data.error || 'Failed to add featured creator');
+                                  setFeaturedSaveStatus('error');
+                                }
+                              } catch {
+                                setFeaturedSaveStatus('error');
+                              }
+                            }}
+                            disabled={featuredSaveStatus === 'saving'}
+                            className="w-full p-3 flex items-center gap-3 hover:bg-emerald-50 transition-colors text-left disabled:opacity-50"
+                          >
+                            <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0">
+                              {creator.avatarUrl ? (
+                                <img src={creator.avatarUrl} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                                  <span className="text-white font-medium">{(creator.fullName || 'U')[0].toUpperCase()}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-900 truncate">{creator.fullName || 'Unknown'}</p>
+                              {creator.username && (
+                                <p className="text-sm text-gray-500">@{creator.username}</p>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {creator.stats?.itineraryCount || 0} itineraries
+                            </div>
+                            <Plus className="w-5 h-5 text-emerald-600" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {creatorSearch.length >= 2 && creatorSearchResults.length === 0 && !searchingCreators && (
+                      <div className="text-center py-6 text-gray-500">
+                        <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No creators found matching &quot;{creatorSearch}&quot;</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

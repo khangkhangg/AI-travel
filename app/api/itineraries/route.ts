@@ -22,8 +22,10 @@ export async function GET(request: NextRequest) {
     let sql = `
       SELECT
         i.*,
+        u.id as user_id_joined,
         u.full_name as user_full_name,
         u.avatar_url as user_avatar_url,
+        u.username as user_username,
         (SELECT COUNT(*) FROM itinerary_collaborators WHERE itinerary_id = i.id) as collaborator_count
       FROM itineraries i
       LEFT JOIN users u ON i.user_id = u.id
@@ -106,8 +108,10 @@ export async function GET(request: NextRequest) {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       user: row.user_full_name ? {
+        id: row.user_id_joined,
         fullName: row.user_full_name,
         avatarUrl: row.user_avatar_url,
+        username: row.user_username,
       } : undefined,
       collaboratorCount: parseInt(row.collaborator_count),
     }));

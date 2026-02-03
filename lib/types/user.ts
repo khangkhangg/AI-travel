@@ -311,6 +311,64 @@ export interface BusinessOffer {
   itinerary?: Itinerary;
 }
 
+// Creator types for /creators page
+export type CreatorCategory = 'guide' | 'local_expert' | 'regular';
+
+export interface CreatorStats {
+  itineraryCount: number;
+  totalViews: number;
+  totalClones: number;
+}
+
+export interface CreatorItineraryPreview {
+  id: string;
+  title: string;
+  coverImage?: string;
+  destinationCity?: string;
+}
+
+export interface Creator {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl?: string;
+  bio?: string;
+  location?: string;
+  isGuide: boolean;
+  isLocalExpert: boolean;
+  badges: BadgeType[];
+  stats: CreatorStats;
+  recentItineraries: CreatorItineraryPreview[];
+  destinations: string[];
+  interests: string[];
+}
+
+export interface FeaturedCreator extends Creator {
+  featuredId: string;
+  category: string;
+  displayOrder: number;
+  featuredUntil?: string;
+  isAlgorithmic: boolean;
+}
+
+export interface InterestCategory {
+  id: string;
+  emoji: string;
+  label: string;
+  displayOrder: number;
+}
+
+export const INTEREST_CATEGORIES: Record<string, InterestCategory> = {
+  food: { id: 'food', emoji: '🍜', label: 'Food Experts', displayOrder: 1 },
+  culture: { id: 'culture', emoji: '🏛️', label: 'Culture Enthusiasts', displayOrder: 2 },
+  nature: { id: 'nature', emoji: '🌿', label: 'Nature Lovers', displayOrder: 3 },
+  adventure: { id: 'adventure', emoji: '⛰️', label: 'Adventure Seekers', displayOrder: 4 },
+  nightlife: { id: 'nightlife', emoji: '🌙', label: 'Nightlife Guides', displayOrder: 5 },
+  shopping: { id: 'shopping', emoji: '🛍️', label: 'Shopping Experts', displayOrder: 6 },
+  relaxation: { id: 'relaxation', emoji: '🧘', label: 'Relaxation Gurus', displayOrder: 7 },
+  history: { id: 'history', emoji: '📜', label: 'History Buffs', displayOrder: 8 },
+};
+
 // Auth types
 export interface AuthState {
   user: User | null;

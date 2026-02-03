@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         t.id, t.title, t.description, t.city, t.start_date, t.num_people,
         t.marketplace_needs, t.marketplace_budget_min, t.marketplace_budget_max, t.marketplace_notes,
         t.created_at,
-        u.id as creator_id, u.full_name as creator_name, u.avatar_url as creator_avatar, u.username,
+        u.id as creator_id, u.full_name as creator_name, u.avatar_url as creator_avatar, u.username as creator_username,
         (SELECT COUNT(*) FROM itinerary_items WHERE trip_id = t.id) as activity_count,
         (SELECT COUNT(*) FROM marketplace_proposals WHERE trip_id = t.id AND status = 'pending') as proposal_count,
         (SELECT jsonb_agg(jsonb_build_object(
