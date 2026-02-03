@@ -167,7 +167,7 @@ export default function BusinessDashboardPage() {
     if (!business) return;
 
     const response = await fetch(`/api/businesses/${business.id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         business_name: data.businessName,
