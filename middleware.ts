@@ -27,11 +27,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if expired
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Protected routes - exclude admin routes (has its own auth)
+  // Only refresh session for page navigation, not API calls
+  // This reduces Supabase API calls to avoid rate limiting
   const pathname = request.nextUrl.pathname;
+  const isApiRoute = pathname.startsWith('/api/');
+
+  let user = null;
+  if (!isApiRoute) {
+    // Refresh session only for page requests
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  }
 
   // Admin routes use custom cookie-based auth
   if (pathname.startsWith('/admin')) {

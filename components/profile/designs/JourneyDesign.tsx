@@ -110,6 +110,7 @@ export default function JourneyDesign({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingCloneId, setPendingCloneId] = useState<string | null>(null);
   const [cloning, setCloning] = useState<string | null>(null);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   // Booking form state
   const [showBookingForm, setShowBookingForm] = useState(false);
@@ -265,12 +266,11 @@ export default function JourneyDesign({
     <div className="min-h-screen bg-zinc-950 text-white font-[var(--font-plus-jakarta)]">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-zinc-950/90 backdrop-blur-sm border-b border-zinc-800">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="text-zinc-400 hover:text-white transition-colors">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between h-16 px-6">
+          <Link href="/" className="text-zinc-400 hover:text-white transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex items-center gap-3">
               <button
                 onClick={handleShare}
                 className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
@@ -281,7 +281,7 @@ export default function JourneyDesign({
               {isOwner ? (
                 <Link
                   href="/profile"
-                  className="px-4 py-2 bg-white text-zinc-900 rounded-lg text-sm font-semibold hover:bg-zinc-200 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
                 >
                   Edit Profile
                 </Link>
@@ -297,7 +297,6 @@ export default function JourneyDesign({
                   {isFollowing ? 'Following' : 'Follow'}
                 </button>
               )}
-            </div>
           </div>
         </div>
       </header>
@@ -336,13 +335,28 @@ export default function JourneyDesign({
                   {profile.user.profileVisibility === 'public' ? 'Public' : 'Private'}
                 </span>
               </div>
-              {profile.user.bio && (
-                <p className="mt-6 text-lg text-zinc-300 max-w-2xl leading-[1.7] font-normal">
-                  {profile.user.bio}
-                </p>
-              )}
+              {profile.user.bio && (() => {
+                const words = profile.user.bio.split(/\s+/);
+                const isLong = words.length > 150;
+                const truncatedBio = isLong ? words.slice(0, 150).join(' ') + '...' : profile.user.bio;
+                return (
+                  <div className="mt-6 max-w-2xl">
+                    <p className="text-lg text-zinc-300 leading-[1.7] font-normal">
+                      {bioExpanded || !isLong ? profile.user.bio : truncatedBio}
+                    </p>
+                    {isLong && (
+                      <button
+                        onClick={() => setBioExpanded(!bioExpanded)}
+                        className="mt-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        {bioExpanded ? 'Show less' : 'Show more'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex flex-col items-center gap-4">
               {profile.user.avatarUrl ? (
                 <img
                   src={profile.user.avatarUrl}
@@ -354,6 +368,18 @@ export default function JourneyDesign({
                   <span className="text-5xl font-bold text-white">
                     {(profile.user.fullName || 'A')[0].toUpperCase()}
                   </span>
+                </div>
+              )}
+              {/* Badges below avatar */}
+              {(badgeLevels.length > 0 || profile.badges.filter(b => BADGE_DEFINITIONS[b.badgeType as keyof typeof BADGE_DEFINITIONS]).length > 0) && (
+                <div className="flex justify-center">
+                  <BadgeGrid
+                    badges={badgeLevels}
+                    specialBadges={profile.badges
+                      .filter((badge) => BADGE_DEFINITIONS[badge.badgeType as keyof typeof BADGE_DEFINITIONS])
+                      .map(b => ({ type: b.badgeType, metadata: b.metadata }))}
+                    size="md"
+                  />
                 </div>
               )}
             </div>
@@ -688,21 +714,6 @@ export default function JourneyDesign({
                 )}
               </div>
             </div>
-          </div>
-        </section>
-      )}
-
-      {/* Gamified Badge Grid */}
-      {(badgeLevels.length > 0 || profile.badges.filter(b => BADGE_DEFINITIONS[b.badgeType as keyof typeof BADGE_DEFINITIONS]).length > 0) && (
-        <section className="py-12 px-6">
-          <div className="max-w-6xl mx-auto">
-            <BadgeGrid
-              badges={badgeLevels}
-              specialBadges={profile.badges
-                .filter((badge) => BADGE_DEFINITIONS[badge.badgeType as keyof typeof BADGE_DEFINITIONS])
-                .map(b => ({ type: b.badgeType, metadata: b.metadata }))}
-              size="lg"
-            />
           </div>
         </section>
       )}

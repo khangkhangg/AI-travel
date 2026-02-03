@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { UserProfile } from '@/lib/types/user';
+import ProfileSidebar, { SectionId, SubItemId } from '@/components/profile/ProfileSidebar';
 
 // Dynamically import design components
 const JourneyDesign = dynamic(() => import('@/components/profile/designs/JourneyDesign'), {
@@ -70,6 +71,10 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Sidebar state for owner view
+  const [activeSection, setActiveSection] = useState<SectionId>('dashboard');
+  const [activeSubItem, setActiveSubItem] = useState<SubItemId | null>(null);
+
   useEffect(() => {
     Promise.all([fetchProfile(), fetchDesign()]).finally(() => setLoading(false));
   }, [username]);
@@ -135,6 +140,12 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
     } catch (error) {
       console.error('Failed to unfollow:', error);
     }
+  };
+
+  const handleSectionChange = (section: SectionId, subItem?: SubItemId) => {
+    // Navigate to the private profile page with the selected section
+    const sectionPath = section === 'dashboard' ? '' : `?section=${section}${subItem ? `&sub=${subItem}` : ''}`;
+    window.location.href = `/profile${sectionPath}`;
   };
 
   if (loading) {
@@ -227,13 +238,47 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   };
 
   // Render the selected design
-  switch (design) {
-    case 'explorer':
-      return <ExplorerDesign {...designProps} />;
-    case 'wanderer':
-      return <WandererDesign {...designProps} />;
-    case 'journey':
-    default:
-      return <JourneyDesign {...designProps} />;
+  const renderDesign = () => {
+    switch (design) {
+      case 'explorer':
+        return <ExplorerDesign {...designProps} />;
+      case 'wanderer':
+        return <WandererDesign {...designProps} />;
+      case 'journey':
+      default:
+        return <JourneyDesign {...designProps} />;
+    }
+  };
+
+  // If owner is viewing their own public profile, show sidebar
+  if (profile.isOwner) {
+    return (
+      <div className="flex h-screen bg-zinc-950">
+        {/* Sidebar */}
+        <ProfileSidebar
+          user={{
+            id: profile.user.id,
+            fullName: profile.user.name,
+            username: profile.user.username,
+            avatarUrl: profile.user.avatarUrl,
+            email: '',
+          }}
+          isGuide={profile.user.isGuide || false}
+          activeSection={activeSection}
+          activeSubItem={activeSubItem}
+          onSectionChange={handleSectionChange}
+          variant="dark"
+          previewMode={true}
+        />
+
+        {/* Main Content - Public Profile Preview */}
+        <main className="flex-1 overflow-auto relative z-0">
+          {renderDesign()}
+        </main>
+      </div>
+    );
   }
+
+  // Non-owner view - no sidebar
+  return renderDesign();
 }
