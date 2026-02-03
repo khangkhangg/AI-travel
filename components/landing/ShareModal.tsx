@@ -25,9 +25,9 @@ import {
   CuratorInfo,
 } from '@/lib/types/user';
 
-type ServiceNeedType = 'guide' | 'hotel' | 'transport' | 'experience' | 'health';
+export type ServiceNeedType = 'guide' | 'hotel' | 'transport' | 'experience' | 'health';
 
-interface MarketplaceSettings {
+export interface MarketplaceSettings {
   serviceNeeds: ServiceNeedType[];
   budgetMin?: number;
   budgetMax?: number;

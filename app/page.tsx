@@ -12,6 +12,7 @@ import MarketplaceItineraries from '@/components/landing/MarketplaceItineraries'
 import GlassCTA from '@/components/landing/GlassCTA';
 import ChatPanel from '@/components/landing/ChatPanel';
 import ItineraryDisplay from '@/components/landing/ItineraryDisplay';
+import { MarketplaceSettings } from '@/components/landing/ShareModal';
 import AuthModal from '@/components/auth/AuthModal';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
 import { ItineraryVisibility, CuratorInfo } from '@/lib/types/user';
@@ -403,7 +404,7 @@ export default function HomePage() {
   const handleUpdateVisibility = useCallback(async (
     newVisibility: ItineraryVisibility,
     newCuratorInfo?: CuratorInfo,
-    newMarketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string }
+    newMarketplaceSettings?: MarketplaceSettings
   ) => {
     setVisibility(newVisibility);
     if (newCuratorInfo) {

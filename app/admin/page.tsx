@@ -31,6 +31,7 @@ import {
   Trash2,
   Search,
   MoreVertical,
+  Calendar,
 } from 'lucide-react';
 
 interface AppSettings {
@@ -478,6 +479,83 @@ export default function AdminDashboard() {
     user.full_name?.toLowerCase().includes(userSearch.toLowerCase()) ||
     user.username?.toLowerCase().includes(userSearch.toLowerCase())
   );
+
+  // Google Calendar Toggle Component
+  const GoogleCalendarToggle = () => {
+    const [enabled, setEnabled] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+      const fetchSetting = async () => {
+        try {
+          const res = await fetch('/api/admin/site-settings?key=google_calendar_booking_enabled');
+          if (res.ok) {
+            const data = await res.json();
+            setEnabled(data.value === 'true');
+          }
+        } catch (e) {
+          console.error('Failed to fetch Google Calendar setting:', e);
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchSetting();
+    }, []);
+
+    const handleToggle = async () => {
+      setSaving(true);
+      try {
+        const newValue = !enabled;
+        const res = await fetch('/api/admin/site-settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: 'google_calendar_booking_enabled', value: String(newValue) }),
+        });
+        if (res.ok) {
+          setEnabled(newValue);
+        }
+      } catch (e) {
+        console.error('Failed to save Google Calendar setting:', e);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    return (
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-medium text-gray-900">Google Calendar Direct Booking</p>
+          <p className="text-sm text-gray-500">
+            Allow guides to add their Google Calendar embed code for direct booking
+          </p>
+        </div>
+        {loading ? (
+          <div className="w-14 h-8 rounded-full bg-gray-200 animate-pulse" />
+        ) : (
+          <button
+            onClick={handleToggle}
+            disabled={saving}
+            className={`relative w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+              enabled ? 'bg-orange-500' : 'bg-gray-300'
+            }`}
+          >
+            {saving ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+              </div>
+            ) : (
+              <div
+                className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                  enabled ? 'left-7' : 'left-1'
+                }`}
+              />
+            )}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1728,6 +1806,25 @@ export default function AdminDashboard() {
                     This prompt defines the AI assistant&apos;s behavior and personality
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Guide Features */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Guide Features</h3>
+                    <p className="text-sm text-gray-600">Configure features for guide mode and bookings</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Google Calendar Integration Toggle */}
+                <GoogleCalendarToggle />
               </div>
             </div>
 

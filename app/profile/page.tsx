@@ -27,6 +27,14 @@ import {
   Upload,
   Compass,
   Star,
+  CalendarDays,
+  Table,
+  Clock,
+  Users,
+  CheckCircle,
+  XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -71,7 +79,17 @@ export default function ProfilePage() {
   const [badgeLevels, setBadgeLevels] = useState<UserBadgeLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'bookings'>('profile');
+
+  // Bookings state
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookingCounts, setBookingCounts] = useState({ pending: 0, confirmed: 0, rejected: 0, cancelled: 0 });
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [bookingFilter, setBookingFilter] = useState<string>('all');
 
   // Modal states
   const [showTravelModal, setShowTravelModal] = useState(false);
@@ -106,9 +124,11 @@ export default function ProfilePage() {
     coverage_areas?: string[];
     hourly_rate?: number;
     bio?: string;
+    calendar_embed_code?: string;
   }>({});
   const [savingGuideMode, setSavingGuideMode] = useState(false);
   const [editingGuideDetails, setEditingGuideDetails] = useState(false);
+  const [googleCalendarEnabled, setGoogleCalendarEnabled] = useState(false);
 
   // Bio word count
   const bioWordCount = countWords(editForm.bio);
@@ -116,7 +136,27 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfile();
     fetchGuideMode();
+    fetchGoogleCalendarSetting();
   }, []);
+
+  const fetchGoogleCalendarSetting = async () => {
+    try {
+      const response = await fetch('/api/site-settings?key=google_calendar_booking_enabled');
+      if (response.ok) {
+        const data = await response.json();
+        setGoogleCalendarEnabled(data.value === 'true');
+      }
+    } catch (err) {
+      console.error('Failed to fetch Google Calendar setting:', err);
+    }
+  };
+
+  // Fetch bookings when tab changes to bookings
+  useEffect(() => {
+    if (activeTab === 'bookings' && isGuide) {
+      fetchBookings(selectedMonth);
+    }
+  }, [activeTab, isGuide, selectedMonth, bookingFilter]);
 
   const fetchGuideMode = async () => {
     try {
@@ -128,6 +168,42 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error('Failed to fetch guide mode:', err);
+    }
+  };
+
+  const fetchBookings = async (month?: string) => {
+    setBookingsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (month) params.append('month', month);
+      if (bookingFilter !== 'all') params.append('status', bookingFilter);
+
+      const response = await fetch(`/api/bookings?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setBookings(data.bookings || []);
+        setBookingCounts(data.counts || { pending: 0, confirmed: 0, rejected: 0, cancelled: 0 });
+      }
+    } catch (err) {
+      console.error('Failed to fetch bookings:', err);
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
+  const handleBookingAction = async (bookingId: string, status: 'confirmed' | 'rejected') => {
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+
+      if (response.ok) {
+        fetchBookings(selectedMonth);
+      }
+    } catch (err) {
+      console.error('Failed to update booking:', err);
     }
   };
 
@@ -750,19 +826,26 @@ export default function ProfilePage() {
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit">
           {[
-            { id: 'profile', label: 'Profile' },
-            { id: 'settings', label: 'Settings' },
+            { id: 'profile', label: 'Profile', icon: User },
+            { id: 'settings', label: 'Settings', icon: Globe },
+            ...(isGuide ? [{ id: 'bookings', label: 'Bookings', icon: CalendarDays, badge: bookingCounts.pending }] : []),
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-800'
               }`}
             >
+              <tab.icon className="w-4 h-4" />
               {tab.label}
+              {tab.badge && tab.badge > 0 && (
+                <span className="px-1.5 py-0.5 text-xs bg-amber-500 text-white rounded-full">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1007,6 +1090,221 @@ export default function ProfilePage() {
           </div>
         )}
 
+        {activeTab === 'bookings' && isGuide && (
+          <div className="space-y-6">
+            {/* Booking Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Pending', count: bookingCounts.pending, color: 'amber', icon: Clock },
+                { label: 'Confirmed', count: bookingCounts.confirmed, color: 'emerald', icon: CheckCircle },
+                { label: 'Rejected', count: bookingCounts.rejected, color: 'red', icon: XCircle },
+                { label: 'Cancelled', count: bookingCounts.cancelled, color: 'gray', icon: X },
+              ].map((stat) => (
+                <button
+                  key={stat.label}
+                  onClick={() => setBookingFilter(bookingFilter === stat.label.toLowerCase() ? 'all' : stat.label.toLowerCase())}
+                  className={`p-4 rounded-xl border transition-all ${
+                    bookingFilter === stat.label.toLowerCase()
+                      ? `bg-${stat.color}-50 border-${stat.color}-200`
+                      : 'bg-white border-gray-100 hover:border-gray-200'
+                  }`}
+                >
+                  <stat.icon className={`w-5 h-5 text-${stat.color}-500 mb-2`} />
+                  <p className="text-2xl font-bold text-gray-900">{stat.count}</p>
+                  <p className="text-sm text-gray-500">{stat.label}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Mini Calendar */}
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">Calendar</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const [year, month] = selectedMonth.split('-').map(Number);
+                        const newDate = new Date(year, month - 2, 1);
+                        setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
+                      }}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm font-medium min-w-[100px] text-center">
+                      {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <button
+                      onClick={() => {
+                        const [year, month] = selectedMonth.split('-').map(Number);
+                        const newDate = new Date(year, month, 1);
+                        setSelectedMonth(`${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`);
+                      }}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
+                    <div key={day} className="py-2 text-gray-500 font-medium">{day}</div>
+                  ))}
+                  {(() => {
+                    const [year, month] = selectedMonth.split('-').map(Number);
+                    const firstDay = new Date(year, month - 1, 1).getDay();
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    const days = [];
+
+                    // Empty cells for days before first day
+                    for (let i = 0; i < firstDay; i++) {
+                      days.push(<div key={`empty-${i}`} className="py-2" />);
+                    }
+
+                    // Days of the month
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const dayBookings = bookings.filter(b => b.booking_date === dateStr);
+                      const hasBooking = dayBookings.length > 0;
+                      const hasPending = dayBookings.some(b => b.status === 'pending');
+                      const hasConfirmed = dayBookings.some(b => b.status === 'confirmed');
+
+                      days.push(
+                        <div
+                          key={day}
+                          className={`py-2 rounded-lg relative ${
+                            hasBooking
+                              ? hasPending
+                                ? 'bg-amber-100 text-amber-800 font-medium'
+                                : hasConfirmed
+                                  ? 'bg-emerald-100 text-emerald-800 font-medium'
+                                  : 'bg-gray-100'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {day}
+                          {hasBooking && (
+                            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-current" />
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return days;
+                  })()}
+                </div>
+              </div>
+
+              {/* Bookings Table */}
+              <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900">
+                    {bookingFilter === 'all' ? 'All Bookings' : `${bookingFilter.charAt(0).toUpperCase() + bookingFilter.slice(1)} Bookings`}
+                  </h3>
+                  {bookingFilter !== 'all' && (
+                    <button
+                      onClick={() => setBookingFilter('all')}
+                      className="text-sm text-emerald-600 hover:text-emerald-700"
+                    >
+                      Show all
+                    </button>
+                  )}
+                </div>
+
+                {bookingsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+                  </div>
+                ) : bookings.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <CalendarDays className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="font-medium">No bookings yet</p>
+                    <p className="text-sm mt-1">Share your profile to start receiving booking requests</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    {bookings.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="p-4 border border-gray-100 rounded-xl hover:border-gray-200 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-gray-900 truncate">{booking.visitor_name}</p>
+                              <span className={`px-2 py-0.5 text-xs rounded-full ${
+                                booking.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                booking.status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                                booking.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {booking.status}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {new Date(booking.booking_date).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5" />
+                                {booking.start_time.slice(0, 5)} - {booking.end_time.slice(0, 5)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5" />
+                                {booking.party_size} {booking.party_size === 1 ? 'person' : 'people'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                              <a href={`mailto:${booking.visitor_email}`} className="hover:text-emerald-600">
+                                {booking.visitor_email}
+                              </a>
+                              {booking.visitor_phone && (
+                                <a href={`tel:${booking.visitor_phone}`} className="hover:text-emerald-600">
+                                  {booking.visitor_phone}
+                                </a>
+                              )}
+                            </div>
+                            {booking.notes && (
+                              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{booking.notes}</p>
+                            )}
+                          </div>
+
+                          {booking.status === 'pending' && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleBookingAction(booking.id, 'confirmed')}
+                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="Confirm booking"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                              </button>
+                              <button
+                                onClick={() => handleBookingAction(booking.id, 'rejected')}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Reject booking"
+                              >
+                                <XCircle className="w-5 h-5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'settings' && (
           <div className="bg-white rounded-xl border border-gray-100 p-6">
             <h3 className="font-semibold text-gray-900 mb-6">Account Settings</h3>
@@ -1195,6 +1493,28 @@ export default function ProfilePage() {
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
                           />
                         </div>
+
+                        {/* Google Calendar Embed (conditional) */}
+                        {googleCalendarEnabled && (
+                          <div className="pt-4 border-t border-amber-200">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Google Calendar Booking Link
+                            </label>
+                            <input
+                              type="text"
+                              value={guideDetails.calendar_embed_code || ''}
+                              onChange={(e) => setGuideDetails(prev => ({
+                                ...prev,
+                                calendar_embed_code: e.target.value
+                              }))}
+                              placeholder="Paste your Google Calendar appointment scheduling link..."
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Get this from Google Calendar → Appointment schedules → Share → Copy link
+                            </p>
+                          </div>
+                        )}
 
                         <div className="flex justify-end gap-2">
                           <button

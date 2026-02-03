@@ -14,6 +14,14 @@ import {
   Heart,
   Compass,
   Star,
+  Calendar,
+  Clock,
+  Users,
+  Mail,
+  Phone,
+  MessageSquare,
+  Loader2,
+  CheckCircle,
 } from 'lucide-react';
 import { UserProfile, SOCIAL_PLATFORMS, PAYMENT_PLATFORMS, BADGE_DEFINITIONS, SocialPlatform, PaymentPlatform } from '@/lib/types/user';
 import dynamic from 'next/dynamic';
@@ -32,6 +40,45 @@ interface GuideDetails {
   coverage_areas?: string[];
   hourly_rate?: number;
   bio?: string;
+  google_calendar_embed?: string;
+}
+
+// Safe Google Calendar component - extracts URL and renders button/link
+function GoogleCalendarButton({ embedCode }: { embedCode: string }) {
+  // Extract the calendar URL from the embed code
+  // Google Calendar embeds contain URLs like: https://calendar.google.com/calendar/appointments/...
+  const urlMatch = embedCode.match(/https:\/\/calendar\.google\.com\/calendar\/appointments\/[^"'\s]+/);
+  const calendarUrl = urlMatch ? urlMatch[0] : null;
+
+  if (!calendarUrl) {
+    return null;
+  }
+
+  return (
+    <div className="mt-8 pt-8 border-t border-amber-500/20">
+      <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+        <Calendar className="w-5 h-5 text-amber-400" />
+        Book via Google Calendar
+      </h4>
+      <a
+        href={calendarUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-3 px-6 py-3 bg-white hover:bg-gray-100 text-gray-800 font-medium rounded-xl transition-colors"
+      >
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+          <path d="M19 4H5C3.89543 4 3 4.89543 3 6V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V6C21 4.89543 20.1046 4 19 4Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M16 2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M8 2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M3 10H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        Schedule with Google Calendar
+      </a>
+      <p className="text-zinc-500 text-sm mt-2">
+        Opens Google Calendar to pick an available time slot
+      </p>
+    </div>
+  );
 }
 
 interface ProfileDesignProps {
@@ -64,6 +111,23 @@ export default function JourneyDesign({
   const [pendingCloneId, setPendingCloneId] = useState<string | null>(null);
   const [cloning, setCloning] = useState<string | null>(null);
 
+  // Booking form state
+  const [showBookingForm, setShowBookingForm] = useState(false);
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [googleCalendarEnabled, setGoogleCalendarEnabled] = useState(false);
+  const [bookingForm, setBookingForm] = useState({
+    booking_date: '',
+    start_time: '09:00',
+    end_time: '12:00',
+    party_size: 1,
+    visitor_name: '',
+    visitor_email: '',
+    visitor_phone: '',
+    notes: '',
+  });
+
   // Fetch gamified badge levels
   useEffect(() => {
     const fetchBadges = async () => {
@@ -82,6 +146,73 @@ export default function JourneyDesign({
       fetchBadges();
     }
   }, [profile.user.id]);
+
+  // Check if Google Calendar booking is enabled globally
+  useEffect(() => {
+    const checkGoogleCalendar = async () => {
+      try {
+        const res = await fetch('/api/admin/site-settings?key=google_calendar_booking_enabled');
+        if (res.ok) {
+          const data = await res.json();
+          setGoogleCalendarEnabled(data.value === 'true');
+        }
+      } catch (error) {
+        console.error('Failed to check Google Calendar setting:', error);
+      }
+    };
+    checkGoogleCalendar();
+  }, []);
+
+  // Handle booking form submit
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingSubmitting(true);
+    setBookingError(null);
+
+    try {
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guide_id: profile.user.id,
+          ...bookingForm,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit booking');
+      }
+
+      setBookingSuccess(true);
+      setBookingForm({
+        booking_date: '',
+        start_time: '09:00',
+        end_time: '12:00',
+        party_size: 1,
+        visitor_name: '',
+        visitor_email: '',
+        visitor_phone: '',
+        notes: '',
+      });
+    } catch (error: any) {
+      setBookingError(error.message);
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
+
+  // Calculate estimated cost
+  const calculateEstimatedCost = () => {
+    if (!guideDetails?.hourly_rate || !bookingForm.start_time || !bookingForm.end_time) return 0;
+    const start = bookingForm.start_time.split(':').map(Number);
+    const end = bookingForm.end_time.split(':').map(Number);
+    const startMinutes = start[0] * 60 + start[1];
+    const endMinutes = end[0] * 60 + end[1];
+    const hours = Math.max(0, (endMinutes - startMinutes) / 60);
+    return Math.round(hours * guideDetails.hourly_rate);
+  };
 
   const handleShare = async () => {
     await navigator.clipboard.writeText(window.location.href);
@@ -339,18 +470,222 @@ export default function JourneyDesign({
                       </div>
                     )}
 
-                    {/* CTA Button */}
-                    <button
-                      onClick={() => {
-                        const socialSection = document.querySelector('#connect-section');
-                        socialSection?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-900 font-bold rounded-xl transition-colors"
-                    >
-                      Contact for Tours
-                    </button>
+                    {/* Book Tour / Google Calendar */}
+                    {!showBookingForm && !bookingSuccess && (
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => setShowBookingForm(true)}
+                          className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-zinc-900 font-bold rounded-xl transition-colors"
+                        >
+                          Book a Tour
+                        </button>
+                        {googleCalendarEnabled && guideDetails.google_calendar_embed && (
+                          <div className="text-zinc-400 text-sm flex items-center gap-2">
+                            <span>or</span>
+                            <span className="text-amber-400">use calendar below</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Booking Form */}
+                {showBookingForm && !bookingSuccess && (
+                  <div className="mt-8 pt-8 border-t border-amber-500/20">
+                    <h4 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-amber-400" />
+                      Book a Tour
+                    </h4>
+                    <form onSubmit={handleBookingSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Date */}
+                      <div>
+                        <label className="block text-sm text-zinc-400 mb-1">Date</label>
+                        <input
+                          type="date"
+                          required
+                          min={new Date().toISOString().split('T')[0]}
+                          value={bookingForm.booking_date}
+                          onChange={(e) => setBookingForm(prev => ({ ...prev, booking_date: e.target.value }))}
+                          className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Party Size */}
+                      <div>
+                        <label className="block text-sm text-zinc-400 mb-1">Party Size</label>
+                        <div className="relative">
+                          <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={bookingForm.party_size}
+                            onChange={(e) => setBookingForm(prev => ({ ...prev, party_size: parseInt(e.target.value) || 1 }))}
+                            className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Start Time */}
+                      <div>
+                        <label className="block text-sm text-zinc-400 mb-1">Start Time</label>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <input
+                            type="time"
+                            required
+                            value={bookingForm.start_time}
+                            onChange={(e) => setBookingForm(prev => ({ ...prev, start_time: e.target.value }))}
+                            className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* End Time */}
+                      <div>
+                        <label className="block text-sm text-zinc-400 mb-1">End Time</label>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <input
+                            type="time"
+                            required
+                            value={bookingForm.end_time}
+                            onChange={(e) => setBookingForm(prev => ({ ...prev, end_time: e.target.value }))}
+                            className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Your Name */}
+                      <div>
+                        <label className="block text-sm text-zinc-400 mb-1">Your Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={bookingForm.visitor_name}
+                          onChange={(e) => setBookingForm(prev => ({ ...prev, visitor_name: e.target.value }))}
+                          placeholder="John Doe"
+                          className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                        />
+                      </div>
+
+                      {/* Email */}
+                      <div>
+                        <label className="block text-sm text-zinc-400 mb-1">Email</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <input
+                            type="email"
+                            required
+                            value={bookingForm.visitor_email}
+                            onChange={(e) => setBookingForm(prev => ({ ...prev, visitor_email: e.target.value }))}
+                            placeholder="you@example.com"
+                            className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Phone */}
+                      <div className="md:col-span-2">
+                        <label className="block text-sm text-zinc-400 mb-1">Phone (optional)</label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                          <input
+                            type="tel"
+                            value={bookingForm.visitor_phone}
+                            onChange={(e) => setBookingForm(prev => ({ ...prev, visitor_phone: e.target.value }))}
+                            placeholder="+1 234 567 8900"
+                            className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="md:col-span-2">
+                        <label className="block text-sm text-zinc-400 mb-1">Notes (optional)</label>
+                        <div className="relative">
+                          <MessageSquare className="absolute left-3 top-3 w-5 h-5 text-zinc-500" />
+                          <textarea
+                            value={bookingForm.notes}
+                            onChange={(e) => setBookingForm(prev => ({ ...prev, notes: e.target.value }))}
+                            placeholder="Any special requests or interests..."
+                            rows={3}
+                            className="w-full pl-10 pr-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none resize-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Error message */}
+                      {bookingError && (
+                        <div className="md:col-span-2 p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                          {bookingError}
+                        </div>
+                      )}
+
+                      {/* Submit */}
+                      <div className="md:col-span-2 flex items-center justify-between pt-4">
+                        <div>
+                          {guideDetails.hourly_rate && (
+                            <p className="text-zinc-400 text-sm">
+                              Estimated cost: <span className="text-xl font-bold text-white">${calculateEstimatedCost()}</span>
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowBookingForm(false)}
+                            className="px-5 py-3 text-zinc-400 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={bookingSubmitting}
+                            className="px-6 py-3 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 text-zinc-900 font-bold rounded-xl transition-colors flex items-center gap-2"
+                          >
+                            {bookingSubmitting ? (
+                              <>
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Submitting...
+                              </>
+                            ) : (
+                              'Request Booking'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Booking Success */}
+                {bookingSuccess && (
+                  <div className="mt-8 pt-8 border-t border-amber-500/20">
+                    <div className="text-center py-8">
+                      <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
+                      <h4 className="text-2xl font-bold text-white mb-2">Booking Request Sent!</h4>
+                      <p className="text-zinc-400 mb-6">
+                        Your booking request has been submitted. The guide will review and confirm your booking soon.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setBookingSuccess(false);
+                          setShowBookingForm(false);
+                        }}
+                        className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors"
+                      >
+                        Book Another Tour
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Google Calendar Button - safe external link */}
+                {googleCalendarEnabled && guideDetails.google_calendar_embed && (
+                  <GoogleCalendarButton embedCode={guideDetails.google_calendar_embed} />
+                )}
               </div>
             </div>
           </div>

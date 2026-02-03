@@ -39,7 +39,7 @@ import {
   Link,
 } from 'lucide-react';
 import { ItineraryVisibility, CuratorInfo } from '@/lib/types/user';
-import ShareModal from './ShareModal';
+import ShareModal, { MarketplaceSettings } from './ShareModal';
 
 interface ItineraryActivity {
   id?: string;
@@ -91,8 +91,8 @@ interface ItineraryDisplayProps {
   shareUrl?: string;
   visibility?: ItineraryVisibility;
   curatorInfo?: CuratorInfo;
-  marketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string };
-  onUpdateVisibility?: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo, marketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string }) => Promise<void>;
+  marketplaceSettings?: MarketplaceSettings;
+  onUpdateVisibility?: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo, marketplaceSettings?: MarketplaceSettings) => Promise<void>;
 }
 
 interface HotelResult {
@@ -472,7 +472,7 @@ export default function ItineraryDisplay({
   const handleUpdateVisibility = async (
     newVisibility: ItineraryVisibility,
     newCuratorInfo?: CuratorInfo,
-    newMarketplaceSettings?: { serviceNeeds: string[]; budgetMin?: number; budgetMax?: number; notes?: string }
+    newMarketplaceSettings?: MarketplaceSettings
   ) => {
     if (onUpdateVisibility) {
       setIsUpdatingVisibility(true);
