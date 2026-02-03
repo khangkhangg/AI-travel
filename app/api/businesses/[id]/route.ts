@@ -10,6 +10,9 @@ export async function GET(
   try {
     const { id } = await params;
 
+    // Check if user is logged in
+    const user = await getUser();
+
     const result = await query(
       `SELECT b.*, bd.details as business_details,
         u.full_name as owner_name, u.avatar_url as owner_avatar, u.username as owner_username
@@ -43,7 +46,10 @@ export async function GET(
       active_proposals_count: parseInt(proposalsResult.rows[0].count)
     };
 
-    return NextResponse.json({ business });
+    // Check if current user is the owner
+    const isOwner = user ? user.id === business.user_id : false;
+
+    return NextResponse.json({ business, isOwner });
   } catch (error: any) {
     console.error('Failed to fetch business:', error);
     return NextResponse.json({ error: 'Failed to fetch business' }, { status: 500 });
