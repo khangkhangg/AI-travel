@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { query } from '@/lib/db';
 import BusinessProfileClient from './BusinessProfileClient';
 
@@ -217,13 +218,19 @@ export default async function PublicBusinessProfilePage({ params }: PageProps) {
   const business = await getBusinessData(id);
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://ai-travel.com';
 
+  // Redirect to handle URL if accessing by UUID but handle exists
+  // This ensures canonical URLs and better SEO
+  if (business && business.handle && isUUID(id)) {
+    redirect(`/business/${business.handle}`);
+  }
+
   return (
     <>
       {/* JSON-LD Structured Data for SEO rich snippets */}
       {business && <JsonLdScript jsonLd={generateJsonLd(business, baseUrl)} />}
 
       {/* Client Component for Interactive UI */}
-      <BusinessProfileClient businessId={id} />
+      <BusinessProfileClient businessId={business?.id || id} />
     </>
   );
 }
