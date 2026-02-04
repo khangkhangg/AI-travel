@@ -41,6 +41,7 @@ interface DayTimelineProps {
   onAcceptBid?: (proposalId: string) => Promise<void>;
   onDeclineBid?: (proposalId: string) => Promise<void>;
   onWithdrawBid?: (proposalId: string) => Promise<void>;
+  onRequestWithdrawal?: (proposalId: string, reason?: string) => Promise<void>;
   onApproveWithdrawal?: (proposalId: string) => Promise<void>;
   onRejectWithdrawal?: (proposalId: string) => Promise<void>;
   onMarkSuggestionUsed?: (suggestionId: string) => Promise<void>;
@@ -95,6 +96,7 @@ const DayTimeline = forwardRef<HTMLDivElement, DayTimelineProps>(
     onAcceptBid,
     onDeclineBid,
     onWithdrawBid,
+    onRequestWithdrawal,
     onApproveWithdrawal,
     onRejectWithdrawal,
     onMarkSuggestionUsed,
@@ -196,6 +198,7 @@ const DayTimeline = forwardRef<HTMLDivElement, DayTimelineProps>(
                 onAcceptBid={onAcceptBid}
                 onDeclineBid={onDeclineBid}
                 onWithdrawBid={onWithdrawBid}
+                onRequestWithdrawal={onRequestWithdrawal}
                 onApproveWithdrawal={onApproveWithdrawal}
                 onRejectWithdrawal={onRejectWithdrawal}
                 onMarkSuggestionUsed={onMarkSuggestionUsed}

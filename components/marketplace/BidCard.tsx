@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, X, Clock, Star, Building2 } from 'lucide-react';
+import { Check, X, Clock, Star, Building2, AlertCircle } from 'lucide-react';
 import type { Proposal } from '@/lib/types/marketplace';
 
 interface BidCardProps {
@@ -11,6 +11,7 @@ interface BidCardProps {
   onAccept?: (proposalId: string) => void;
   onDecline?: (proposalId: string) => void;
   onWithdraw?: (proposalId: string) => void;
+  onRequestWithdrawal?: (proposalId: string, reason?: string) => void;
   onApproveWithdrawal?: (proposalId: string) => void;
   onRejectWithdrawal?: (proposalId: string) => void;
 }
@@ -38,10 +39,13 @@ export default function BidCard({
   onAccept,
   onDecline,
   onWithdraw,
+  onRequestWithdrawal,
   onApproveWithdrawal,
   onRejectWithdrawal,
 }: BidCardProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [showWithdrawalReasonInput, setShowWithdrawalReasonInput] = useState(false);
+  const [withdrawalReason, setWithdrawalReason] = useState('');
 
   const handleAccept = async () => {
     if (!onAccept) return;
@@ -78,6 +82,22 @@ export default function BidCard({
     setIsLoading(true);
     try {
       await onApproveWithdrawal(proposal.id);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestWithdrawal = async () => {
+    if (!onRequestWithdrawal) return;
+    if (!withdrawalReason.trim()) {
+      alert('Please provide a reason for withdrawal');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await onRequestWithdrawal(proposal.id, withdrawalReason);
+      setShowWithdrawalReasonInput(false);
+      setWithdrawalReason('');
     } finally {
       setIsLoading(false);
     }
@@ -210,7 +230,7 @@ export default function BidCard({
         </div>
       )}
 
-      {/* Withdraw Button (Business User viewing their own bid) */}
+      {/* Withdraw Button (Business User viewing their own pending bid) */}
       {isOwnBid && !isOwner && proposal.status === 'pending' && !isExpired && onWithdraw && (
         <div className="mt-4">
           <button
@@ -222,6 +242,60 @@ export default function BidCard({
             <X className="w-4 h-4" />
             Withdraw Bid
           </button>
+        </div>
+      )}
+
+      {/* Request Withdrawal Button (Business User viewing their own accepted bid) */}
+      {isOwnBid && !isOwner && proposal.status === 'accepted' && onRequestWithdrawal && (
+        <div className="mt-4">
+          {!showWithdrawalReasonInput ? (
+            <button
+              type="button"
+              onClick={() => setShowWithdrawalReasonInput(true)}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-yellow-50 text-yellow-700 text-sm font-medium rounded-lg border border-yellow-200 hover:bg-yellow-100 disabled:opacity-50 transition-colors"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Request Withdrawal
+            </button>
+          ) : (
+            <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <label className="block text-sm font-medium text-yellow-900 mb-2">
+                Reason for withdrawal request:
+              </label>
+              <textarea
+                value={withdrawalReason}
+                onChange={(e) => setWithdrawalReason(e.target.value)}
+                placeholder="Please explain why you need to withdraw this accepted proposal..."
+                className="w-full px-3 py-2 border border-yellow-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                rows={3}
+                disabled={isLoading}
+              />
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={handleRequestWithdrawal}
+                  disabled={isLoading || !withdrawalReason.trim()}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  Submit Request
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWithdrawalReasonInput(false);
+                    setWithdrawalReason('');
+                  }}
+                  disabled={isLoading}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

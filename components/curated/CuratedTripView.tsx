@@ -262,6 +262,22 @@ export default function CuratedTripView({
     }
   };
 
+  // Handle request withdrawal (business user requesting withdrawal of accepted proposal)
+  const handleRequestWithdrawal = async (proposalId: string, reason?: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        proposal_id: proposalId,
+        status: 'withdrawal_requested',
+        message: reason || 'Business has requested to withdraw this proposal.',
+      }),
+    });
+    if (response.ok) {
+      await fetchProposals();
+    }
+  };
+
   // Handle approve withdrawal request (owner approving business's withdrawal request)
   const handleApproveWithdrawal = async (proposalId: string) => {
     const response = await fetch(`/api/trips/${trip.id}/proposals`, {
@@ -828,6 +844,7 @@ export default function CuratedTripView({
                       onAcceptBid={handleAcceptBid}
                       onDeclineBid={handleDeclineBid}
                       onWithdrawBid={handleWithdrawBid}
+                      onRequestWithdrawal={handleRequestWithdrawal}
                       onApproveWithdrawal={handleApproveWithdrawal}
                       onRejectWithdrawal={handleRejectWithdrawal}
                       onMarkSuggestionUsed={handleMarkSuggestionUsed}

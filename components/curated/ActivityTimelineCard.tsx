@@ -63,6 +63,7 @@ interface ActivityTimelineCardProps {
   onAcceptBid?: (proposalId: string) => Promise<void>;
   onDeclineBid?: (proposalId: string) => Promise<void>;
   onWithdrawBid?: (proposalId: string) => Promise<void>;
+  onRequestWithdrawal?: (proposalId: string, reason?: string) => Promise<void>;
   onApproveWithdrawal?: (proposalId: string) => Promise<void>;
   onRejectWithdrawal?: (proposalId: string) => Promise<void>;
   onMarkSuggestionUsed?: (suggestionId: string) => Promise<void>;
@@ -150,6 +151,7 @@ export default function ActivityTimelineCard({
   onAcceptBid,
   onDeclineBid,
   onWithdrawBid,
+  onRequestWithdrawal,
   onApproveWithdrawal,
   onRejectWithdrawal,
   onMarkSuggestionUsed,
@@ -553,6 +555,7 @@ export default function ActivityTimelineCard({
                       onAccept={onAcceptBid}
                       onDecline={onDeclineBid}
                       onWithdraw={onWithdrawBid}
+                      onRequestWithdrawal={onRequestWithdrawal}
                       onApproveWithdrawal={onApproveWithdrawal}
                       onRejectWithdrawal={onRejectWithdrawal}
                     />
@@ -621,6 +624,8 @@ export default function ActivityTimelineCard({
                         isOwner={isOwner}
                         onAccept={onAcceptBid}
                         onDecline={onDeclineBid}
+                        onApproveWithdrawal={onApproveWithdrawal}
+                        onRejectWithdrawal={onRejectWithdrawal}
                       />
                     ))}
                   </div>
