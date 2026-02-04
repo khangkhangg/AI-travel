@@ -44,9 +44,13 @@ export default function SuggestionSystemMessage({
   const metadata = discussion.metadata as SuggestionMetadata;
 
   const handleUse = async () => {
-    if (!tripId || !metadata.suggestion_id) return;
+    if (!tripId || !metadata.suggestion_id) {
+      console.error('Missing tripId or suggestion_id:', { tripId, suggestion_id: metadata?.suggestion_id });
+      return;
+    }
     setProcessing(true);
     try {
+      console.log('Using suggestion:', { tripId, suggestion_id: metadata.suggestion_id });
       const response = await fetch(`/api/trips/${tripId}/suggestions`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -55,7 +59,22 @@ export default function SuggestionSystemMessage({
           status: 'used'
         }),
       });
+      console.log('Use response:', { ok: response.ok, status: response.status, statusText: response.statusText });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Use failed:', { status: response.status, statusText: response.statusText, body: text });
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Parsed error:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
+        return;
+      }
+
       if (response.ok && onStatusChange) {
+        console.log('Calling onStatusChange to refresh discussions');
         onStatusChange();
       }
     } catch (error) {
@@ -66,9 +85,13 @@ export default function SuggestionSystemMessage({
   };
 
   const handleDismiss = async () => {
-    if (!tripId || !metadata.suggestion_id) return;
+    if (!tripId || !metadata.suggestion_id) {
+      console.error('Missing tripId or suggestion_id:', { tripId, suggestion_id: metadata?.suggestion_id });
+      return;
+    }
     setProcessing(true);
     try {
+      console.log('Dismissing suggestion:', { tripId, suggestion_id: metadata.suggestion_id });
       const response = await fetch(`/api/trips/${tripId}/suggestions`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -77,7 +100,22 @@ export default function SuggestionSystemMessage({
           status: 'dismissed'
         }),
       });
+      console.log('Dismiss response:', { ok: response.ok, status: response.status, statusText: response.statusText });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Dismiss failed:', { status: response.status, statusText: response.statusText, body: text });
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Parsed error:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
+        return;
+      }
+
       if (response.ok && onStatusChange) {
+        console.log('Calling onStatusChange to refresh discussions');
         onStatusChange();
       }
     } catch (error) {

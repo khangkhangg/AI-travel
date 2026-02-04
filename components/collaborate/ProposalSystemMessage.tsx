@@ -59,11 +59,18 @@ export default function ProposalSystemMessage({
           status: 'accepted'
         }),
       });
-      console.log('Accept response:', { ok: response.ok, status: response.status });
+      console.log('Accept response:', { ok: response.ok, status: response.status, statusText: response.statusText });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Accept failed:', errorData);
+        const text = await response.text();
+        console.error('Accept failed:', { status: response.status, statusText: response.statusText, body: text });
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Parsed error:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
+        return;
       }
 
       if (response.ok && onStatusChange) {
@@ -93,11 +100,18 @@ export default function ProposalSystemMessage({
           status: 'declined'
         }),
       });
-      console.log('Decline response:', { ok: response.ok, status: response.status });
+      console.log('Decline response:', { ok: response.ok, status: response.status, statusText: response.statusText });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Decline failed:', errorData);
+        const text = await response.text();
+        console.error('Decline failed:', { status: response.status, statusText: response.statusText, body: text });
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Parsed error:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
+        return;
       }
 
       if (response.ok && onStatusChange) {
