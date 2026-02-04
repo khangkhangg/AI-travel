@@ -2,6 +2,72 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/auth/supabase';
 import { query } from '@/lib/db';
 
+// Helper function to create system messages for proposal events
+async function createProposalSystemMessage(
+  tripId: string,
+  proposalId: string,
+  messageType: string,
+  proposal: any,
+  businessInfo: any,
+  activityInfo?: any
+) {
+  try {
+    const metadata = {
+      proposal_id: proposalId,
+      business_id: businessInfo.id,
+      business_name: businessInfo.business_name,
+      business_type: businessInfo.business_type,
+      business_logo: businessInfo.logo_url,
+      activity_id: activityInfo?.id,
+      activity_title: activityInfo?.title,
+      total_price: proposal.total_price,
+      currency: proposal.currency,
+      message: proposal.message,
+      services_offered: proposal.services_offered,
+      pricing_breakdown: proposal.pricing_breakdown,
+      withdrawal_reason: proposal.terms?.withdrawal_reason,
+      previous_status: proposal.status,
+    };
+
+    let content = '';
+    switch (messageType) {
+      case 'proposal_created':
+        content = `${businessInfo.business_name} submitted a proposal${activityInfo ? ` for "${activityInfo.title}"` : ''}`;
+        break;
+      case 'proposal_accepted':
+        content = `Accepted proposal from ${businessInfo.business_name}${activityInfo ? ` for "${activityInfo.title}"` : ''}`;
+        break;
+      case 'proposal_declined':
+        content = `Declined proposal from ${businessInfo.business_name}${activityInfo ? ` for "${activityInfo.title}"` : ''}`;
+        break;
+      case 'proposal_withdrawn':
+        content = `${businessInfo.business_name} withdrew their proposal${activityInfo ? ` for "${activityInfo.title}"` : ''}`;
+        break;
+      case 'proposal_withdrawal_requested':
+        content = `${businessInfo.business_name} requested to withdraw their proposal${activityInfo ? ` for "${activityInfo.title}"` : ''}`;
+        break;
+      default:
+        content = `Proposal ${messageType.replace('proposal_', '')} by ${businessInfo.business_name}`;
+    }
+
+    await query(
+      `INSERT INTO discussions (trip_id, itinerary_item_id, user_id, content, message_type, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [
+        tripId,
+        activityInfo?.id || null,
+        businessInfo.user_id,
+        content,
+        messageType,
+        JSON.stringify(metadata),
+      ]
+    );
+  } catch (error) {
+    console.error('Failed to create proposal system message:', error);
+    // Don't fail the main operation if system message creation fails
+  }
+}
+
 // GET - get proposals for a trip (trip owner) or proposals by business
 export async function GET(
   request: NextRequest,
@@ -183,6 +249,36 @@ export async function POST(
       );
     }
 
+    // Get business info for system message
+    const businessInfo = await query(
+      'SELECT id, user_id, business_name, business_type, logo_url FROM businesses WHERE id = $1',
+      [businessId]
+    );
+
+    // Get activity info if activity_id exists
+    let activityInfo = null;
+    if (activity_id) {
+      const activityResult = await query(
+        'SELECT id, title FROM itinerary_items WHERE id = $1',
+        [activity_id]
+      );
+      if (activityResult.rows.length > 0) {
+        activityInfo = activityResult.rows[0];
+      }
+    }
+
+    // Create system message for proposal creation
+    if (businessInfo.rows.length > 0) {
+      await createProposalSystemMessage(
+        id,
+        result.rows[0].id,
+        'proposal_created',
+        result.rows[0],
+        businessInfo.rows[0],
+        activityInfo
+      );
+    }
+
     return NextResponse.json({ proposal: result.rows[0] });
   } catch (error: any) {
     console.error('Failed to submit proposal:', error);
@@ -284,6 +380,39 @@ export async function PATCH(
     updateQuery += ` WHERE id = $2 RETURNING *`;
 
     const result = await query(updateQuery, updateParams);
+
+    // Get business info for system message
+    const businessInfo = await query(
+      'SELECT id, user_id, business_name, business_type, logo_url FROM businesses WHERE id = $1',
+      [proposal.business_id]
+    );
+
+    // Get activity info if activity_id exists
+    let activityInfo = null;
+    if (proposal.activity_id) {
+      const activityResult = await query(
+        'SELECT id, title FROM itinerary_items WHERE id = $1',
+        [proposal.activity_id]
+      );
+      if (activityResult.rows.length > 0) {
+        activityInfo = activityResult.rows[0];
+      }
+    }
+
+    // Create system message for status change
+    if (businessInfo.rows.length > 0) {
+      const updatedProposal = result.rows[0];
+      const messageType = `proposal_${status}`;
+
+      await createProposalSystemMessage(
+        id,
+        proposal_id,
+        messageType,
+        updatedProposal,
+        businessInfo.rows[0],
+        activityInfo
+      );
+    }
 
     return NextResponse.json({ proposal: result.rows[0] });
   } catch (error: any) {

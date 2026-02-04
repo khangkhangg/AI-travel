@@ -32,6 +32,10 @@ export default function CollaboratePage() {
   const [editingTimes, setEditingTimes] = useState(false);
   const [editingDates, setEditingDates] = useState(false);
   const [discussionRefreshKey, setDiscussionRefreshKey] = useState(0);
+  const [marketplaceCounts, setMarketplaceCounts] = useState<{
+    proposals: Record<string, number>;
+    suggestions: Record<string, number>;
+  }>({ proposals: {}, suggestions: {} });
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [savingTitle, setSavingTitle] = useState(false);
@@ -139,12 +143,26 @@ export default function CollaboratePage() {
     }
   }, [tripId]);
 
+  // Fetch marketplace counts
+  const fetchMarketplaceCounts = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/trips/${tripId}/marketplace-counts`);
+      if (response.ok) {
+        const data = await response.json();
+        setMarketplaceCounts(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch marketplace counts:', error);
+    }
+  }, [tripId]);
+
   useEffect(() => {
     if (tripId) {
       fetchTrip();
       fetchCosts();
+      fetchMarketplaceCounts();
     }
-  }, [tripId, fetchTrip, fetchCosts]);
+  }, [tripId, fetchTrip, fetchCosts, fetchMarketplaceCounts]);
 
   // Handle activity reorder
   const handleReorder = async (
@@ -794,6 +812,7 @@ export default function CollaboratePage() {
               onUpdateSummary={handleUpdateSummary}
               onUpdateDescription={handleUpdateDescription}
               onUpdateLocation={handleUpdateLocation}
+              marketplaceCounts={marketplaceCounts}
             />
           </div>
 

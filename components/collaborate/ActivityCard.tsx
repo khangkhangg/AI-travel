@@ -7,7 +7,7 @@ import {
   GripVertical, MapPin, Clock, MessageCircle,
   ThumbsUp, ThumbsDown, Check, Lock, Hotel, Utensils,
   Camera, ShoppingBag, Plane, Music, Coffee, Trash2, Edit2,
-  Map, X, Link as LinkIcon, Plus, Loader2
+  Map, X, Link as LinkIcon, Plus, Loader2, DollarSign, MessageSquare
 } from 'lucide-react';
 import { CollaborateActivity, Traveler } from '@/lib/types/collaborate';
 
@@ -27,6 +27,8 @@ interface ActivityCardProps {
   isSelected: boolean;
   isHotel?: boolean;
   isDragging?: boolean;
+  proposalCount?: number;
+  suggestionCount?: number;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -59,6 +61,8 @@ export default function ActivityCard({
   isSelected,
   isHotel = false,
   isDragging = false,
+  proposalCount = 0,
+  suggestionCount = 0,
 }: ActivityCardProps) {
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceValue, setPriceValue] = useState(activity.estimated_cost?.toString() || '');
@@ -786,6 +790,22 @@ export default function ActivityCard({
             <div className="flex items-center gap-1 text-gray-400">
               <MessageCircle className="w-4 h-4" />
               <span className="text-xs">{activity.comment_count}</span>
+            </div>
+          )}
+
+          {/* Proposal Badge */}
+          {proposalCount > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 rounded-lg">
+              <DollarSign className="w-3 h-3" />
+              <span className="text-xs font-medium">{proposalCount}</span>
+            </div>
+          )}
+
+          {/* Suggestion Badge */}
+          {suggestionCount > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-lg">
+              <MessageSquare className="w-3 h-3" />
+              <span className="text-xs font-medium">{suggestionCount}</span>
             </div>
           )}
         </div>

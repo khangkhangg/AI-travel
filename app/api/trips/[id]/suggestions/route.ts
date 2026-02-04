@@ -2,6 +2,67 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/auth/supabase';
 import { query } from '@/lib/db';
 
+// Helper function to create system messages for suggestion events
+async function createSuggestionSystemMessage(
+  tripId: string,
+  suggestionId: string,
+  messageType: string,
+  suggestion: any,
+  userInfo: any,
+  activityInfo?: any
+) {
+  try {
+    const metadata = {
+      suggestion_id: suggestionId,
+      suggester_id: userInfo.id,
+      suggester_name: userInfo.full_name || userInfo.user_name,
+      suggester_avatar: userInfo.avatar_url || userInfo.user_avatar,
+      activity_id: activityInfo?.id,
+      activity_title: activityInfo?.title,
+      place_name: suggestion.place_name,
+      reason: suggestion.reason,
+      day_number: suggestion.day_number,
+      category: suggestion.category,
+      source_url: suggestion.source_url,
+      location_lat: suggestion.location_lat,
+      location_lng: suggestion.location_lng,
+      location_address: suggestion.location_address,
+      previous_status: suggestion.status,
+    };
+
+    let content = '';
+    switch (messageType) {
+      case 'suggestion_created':
+        content = `${userInfo.full_name || userInfo.user_name || 'Someone'} suggested "${suggestion.place_name}"${activityInfo ? ` for "${activityInfo.title}"` : ''}`;
+        break;
+      case 'suggestion_used':
+        content = `Marked suggestion "${suggestion.place_name}" from ${userInfo.full_name || userInfo.user_name || 'a user'} as used`;
+        break;
+      case 'suggestion_dismissed':
+        content = `Dismissed suggestion "${suggestion.place_name}" from ${userInfo.full_name || userInfo.user_name || 'a user'}`;
+        break;
+      default:
+        content = `Suggestion ${messageType.replace('suggestion_', '')} for "${suggestion.place_name}"`;
+    }
+
+    await query(
+      `INSERT INTO discussions (trip_id, itinerary_item_id, user_id, content, message_type, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [
+        tripId,
+        activityInfo?.id || null,
+        userInfo.id,
+        content,
+        messageType,
+        JSON.stringify(metadata),
+      ]
+    );
+  } catch (error) {
+    console.error('Failed to create suggestion system message:', error);
+    // Don't fail the main operation if system message creation fails
+  }
+}
+
 // GET - Fetch suggestions for a trip
 export async function GET(
   request: NextRequest,
@@ -146,6 +207,34 @@ export async function POST(
       // Table doesn't exist yet, continue with empty badges
     }
 
+    // Get activity info if activity_id exists
+    let activityInfo = null;
+    if (activity_id) {
+      const activityResult = await query(
+        'SELECT id, title FROM itinerary_items WHERE id = $1',
+        [activity_id]
+      );
+      if (activityResult.rows.length > 0) {
+        activityInfo = activityResult.rows[0];
+      }
+    }
+
+    // Create system message for suggestion creation
+    const userInfo = {
+      id: user.id,
+      full_name: userResult.rows[0]?.user_name,
+      avatar_url: userResult.rows[0]?.user_avatar,
+    };
+
+    await createSuggestionSystemMessage(
+      id,
+      result.rows[0].id,
+      'suggestion_created',
+      result.rows[0],
+      userInfo,
+      activityInfo
+    );
+
     return NextResponse.json({
       suggestion: {
         ...result.rows[0],
@@ -215,6 +304,48 @@ export async function PATCH(
       `UPDATE trip_suggestions SET status = $1 WHERE id = $2 RETURNING *`,
       [status, suggestion_id]
     );
+
+    // Get suggestion with user info for system message
+    const suggestionInfo = await query(
+      `SELECT s.*, u.id as user_id, u.full_name as user_name, u.avatar_url as user_avatar
+       FROM trip_suggestions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = $1`,
+      [suggestion_id]
+    );
+
+    if (suggestionInfo.rows.length > 0) {
+      const suggestion = suggestionInfo.rows[0];
+
+      // Get activity info if activity_id exists
+      let activityInfo = null;
+      if (suggestion.activity_id) {
+        const activityResult = await query(
+          'SELECT id, title FROM itinerary_items WHERE id = $1',
+          [suggestion.activity_id]
+        );
+        if (activityResult.rows.length > 0) {
+          activityInfo = activityResult.rows[0];
+        }
+      }
+
+      // Create system message for status change
+      const messageType = `suggestion_${status}`;
+      const userInfo = {
+        id: suggestion.user_id,
+        full_name: suggestion.user_name,
+        avatar_url: suggestion.user_avatar,
+      };
+
+      await createSuggestionSystemMessage(
+        id,
+        suggestion_id,
+        messageType,
+        suggestion,
+        userInfo,
+        activityInfo
+      );
+    }
 
     return NextResponse.json({ suggestion: result.rows[0] });
   } catch (error: any) {

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, Send, X, ArrowLeft, ExternalLink, MapPin, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import { CollaborateActivity, PlaceData } from '@/lib/types/collaborate';
+import ProposalSystemMessage from './ProposalSystemMessage';
+import SuggestionSystemMessage from './SuggestionSystemMessage';
 
 interface ActivityMetadata {
   activity: {
@@ -27,8 +29,18 @@ interface Discussion {
   created_at: string;
   replies?: Discussion[];
   url_preview?: PlaceData | null;
-  message_type?: 'message' | 'deleted_activity';
-  metadata?: ActivityMetadata;
+  message_type?:
+    | 'message'
+    | 'deleted_activity'
+    | 'proposal_created'
+    | 'proposal_accepted'
+    | 'proposal_declined'
+    | 'proposal_withdrawn'
+    | 'proposal_withdrawal_requested'
+    | 'suggestion_created'
+    | 'suggestion_used'
+    | 'suggestion_dismissed';
+  metadata?: any;
 }
 
 // URL detection regex
@@ -282,9 +294,20 @@ export default function DiscussionSidebar({
             </p>
           </div>
         ) : (
-          discussions.map((discussion) => (
-            discussion.message_type === 'deleted_activity' ? (
-              // Deleted Activity System Message
+          discussions.map((discussion) => {
+            // Proposal System Messages
+            if (discussion.message_type?.startsWith('proposal_')) {
+              return <ProposalSystemMessage key={discussion.id} discussion={discussion} />;
+            }
+
+            // Suggestion System Messages
+            if (discussion.message_type?.startsWith('suggestion_')) {
+              return <SuggestionSystemMessage key={discussion.id} discussion={discussion} />;
+            }
+
+            // Deleted Activity System Message
+            if (discussion.message_type === 'deleted_activity') {
+              return (
               <div key={discussion.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                 <div className="flex items-start gap-2">
                   <div className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
@@ -330,8 +353,11 @@ export default function DiscussionSidebar({
                   </div>
                 </div>
               </div>
-            ) : (
-              // Regular Message
+              );
+            }
+
+            // Regular Message
+            return (
               <div key={discussion.id} className="flex gap-3">
                 {/* Avatar */}
                 <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
@@ -351,8 +377,8 @@ export default function DiscussionSidebar({
                   <MessageContent content={discussion.content} />
                 </div>
               </div>
-            )
-          ))
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
