@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageCircle, Send, X, ArrowLeft, ExternalLink, MapPin, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import { CollaborateActivity, PlaceData } from '@/lib/types/collaborate';
 import ProposalSystemMessage from './ProposalSystemMessage';
@@ -77,31 +77,32 @@ export default function DiscussionSidebar({
     ? activities.find(a => a.id === selectedActivityId)
     : null;
 
-  // Fetch discussions
-  useEffect(() => {
-    const fetchDiscussions = async () => {
-      setLoading(true);
-      try {
-        const url = selectedActivityId
-          ? `/api/trips/${tripId}/discussions?itemId=${selectedActivityId}`
-          : `/api/trips/${tripId}/discussions`;
+  // Fetch discussions function - moved outside useEffect for reusability
+  const fetchDiscussions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const url = selectedActivityId
+        ? `/api/trips/${tripId}/discussions?itemId=${selectedActivityId}`
+        : `/api/trips/${tripId}/discussions`;
 
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.json();
-          setDiscussions(data.discussions || []);
-        }
-      } catch (error) {
-        console.error('Failed to fetch discussions:', error);
-      } finally {
-        setLoading(false);
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setDiscussions(data.discussions || []);
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch discussions:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [tripId, selectedActivityId]);
 
+  // Fetch discussions on mount and when dependencies change
+  useEffect(() => {
     if (tripId) {
       fetchDiscussions();
     }
-  }, [tripId, selectedActivityId, refreshKey]);
+  }, [tripId, fetchDiscussions, refreshKey]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
