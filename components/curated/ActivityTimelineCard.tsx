@@ -180,6 +180,16 @@ export default function ActivityTimelineCard({
   const acceptedProposal = bids.find((p) => p.status === 'accepted');
   const usedSuggestion = suggestions.find((s) => s.status === 'used');
 
+  // Debug logging
+  useEffect(() => {
+    if (bids.length > 0 || suggestions.length > 0) {
+      console.log(`[${activity.title}] Bids:`, bids.map(b => ({ id: b.id, status: b.status, business: b.business_name })));
+      console.log(`[${activity.title}] Suggestions:`, suggestions.map(s => ({ id: s.id, status: s.status, place: s.place_name })));
+      console.log(`[${activity.title}] Accepted proposal:`, acceptedProposal?.business_name || 'none');
+      console.log(`[${activity.title}] Used suggestion:`, usedSuggestion?.place_name || 'none');
+    }
+  }, [bids, suggestions, acceptedProposal, usedSuggestion, activity.title]);
+
   const hasLocation = activity.location_lat && activity.location_lng;
   const cost = formatCost(activity.estimated_cost);
   const actualCost = acceptedProposal ? formatCost(acceptedProposal.total_price) : cost;

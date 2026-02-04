@@ -125,6 +125,88 @@ export default function ProposalSystemMessage({
     }
   };
 
+  const handleApproveWithdrawal = async () => {
+    if (!tripId || !metadata.proposal_id) {
+      console.error('Missing tripId or proposal_id:', { tripId, proposal_id: metadata?.proposal_id });
+      return;
+    }
+    setProcessing(true);
+    try {
+      console.log('Approving withdrawal:', { tripId, proposal_id: metadata.proposal_id });
+      const response = await fetch(`/api/trips/${tripId}/proposals`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal_id: metadata.proposal_id,
+          status: 'withdrawn'
+        }),
+      });
+      console.log('Approve withdrawal response:', { ok: response.ok, status: response.status, statusText: response.statusText });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Approve withdrawal failed:', { status: response.status, statusText: response.statusText, body: text });
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Parsed error:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
+        return;
+      }
+
+      if (response.ok && onStatusChange) {
+        console.log('Calling onStatusChange to refresh discussions');
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Failed to approve withdrawal:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleRejectWithdrawal = async () => {
+    if (!tripId || !metadata.proposal_id) {
+      console.error('Missing tripId or proposal_id:', { tripId, proposal_id: metadata?.proposal_id });
+      return;
+    }
+    setProcessing(true);
+    try {
+      console.log('Rejecting withdrawal request:', { tripId, proposal_id: metadata.proposal_id });
+      const response = await fetch(`/api/trips/${tripId}/proposals`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal_id: metadata.proposal_id,
+          status: 'accepted'  // Revert back to accepted
+        }),
+      });
+      console.log('Reject withdrawal response:', { ok: response.ok, status: response.status, statusText: response.statusText });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('Reject withdrawal failed:', { status: response.status, statusText: response.statusText, body: text });
+        try {
+          const errorData = JSON.parse(text);
+          console.error('Parsed error:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+        }
+        return;
+      }
+
+      if (response.ok && onStatusChange) {
+        console.log('Calling onStatusChange to refresh discussions');
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Failed to reject withdrawal request:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const getIconAndColor = () => {
     switch (discussion.message_type) {
       case 'proposal_created':
@@ -267,6 +349,30 @@ export default function ProposalSystemMessage({
               >
                 <XCircle className="w-3.5 h-3.5" />
                 Decline
+              </button>
+            </div>
+          )}
+
+          {/* Withdrawal Request Actions - Only show for withdrawal requested when user is trip owner */}
+          {isOwner && discussion.message_type === 'proposal_withdrawal_requested' && (
+            <div className="flex items-center gap-2 mt-3 mb-2">
+              <button
+                type="button"
+                onClick={handleApproveWithdrawal}
+                disabled={processing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-600 text-white text-xs font-medium rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Approve Withdrawal
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectWithdrawal}
+                disabled={processing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Keep Active
               </button>
             </div>
           )}
