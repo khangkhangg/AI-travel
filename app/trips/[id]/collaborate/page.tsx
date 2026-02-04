@@ -36,6 +36,8 @@ export default function CollaboratePage() {
     proposals: Record<string, number>;
     suggestions: Record<string, number>;
   }>({ proposals: {}, suggestions: {} });
+  const [acceptedProposals, setAcceptedProposals] = useState<Record<string, any>>({});
+  const [usedSuggestions, setUsedSuggestions] = useState<Record<string, any>>({});
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const [savingTitle, setSavingTitle] = useState(false);
@@ -156,13 +158,57 @@ export default function CollaboratePage() {
     }
   }, [tripId]);
 
+  // Fetch accepted proposals and used suggestions
+  const fetchAcceptedMarketplaceItems = useCallback(async () => {
+    try {
+      // Fetch accepted proposals
+      const proposalsResponse = await fetch(`/api/trips/${tripId}/proposals`);
+      if (proposalsResponse.ok) {
+        const proposalsData = await proposalsResponse.json();
+        const accepted: Record<string, any> = {};
+        proposalsData.proposals
+          ?.filter((p: any) => p.status === 'accepted')
+          .forEach((p: any) => {
+            if (p.activity_id) {
+              accepted[p.activity_id] = p;
+            }
+          });
+        setAcceptedProposals(accepted);
+      }
+
+      // Fetch used suggestions
+      const suggestionsResponse = await fetch(`/api/trips/${tripId}/suggestions`);
+      if (suggestionsResponse.ok) {
+        const suggestionsData = await suggestionsResponse.json();
+        const used: Record<string, any> = {};
+        suggestionsData.suggestions
+          ?.filter((s: any) => s.status === 'used')
+          .forEach((s: any) => {
+            if (s.activity_id) {
+              used[s.activity_id] = s;
+            }
+          });
+        setUsedSuggestions(used);
+      }
+    } catch (error) {
+      console.error('Failed to fetch accepted marketplace items:', error);
+    }
+  }, [tripId]);
+
+  // Combined marketplace update function
+  const handleMarketplaceUpdate = useCallback(() => {
+    fetchMarketplaceCounts();
+    fetchAcceptedMarketplaceItems();
+  }, [fetchMarketplaceCounts, fetchAcceptedMarketplaceItems]);
+
   useEffect(() => {
     if (tripId) {
       fetchTrip();
       fetchCosts();
       fetchMarketplaceCounts();
+      fetchAcceptedMarketplaceItems();
     }
-  }, [tripId, fetchTrip, fetchCosts, fetchMarketplaceCounts]);
+  }, [tripId, fetchTrip, fetchCosts, fetchMarketplaceCounts, fetchAcceptedMarketplaceItems]);
 
   // Handle activity reorder
   const handleReorder = async (
@@ -813,6 +859,8 @@ export default function CollaboratePage() {
               onUpdateDescription={handleUpdateDescription}
               onUpdateLocation={handleUpdateLocation}
               marketplaceCounts={marketplaceCounts}
+              acceptedProposals={acceptedProposals}
+              usedSuggestions={usedSuggestions}
             />
           </div>
 
@@ -828,7 +876,7 @@ export default function CollaboratePage() {
                 onActivityRestored={() => { fetchTrip(); fetchCosts(); }}
                 refreshKey={discussionRefreshKey}
                 isOwner={trip.user_role === 'owner'}
-                onMarketplaceUpdate={fetchMarketplaceCounts}
+                onMarketplaceUpdate={handleMarketplaceUpdate}
               />
             </div>
 

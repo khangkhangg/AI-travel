@@ -39,6 +39,8 @@ interface KanbanBoardProps {
     proposals: Record<string, number>;
     suggestions: Record<string, number>;
   };
+  acceptedProposals?: Record<string, any>;
+  usedSuggestions?: Record<string, any>;
 }
 
 export default function KanbanBoard({
@@ -60,6 +62,8 @@ export default function KanbanBoard({
   onUpdateDescription,
   onUpdateLocation,
   marketplaceCounts,
+  acceptedProposals,
+  usedSuggestions,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeActivity, setActiveActivity] = useState<CollaborateActivity | null>(null);
@@ -165,6 +169,8 @@ export default function KanbanBoard({
             onUpdateDescription={onUpdateDescription}
             onUpdateLocation={onUpdateLocation}
             marketplaceCounts={marketplaceCounts}
+            acceptedProposals={acceptedProposals}
+            usedSuggestions={usedSuggestions}
           />
         ))}
       </div>

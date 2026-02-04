@@ -29,6 +29,8 @@ interface DayColumnProps {
     proposals: Record<string, number>;
     suggestions: Record<string, number>;
   };
+  acceptedProposals?: Record<string, any>;
+  usedSuggestions?: Record<string, any>;
 }
 
 export default function DayColumn({
@@ -51,6 +53,8 @@ export default function DayColumn({
   onUpdateDescription,
   onUpdateLocation,
   marketplaceCounts,
+  acceptedProposals,
+  usedSuggestions,
 }: DayColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${day.dayNumber}`,
@@ -135,6 +139,9 @@ export default function DayColumn({
             isHotel
             proposalCount={marketplaceCounts?.proposals[hotelActivity.id] || 0}
             suggestionCount={marketplaceCounts?.suggestions[hotelActivity.id] || 0}
+            acceptedProposal={acceptedProposals?.[hotelActivity.id]}
+            usedSuggestion={usedSuggestions?.[hotelActivity.id]}
+            suggestionCount={marketplaceCounts?.suggestions[hotelActivity.id] || 0}
           />
         ) : (
           <button
@@ -170,6 +177,9 @@ export default function DayColumn({
               onUpdateLocation={onUpdateLocation}
               isSelected={selectedActivityId === activity.id}
               proposalCount={marketplaceCounts?.proposals[activity.id] || 0}
+              suggestionCount={marketplaceCounts?.suggestions[activity.id] || 0}
+              acceptedProposal={acceptedProposals?.[activity.id]}
+              usedSuggestion={usedSuggestions?.[activity.id]}
               suggestionCount={marketplaceCounts?.suggestions[activity.id] || 0}
             />
           ))}

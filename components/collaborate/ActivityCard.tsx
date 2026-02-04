@@ -10,6 +10,9 @@ import {
   Map, X, Link as LinkIcon, Plus, Loader2, DollarSign, MessageSquare
 } from 'lucide-react';
 import { CollaborateActivity, Traveler } from '@/lib/types/collaborate';
+import { Proposal, TripSuggestion } from '@/lib/types/marketplace';
+import AcceptedProposalBanner from '@/components/curated/AcceptedProposalBanner';
+import UsedSuggestionBanner from '@/components/curated/UsedSuggestionBanner';
 
 interface ActivityCardProps {
   activity: CollaborateActivity;
@@ -29,6 +32,8 @@ interface ActivityCardProps {
   isDragging?: boolean;
   proposalCount?: number;
   suggestionCount?: number;
+  acceptedProposal?: Proposal | null;
+  usedSuggestion?: TripSuggestion | null;
 }
 
 const categoryIcons: Record<string, any> = {
@@ -63,6 +68,8 @@ export default function ActivityCard({
   isDragging = false,
   proposalCount = 0,
   suggestionCount = 0,
+  acceptedProposal = null,
+  usedSuggestion = null,
 }: ActivityCardProps) {
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceValue, setPriceValue] = useState(activity.estimated_cost?.toString() || '');
@@ -74,6 +81,8 @@ export default function ActivityCard({
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState(activity.description || '');
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [showAcceptedDetails, setShowAcceptedDetails] = useState(false);
+  const [showSuggestionDetails, setShowSuggestionDetails] = useState(false);
 
   // URL fetching state
   const [fetchingUrl, setFetchingUrl] = useState(false);
@@ -446,6 +455,28 @@ export default function ActivityCard({
             )}
           </div>
         </div>
+
+        {/* Accepted Proposal Banner */}
+        {acceptedProposal && (
+          <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+            <AcceptedProposalBanner
+              proposal={acceptedProposal}
+              expanded={showAcceptedDetails}
+              onToggle={() => setShowAcceptedDetails(!showAcceptedDetails)}
+            />
+          </div>
+        )}
+
+        {/* Used Suggestion Banner */}
+        {usedSuggestion && (
+          <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+            <UsedSuggestionBanner
+              suggestion={usedSuggestion}
+              expanded={showSuggestionDetails}
+              onToggle={() => setShowSuggestionDetails(!showSuggestionDetails)}
+            />
+          </div>
+        )}
 
         {/* Description Section - collapsible */}
         {(activity.description || (!activity.is_final && onUpdateDescription)) && !editingSummary && (
