@@ -828,6 +828,7 @@ export default function CollaboratePage() {
                 onActivityRestored={() => { fetchTrip(); fetchCosts(); }}
                 refreshKey={discussionRefreshKey}
                 isOwner={trip.user_role === 'owner'}
+                onMarketplaceUpdate={fetchMarketplaceCounts}
               />
             </div>
 

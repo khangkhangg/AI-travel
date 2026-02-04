@@ -55,6 +55,7 @@ interface DiscussionSidebarProps {
   onActivityRestored?: () => void;
   refreshKey?: number;
   isOwner?: boolean;
+  onMarketplaceUpdate?: () => void;
 }
 
 export default function DiscussionSidebar({
@@ -65,6 +66,7 @@ export default function DiscussionSidebar({
   onActivityRestored,
   refreshKey = 0,
   isOwner = false,
+  onMarketplaceUpdate,
 }: DiscussionSidebarProps) {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -103,6 +105,15 @@ export default function DiscussionSidebar({
       fetchDiscussions();
     }
   }, [tripId, fetchDiscussions, refreshKey]);
+
+  // Handle marketplace status changes (proposals/suggestions)
+  const handleMarketplaceStatusChange = useCallback(async () => {
+    console.log('Marketplace status changed, refreshing discussions and counts');
+    await fetchDiscussions();
+    if (onMarketplaceUpdate) {
+      onMarketplaceUpdate();
+    }
+  }, [fetchDiscussions, onMarketplaceUpdate]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -306,7 +317,7 @@ export default function DiscussionSidebar({
                   discussion={discussion}
                   tripId={tripId}
                   isOwner={isOwner}
-                  onStatusChange={() => fetchDiscussions()}
+                  onStatusChange={handleMarketplaceStatusChange}
                 />
               );
             }
@@ -319,7 +330,7 @@ export default function DiscussionSidebar({
                   discussion={discussion}
                   tripId={tripId}
                   isOwner={isOwner}
-                  onStatusChange={() => fetchDiscussions()}
+                  onStatusChange={handleMarketplaceStatusChange}
                 />
               );
             }

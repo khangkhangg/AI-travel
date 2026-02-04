@@ -44,9 +44,13 @@ export default function ProposalSystemMessage({
   const metadata = discussion.metadata as ProposalMetadata;
 
   const handleAccept = async () => {
-    if (!tripId || !metadata.proposal_id) return;
+    if (!tripId || !metadata.proposal_id) {
+      console.error('Missing tripId or proposal_id:', { tripId, proposal_id: metadata?.proposal_id });
+      return;
+    }
     setProcessing(true);
     try {
+      console.log('Accepting proposal:', { tripId, proposal_id: metadata.proposal_id });
       const response = await fetch(`/api/trips/${tripId}/proposals`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -55,7 +59,15 @@ export default function ProposalSystemMessage({
           status: 'accepted'
         }),
       });
+      console.log('Accept response:', { ok: response.ok, status: response.status });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Accept failed:', errorData);
+      }
+
       if (response.ok && onStatusChange) {
+        console.log('Calling onStatusChange to refresh discussions');
         onStatusChange();
       }
     } catch (error) {
@@ -66,9 +78,13 @@ export default function ProposalSystemMessage({
   };
 
   const handleDecline = async () => {
-    if (!tripId || !metadata.proposal_id) return;
+    if (!tripId || !metadata.proposal_id) {
+      console.error('Missing tripId or proposal_id:', { tripId, proposal_id: metadata?.proposal_id });
+      return;
+    }
     setProcessing(true);
     try {
+      console.log('Declining proposal:', { tripId, proposal_id: metadata.proposal_id });
       const response = await fetch(`/api/trips/${tripId}/proposals`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -77,7 +93,15 @@ export default function ProposalSystemMessage({
           status: 'declined'
         }),
       });
+      console.log('Decline response:', { ok: response.ok, status: response.status });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Decline failed:', errorData);
+      }
+
       if (response.ok && onStatusChange) {
+        console.log('Calling onStatusChange to refresh discussions');
         onStatusChange();
       }
     } catch (error) {
