@@ -26,6 +26,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { BidCard, BidForm, SuggestionCard, SuggestionForm, ActivityBidsBadge } from '@/components/marketplace';
+import AcceptedProposalBanner from './AcceptedProposalBanner';
+import UsedSuggestionBanner from './UsedSuggestionBanner';
 import type { ViewMode, Proposal, TripSuggestion, Business, BidFormData, SuggestionFormData } from '@/lib/types/marketplace';
 
 interface ActivityTimelineCardProps {
@@ -171,8 +173,16 @@ export default function ActivityTimelineCard({
   const [fetchedPlace, setFetchedPlace] = useState<FetchedPlace | null>(null);
   const lastFetchedUrl = useRef<string>('');
 
+  // Accepted proposal/suggestion banner state
+  const [showAcceptedDetails, setShowAcceptedDetails] = useState(false);
+
+  // Find accepted proposal and used suggestion for this activity
+  const acceptedProposal = bids.find((p) => p.status === 'accepted');
+  const usedSuggestion = suggestions.find((s) => s.status === 'used');
+
   const hasLocation = activity.location_lat && activity.location_lng;
   const cost = formatCost(activity.estimated_cost);
+  const actualCost = acceptedProposal ? formatCost(acceptedProposal.total_price) : cost;
   const canEdit = isOwner;
 
   // Check if this is a hotel/accommodation
@@ -309,9 +319,22 @@ export default function ActivityTimelineCard({
               {getCategoryIcon(activity.category)}
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-gray-900 text-base leading-tight">
-                {activity.title}
-              </h4>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="font-semibold text-gray-900 text-base leading-tight">
+                  {activity.title}
+                </h4>
+                {acceptedProposal && (
+                  <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Booked
+                  </span>
+                )}
+                {usedSuggestion && !acceptedProposal && (
+                  <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full flex items-center gap-1">
+                    💡 Suggested
+                  </span>
+                )}
+              </div>
 
               {/* Meta: Time, Category, Cost */}
               <div className="flex flex-wrap items-center gap-2 mt-1.5 text-sm text-gray-500">
@@ -329,17 +352,46 @@ export default function ActivityTimelineCard({
                     </span>
                   </>
                 )}
-                {cost && (
+                {actualCost && (
                   <>
                     <span>·</span>
-                    <span className="text-emerald-600 font-medium">
-                      {cost}
-                    </span>
+                    {acceptedProposal && cost && cost !== actualCost ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-gray-400 line-through text-xs">{cost}</span>
+                        <span className="text-green-600 font-semibold">{actualCost}</span>
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600 font-medium">
+                        {actualCost}
+                      </span>
+                    )}
                   </>
                 )}
               </div>
             </div>
           </div>
+
+          {/* Accepted Proposal Banner */}
+          {acceptedProposal && (
+            <div className="mt-4">
+              <AcceptedProposalBanner
+                proposal={acceptedProposal}
+                expanded={showAcceptedDetails}
+                onToggle={() => setShowAcceptedDetails(!showAcceptedDetails)}
+              />
+            </div>
+          )}
+
+          {/* Used Suggestion Banner */}
+          {usedSuggestion && (
+            <div className="mt-4">
+              <UsedSuggestionBanner
+                suggestion={usedSuggestion}
+                expanded={showAcceptedDetails}
+                onToggle={() => setShowAcceptedDetails(!showAcceptedDetails)}
+              />
+            </div>
+          )}
 
           {/* Description */}
           <div className="mt-3">
