@@ -28,11 +28,64 @@ interface Discussion {
 
 interface ProposalSystemMessageProps {
   discussion: Discussion;
+  tripId?: string;
+  isOwner?: boolean;
+  onStatusChange?: () => void;
 }
 
-export default function ProposalSystemMessage({ discussion }: ProposalSystemMessageProps) {
+export default function ProposalSystemMessage({
+  discussion,
+  tripId,
+  isOwner = false,
+  onStatusChange
+}: ProposalSystemMessageProps) {
   const [expanded, setExpanded] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const metadata = discussion.metadata as ProposalMetadata;
+
+  const handleAccept = async () => {
+    if (!tripId || !metadata.proposal_id) return;
+    setProcessing(true);
+    try {
+      const response = await fetch(`/api/trips/${tripId}/proposals`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal_id: metadata.proposal_id,
+          status: 'accepted'
+        }),
+      });
+      if (response.ok && onStatusChange) {
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Failed to accept proposal:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (!tripId || !metadata.proposal_id) return;
+    setProcessing(true);
+    try {
+      const response = await fetch(`/api/trips/${tripId}/proposals`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          proposal_id: metadata.proposal_id,
+          status: 'declined'
+        }),
+      });
+      if (response.ok && onStatusChange) {
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Failed to decline proposal:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const getIconAndColor = () => {
     switch (discussion.message_type) {
@@ -155,6 +208,30 @@ export default function ProposalSystemMessage({ discussion }: ProposalSystemMess
               </span>
             )}
           </div>
+
+          {/* Action Buttons - Only show for pending proposals when user is trip owner */}
+          {isOwner && discussion.message_type === 'proposal_created' && (
+            <div className="flex items-center gap-2 mt-3 mb-2">
+              <button
+                type="button"
+                onClick={handleAccept}
+                disabled={processing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Accept
+              </button>
+              <button
+                type="button"
+                onClick={handleDecline}
+                disabled={processing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Decline
+              </button>
+            </div>
+          )}
 
           {/* Expandable Details Button */}
           {metadata?.message && (

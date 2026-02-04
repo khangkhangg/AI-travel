@@ -827,6 +827,7 @@ export default function CollaboratePage() {
                 onClearSelection={() => setSelectedActivityId(null)}
                 onActivityRestored={() => { fetchTrip(); fetchCosts(); }}
                 refreshKey={discussionRefreshKey}
+                isOwner={trip.user_role === 'owner'}
               />
             </div>
 

@@ -28,11 +28,64 @@ interface Discussion {
 
 interface SuggestionSystemMessageProps {
   discussion: Discussion;
+  tripId?: string;
+  isOwner?: boolean;
+  onStatusChange?: () => void;
 }
 
-export default function SuggestionSystemMessage({ discussion }: SuggestionSystemMessageProps) {
+export default function SuggestionSystemMessage({
+  discussion,
+  tripId,
+  isOwner = false,
+  onStatusChange
+}: SuggestionSystemMessageProps) {
   const [expanded, setExpanded] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const metadata = discussion.metadata as SuggestionMetadata;
+
+  const handleUse = async () => {
+    if (!tripId || !metadata.suggestion_id) return;
+    setProcessing(true);
+    try {
+      const response = await fetch(`/api/trips/${tripId}/suggestions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          suggestion_id: metadata.suggestion_id,
+          status: 'used'
+        }),
+      });
+      if (response.ok && onStatusChange) {
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Failed to mark suggestion as used:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDismiss = async () => {
+    if (!tripId || !metadata.suggestion_id) return;
+    setProcessing(true);
+    try {
+      const response = await fetch(`/api/trips/${tripId}/suggestions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          suggestion_id: metadata.suggestion_id,
+          status: 'dismissed'
+        }),
+      });
+      if (response.ok && onStatusChange) {
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Failed to dismiss suggestion:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const getIconAndColor = () => {
     switch (discussion.message_type) {
@@ -164,6 +217,30 @@ export default function SuggestionSystemMessage({ discussion }: SuggestionSystem
               </span>
             )}
           </div>
+
+          {/* Action Buttons - Only show for pending suggestions when user is trip owner */}
+          {isOwner && discussion.message_type === 'suggestion_created' && (
+            <div className="flex items-center gap-2 mt-3 mb-2">
+              <button
+                type="button"
+                onClick={handleUse}
+                disabled={processing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Use Suggestion
+              </button>
+              <button
+                type="button"
+                onClick={handleDismiss}
+                disabled={processing}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Expandable Reason Button */}
           {metadata?.reason && (

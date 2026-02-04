@@ -54,6 +54,7 @@ interface DiscussionSidebarProps {
   onClearSelection: () => void;
   onActivityRestored?: () => void;
   refreshKey?: number;
+  isOwner?: boolean;
 }
 
 export default function DiscussionSidebar({
@@ -63,6 +64,7 @@ export default function DiscussionSidebar({
   onClearSelection,
   onActivityRestored,
   refreshKey = 0,
+  isOwner = false,
 }: DiscussionSidebarProps) {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -297,12 +299,28 @@ export default function DiscussionSidebar({
           discussions.map((discussion) => {
             // Proposal System Messages
             if (discussion.message_type?.startsWith('proposal_')) {
-              return <ProposalSystemMessage key={discussion.id} discussion={discussion} />;
+              return (
+                <ProposalSystemMessage
+                  key={discussion.id}
+                  discussion={discussion}
+                  tripId={tripId}
+                  isOwner={isOwner}
+                  onStatusChange={() => fetchDiscussions()}
+                />
+              );
             }
 
             // Suggestion System Messages
             if (discussion.message_type?.startsWith('suggestion_')) {
-              return <SuggestionSystemMessage key={discussion.id} discussion={discussion} />;
+              return (
+                <SuggestionSystemMessage
+                  key={discussion.id}
+                  discussion={discussion}
+                  tripId={tripId}
+                  isOwner={isOwner}
+                  onStatusChange={() => fetchDiscussions()}
+                />
+              );
             }
 
             // Deleted Activity System Message
