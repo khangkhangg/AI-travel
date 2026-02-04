@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Compass, Menu, X, Map, Heart, User, Sparkles, LogOut, Settings, BookMarked, FileText, ChevronDown } from 'lucide-react';
+import { Compass, Menu, X, Map, Heart, User, Sparkles, LogOut, Settings, BookMarked, FileText, ChevronDown, Activity } from 'lucide-react';
 import AuthModal from '@/components/auth/AuthModal';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -14,7 +14,10 @@ export default function Header() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [tripCount, setTripCount] = useState(0);
+  const [pendingActivityCount, setPendingActivityCount] = useState(0);
+  const [showActivityBadge, setShowActivityBadge] = useState(false);
   const [userProfile, setUserProfile] = useState<{ username?: string; fullName?: string } | null>(null);
+  const [isCreator, setIsCreator] = useState(false);
   const signInButtonRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -43,6 +46,7 @@ export default function Header() {
     const fetchUserData = async () => {
       if (!user) {
         setTripCount(0);
+        setPendingActivityCount(0);
         setUserProfile(null);
         return;
       }
@@ -62,6 +66,26 @@ export default function Header() {
             username: profileData.user?.username,
             fullName: profileData.user?.fullName,
           });
+        }
+
+        // Fetch pending activity count
+        const activityResponse = await fetch('/api/users/me/activity?limit=50');
+        if (activityResponse.ok) {
+          const activityData = await activityResponse.json();
+          const activities = activityData.activities || [];
+          const pendingCount = activities.filter(
+            (a: any) =>
+              (a.type === 'bid_received' || a.type === 'suggestion_received') &&
+              (a.status === 'pending' || a.status === 'withdrawal_requested')
+          ).length;
+          setPendingActivityCount(pendingCount);
+        }
+
+        // Fetch guide/creator status
+        const guideModeResponse = await fetch('/api/users/guide-mode');
+        if (guideModeResponse.ok) {
+          const guideModeData = await guideModeResponse.json();
+          setIsCreator(guideModeData.is_guide || false);
         }
       } catch (error) {
         console.error('Failed to fetch user data:', error);
@@ -87,6 +111,20 @@ export default function Header() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isUserMenuOpen]);
+
+  // Alternate between avatar and activity badge every 3 seconds
+  useEffect(() => {
+    if (pendingActivityCount === 0) {
+      setShowActivityBadge(false);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setShowActivityBadge((prev) => !prev);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [pendingActivityCount]);
 
   const handleSignOut = async () => {
     setIsUserMenuOpen(false);
@@ -145,13 +183,15 @@ export default function Header() {
 
           {/* Right side */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => router.push('/guide/register')}
-              className="hidden md:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 transition-colors"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>Become Creator</span>
-            </button>
+            {!isCreator && (
+              <button
+                onClick={() => router.push('/guide/register')}
+                className="hidden md:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 transition-colors"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Become Creator</span>
+              </button>
+            )}
 
             {/* Auth Section */}
             <div className="relative" ref={userMenuRef}>
@@ -164,19 +204,70 @@ export default function Header() {
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-emerald-50 transition-colors"
                   >
-                    {user.user_metadata?.avatar_url ? (
-                      <img
-                        src={user.user_metadata.avatar_url}
-                        alt=""
-                        className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-100"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center ring-2 ring-emerald-100">
-                        <span className="text-sm font-semibold text-white">
-                          {(user.user_metadata?.full_name || user.email || 'U')[0].toUpperCase()}
-                        </span>
+                    {/* Avatar that switches between user image and activity badge */}
+                    <div className="relative w-8 h-8">
+                      {/* User Avatar */}
+                      <div
+                        className={`absolute inset-0 transition-all duration-500 ${
+                          showActivityBadge && pendingActivityCount > 0
+                            ? 'opacity-0 scale-75'
+                            : 'opacity-100 scale-100'
+                        }`}
+                      >
+                        {user.user_metadata?.avatar_url ? (
+                          <img
+                            src={user.user_metadata.avatar_url}
+                            alt=""
+                            className="w-8 h-8 rounded-full object-cover ring-2 ring-emerald-100"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center ring-2 ring-emerald-100">
+                            <span className="text-sm font-semibold text-white">
+                              {(user.user_metadata?.full_name || user.email || 'U')[0].toUpperCase()}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      {/* Activity Badge with Bounce & Glow */}
+                      {pendingActivityCount > 0 && (
+                        <div
+                          className={`absolute inset-0 transition-all duration-500 ${
+                            showActivityBadge
+                              ? 'opacity-100 scale-110 animate-bounce-glow'
+                              : 'opacity-0 scale-75'
+                          }`}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center ring-2 ring-emerald-500"
+                            style={{
+                              boxShadow: showActivityBadge
+                                ? '0 0 20px rgba(16, 185, 129, 0.6), 0 0 40px rgba(16, 185, 129, 0.3)'
+                                : 'none',
+                            }}
+                          >
+                            <span className="text-xs font-bold text-emerald-600">
+                              {pendingActivityCount > 9 ? '9+' : pendingActivityCount}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add custom animation styles */}
+                    <style jsx>{`
+                      @keyframes bounce-glow {
+                        0%, 100% {
+                          transform: scale(1.1);
+                        }
+                        50% {
+                          transform: scale(1.15);
+                        }
+                      }
+                      .animate-bounce-glow {
+                        animation: bounce-glow 1s ease-in-out infinite;
+                      }
+                    `}</style>
                     <span className="hidden sm:block text-sm font-medium text-gray-700 max-w-[100px] truncate">
                       {user.user_metadata?.full_name || user.email?.split('@')[0]}
                     </span>
@@ -225,6 +316,28 @@ export default function Header() {
                             </p>
                             <p className="text-xs text-gray-500">
                               {userProfile?.username ? 'Manage your account' : 'Add username & bio'}
+                            </p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => handleMenuItemClick('/profile?section=activity')}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center relative">
+                            <Activity className="w-4 h-4 text-emerald-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900">Activity</p>
+                              {pendingActivityCount > 0 && (
+                                <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center border border-emerald-300">
+                                  {pendingActivityCount > 9 ? '9+' : pendingActivityCount}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {pendingActivityCount > 0 ? `${pendingActivityCount} pending action${pendingActivityCount !== 1 ? 's' : ''}` : 'View your activity'}
                             </p>
                           </div>
                         </button>
@@ -312,7 +425,7 @@ export default function Header() {
                 { label: 'Discover', icon: Map, path: '/discover' },
                 { label: 'My Trips', icon: Heart, path: '/my-trips', showBadge: true },
                 { label: 'Creators', icon: User, path: '/creators' },
-                { label: 'Become Creator', icon: Sparkles, path: '/guide/register' },
+                ...(!isCreator ? [{ label: 'Become Creator', icon: Sparkles, path: '/guide/register' }] : []),
               ].map((item) => (
                 <button
                   key={item.label}

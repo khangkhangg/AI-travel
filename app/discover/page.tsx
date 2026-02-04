@@ -91,6 +91,7 @@ function DiscoverContent() {
   const [marketplaceTrips, setMarketplaceTrips] = useState<MarketplaceTrip[]>([]);
   const [loadingItineraries, setLoadingItineraries] = useState(true);
   const [loadingMarketplace, setLoadingMarketplace] = useState(true);
+  const [isBusiness, setIsBusiness] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
@@ -159,6 +160,22 @@ function DiscoverContent() {
     fetchItineraries();
     fetchMarketplace();
   }, [fetchItineraries, fetchMarketplace]);
+
+  // Fetch user's business status on mount
+  useEffect(() => {
+    const fetchBusinessStatus = async () => {
+      try {
+        const response = await fetch('/api/businesses?self=true');
+        if (response.ok) {
+          const data = await response.json();
+          setIsBusiness(data.isBusiness === true);
+        }
+      } catch (err) {
+        // User not logged in or error - default to false
+      }
+    };
+    fetchBusinessStatus();
+  }, []);
 
   const handleClone = async (id: string) => {
     try {
@@ -415,7 +432,7 @@ function DiscoverContent() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {marketplaceTrips.map((trip) => (
-                    <MarketplaceTripCard key={trip.id} trip={trip} />
+                    <MarketplaceTripCard key={trip.id} trip={trip} isBusiness={isBusiness} />
                   ))}
                 </div>
               </section>
@@ -611,7 +628,7 @@ function ItineraryCard({
   );
 }
 
-function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
+function MarketplaceTripCard({ trip, isBusiness = false }: { trip: MarketplaceTrip; isBusiness?: boolean }) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -619,9 +636,12 @@ function MarketplaceTripCard({ trip }: { trip: MarketplaceTrip }) {
 
   const serviceNeeds = trip.marketplace_needs || [];
 
+  // Auto-open in business view if user has a business account
+  const tripUrl = isBusiness ? `/trips/${trip.id}?view=business` : `/trips/${trip.id}`;
+
   return (
     <Link
-      href={`/trips/${trip.id}`}
+      href={tripUrl}
       className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg hover:border-teal-200 transition-all group block"
     >
       {/* Compact Header Strip */}

@@ -11,6 +11,7 @@ interface MapLocation {
   lng: number;
   dayNumber: number;
   category?: string;
+  type?: 'activity' | 'suggestion';  // Suggestions show with purple pin
 }
 
 interface TripMapProps {
@@ -19,6 +20,7 @@ interface TripMapProps {
   totalDays: number;
   height?: string;
   onPinClick?: (locationId: string) => void;
+  showAllDays?: boolean;  // When true, shows all markers at full opacity and fits all bounds
 }
 
 // Day colors for pins
@@ -75,12 +77,57 @@ const createDayIcon = (dayNumber: number, isActive: boolean) => {
   });
 };
 
+// Create suggestion marker icon (purple)
+const createSuggestionIcon = (isActive: boolean) => {
+  const color = '#9333ea';  // Purple-600
+  const size = isActive ? 28 : 22;
+  const opacity = isActive ? 1 : 0.7;
+
+  return L.divIcon({
+    className: 'custom-suggestion-marker',
+    html: `
+      <div style="
+        width: ${size}px;
+        height: ${size}px;
+        background: ${color};
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        border: 2px solid white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        opacity: ${opacity};
+        transition: all 0.3s ease;
+      ">
+        <div style="
+          width: ${size * 0.5}px;
+          height: ${size * 0.5}px;
+          background: white;
+          border-radius: 50%;
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: ${size * 0.3}px;
+          font-weight: bold;
+          color: ${color};
+        ">★</div>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size],
+  });
+};
+
 export default function TripMap({
   locations,
   activeDay,
   totalDays,
   height = '400px',
   onPinClick,
+  showAllDays = false,
 }: TripMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -127,18 +174,27 @@ export default function TripMap({
     locations.forEach((loc) => {
       if (!loc.lat || !loc.lng) return;
 
-      const isActive = loc.dayNumber === activeDay;
+      // When showAllDays is true, all markers are "active" (full opacity)
+      const isActive = showAllDays || loc.dayNumber === activeDay;
+      const isSuggestion = loc.type === 'suggestion';
+
+      // Use purple suggestion icon or day-colored icon
+      const icon = isSuggestion
+        ? createSuggestionIcon(isActive)
+        : createDayIcon(loc.dayNumber, isActive);
+
       const marker = L.marker([loc.lat, loc.lng], {
-        icon: createDayIcon(loc.dayNumber, isActive),
-        zIndexOffset: isActive ? 1000 : 0,
+        icon,
+        zIndexOffset: isActive ? 1000 : (isSuggestion ? 500 : 0),
       }).addTo(map);
 
-      // Popup
+      // Popup - show "Suggestion" label for suggestions
+      const typeLabel = isSuggestion ? 'Suggestion' : `Day ${loc.dayNumber}`;
       const popupContent = `
         <div style="min-width: 150px;">
           <strong style="font-size: 14px;">${loc.title}</strong>
-          <div style="color: #666; font-size: 12px; margin-top: 4px;">
-            Day ${loc.dayNumber}${loc.category ? ` · ${loc.category}` : ''}
+          <div style="color: ${isSuggestion ? '#9333ea' : '#666'}; font-size: 12px; margin-top: 4px;">
+            ${typeLabel}${loc.category ? ` · ${loc.category}` : ''}
           </div>
         </div>
       `;
@@ -161,43 +217,57 @@ export default function TripMap({
         map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [40, 40] });
       }
     }
-  }, [locations, onPinClick]);
+  }, [locations, onPinClick, showAllDays, activeDay]);
 
-  // Update markers when active day changes
+  // Update markers when active day or showAllDays changes
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const activeDayLocations: L.LatLngExpression[] = [];
+    const visibleLocations: L.LatLngExpression[] = [];
 
     markersRef.current.forEach((marker, id) => {
       const loc = locations.find((l) => l.id === id);
       if (!loc) return;
 
-      const isActive = loc.dayNumber === activeDay;
-      marker.setIcon(createDayIcon(loc.dayNumber, isActive));
-      marker.setZIndexOffset(isActive ? 1000 : 0);
+      // When showAllDays is true, all markers are "active" (full opacity)
+      const isActive = showAllDays || loc.dayNumber === activeDay;
+      const isSuggestion = loc.type === 'suggestion';
 
-      if (isActive && loc.lat && loc.lng) {
-        activeDayLocations.push([loc.lat, loc.lng]);
+      // Use suggestion icon for suggestions, day icon for activities
+      const icon = isSuggestion
+        ? createSuggestionIcon(isActive)
+        : createDayIcon(loc.dayNumber, isActive);
+
+      marker.setIcon(icon);
+      marker.setZIndexOffset(isActive ? 1000 : (isSuggestion ? 500 : 0));
+
+      // When showAllDays, collect all locations; otherwise only active day
+      if ((showAllDays || isActive) && loc.lat && loc.lng) {
+        visibleLocations.push([loc.lat, loc.lng]);
       }
     });
 
-    // Pan to active day's locations
-    if (activeDayLocations.length > 0) {
-      if (activeDayLocations.length === 1) {
-        map.setView(activeDayLocations[0], 14, { animate: true });
+    // Pan to visible locations
+    if (visibleLocations.length > 0) {
+      if (visibleLocations.length === 1) {
+        map.setView(visibleLocations[0], 14, { animate: true });
       } else {
-        map.fitBounds(activeDayLocations as L.LatLngBoundsExpression, {
+        map.fitBounds(visibleLocations as L.LatLngBoundsExpression, {
           padding: [40, 40],
           animate: true,
         });
       }
     }
-  }, [activeDay, locations]);
+  }, [activeDay, showAllDays, locations]);
 
-  // Get unique days for legend
-  const uniqueDays = Array.from(new Set(locations.map((l) => l.dayNumber))).sort((a, b) => a - b);
+  // Get unique days for legend (only from activities, not suggestions)
+  const uniqueDays = Array.from(new Set(
+    locations.filter(l => l.type !== 'suggestion').map((l) => l.dayNumber)
+  )).sort((a, b) => a - b);
+
+  // Check if there are any suggestions
+  const hasSuggestions = locations.some(l => l.type === 'suggestion');
 
   if (locations.length === 0) {
     return (
@@ -228,7 +298,7 @@ export default function TripMap({
             <div
               key={day}
               className={`flex items-center gap-1.5 ${
-                day === activeDay ? 'font-semibold' : 'opacity-60'
+                (showAllDays || day === activeDay) ? 'font-semibold' : 'opacity-60'
               }`}
             >
               <div
@@ -238,6 +308,16 @@ export default function TripMap({
               <span>Day {day}</span>
             </div>
           ))}
+          {/* Suggestions legend entry */}
+          {hasSuggestions && (
+            <div className="flex items-center gap-1.5 font-semibold">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: '#9333ea' }}
+              />
+              <span>Suggestions</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

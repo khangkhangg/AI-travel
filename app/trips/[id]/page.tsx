@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Header from '@/components/landing/Header';
+import type { ViewMode, UserMarketplaceContext } from '@/lib/types/marketplace';
 
 // Dynamic import to avoid SSR issues with Leaflet
 const CuratedTripView = dynamic(
@@ -14,11 +15,35 @@ const CuratedTripView = dynamic(
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const tripId = params.id as string;
 
   const [trip, setTrip] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userMarketplaceContext, setUserMarketplaceContext] = useState<UserMarketplaceContext>({
+    isBusiness: false,
+    isGuide: false,
+    isOwner: false,
+    isLoggedIn: false,
+    currentUser: null,
+  });
+  const [proposalCounts, setProposalCounts] = useState<Record<string, number>>({});
+  const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
+
+  // Get view mode from URL params
+  const requestedView = searchParams.get('view') as ViewMode | null;
+
+  // Compute effective view mode based on permissions
+  const viewMode = useMemo<ViewMode>(() => {
+    if (requestedView === 'business' && userMarketplaceContext.isBusiness) {
+      return 'business';
+    }
+    if (requestedView === 'creator' && !userMarketplaceContext.isOwner) {
+      return 'creator';
+    }
+    return 'normal';
+  }, [requestedView, userMarketplaceContext]);
 
   useEffect(() => {
     if (tripId) {
@@ -32,6 +57,27 @@ export default function TripDetailPage() {
       if (response.ok) {
         const data = await response.json();
         setTrip(data.trip);
+
+        // Set marketplace context from API response
+        if (data.userMarketplaceContext) {
+          setUserMarketplaceContext({
+            ...data.userMarketplaceContext,
+            isOwner: data.trip.user_role === 'owner',
+          });
+        } else {
+          setUserMarketplaceContext(prev => ({
+            ...prev,
+            isOwner: data.trip.user_role === 'owner',
+          }));
+        }
+
+        // Set counts from API response
+        if (data.proposalCounts) {
+          setProposalCounts(data.proposalCounts);
+        }
+        if (data.suggestionCounts) {
+          setSuggestionCounts(data.suggestionCounts);
+        }
       } else if (response.status === 404) {
         setError('Trip not found');
       } else if (response.status === 403) {
@@ -86,5 +132,14 @@ export default function TripDetailPage() {
     );
   }
 
-  return <CuratedTripView trip={trip} onBack={() => router.push('/my-trips')} />;
+  return (
+    <CuratedTripView
+      trip={trip}
+      onBack={() => router.push('/my-trips')}
+      viewMode={viewMode}
+      userMarketplaceContext={userMarketplaceContext}
+      proposalCounts={proposalCounts}
+      suggestionCounts={suggestionCounts}
+    />
+  );
 }

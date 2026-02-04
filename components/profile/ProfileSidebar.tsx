@@ -10,11 +10,12 @@ import {
   PanelLeft,
   Menu,
   X,
+  Activity,
 } from 'lucide-react';
 import ProfileSidebarItem from './ProfileSidebarItem';
 import ProfileUserMenu from './ProfileUserMenu';
 
-export type SectionId = 'dashboard' | 'profile' | 'settings' | 'bookings';
+export type SectionId = 'dashboard' | 'activity' | 'profile' | 'settings' | 'bookings';
 export type SubItemId =
   | 'personal-info'
   | 'travel-history'
@@ -35,6 +36,7 @@ interface ProfileSidebarProps {
   };
   isGuide: boolean;
   pendingBookings?: number;
+  pendingActivity?: number;
   activeSection: SectionId;
   activeSubItem: SubItemId | null;
   onSectionChange: (section: SectionId, subItem?: SubItemId) => void;
@@ -48,6 +50,7 @@ export default function ProfileSidebar({
   user,
   isGuide,
   pendingBookings = 0,
+  pendingActivity = 0,
   activeSection,
   activeSubItem,
   onSectionChange,
@@ -78,6 +81,12 @@ export default function ProfileSidebar({
       id: 'dashboard' as SectionId,
       label: 'Dashboard',
       icon: LayoutDashboard,
+    },
+    {
+      id: 'activity' as SectionId,
+      label: 'Activity',
+      icon: Activity,
+      badge: pendingActivity,
     },
     {
       id: 'profile' as SectionId,

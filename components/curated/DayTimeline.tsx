@@ -1,8 +1,9 @@
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, useMemo } from 'react';
 import ActivityTimelineCard from './ActivityTimelineCard';
 import { getDayColor } from './TripMap';
+import type { ViewMode, Proposal, TripSuggestion, Business, BidFormData, SuggestionFormData } from '@/lib/types/marketplace';
 
 interface Activity {
   id: string;
@@ -28,6 +29,27 @@ interface DayTimelineProps {
   onUpdateUrl?: (activityId: string, url: string) => void;
   onUpdateLocation?: (activityId: string, lat: number, lng: number, address?: string) => void;
   isOwner?: boolean;
+  // Marketplace props
+  viewMode?: ViewMode;
+  proposals?: Record<string, Proposal[]>;
+  suggestions?: Record<string, TripSuggestion[]>;
+  proposalCounts?: Record<string, number>;
+  suggestionCounts?: Record<string, number>;
+  business?: Business | null;
+  onSubmitBid?: (activityId: string, data: BidFormData) => Promise<void>;
+  onSubmitSuggestion?: (activityId: string, data: SuggestionFormData) => Promise<void>;
+  onAcceptBid?: (proposalId: string) => Promise<void>;
+  onDeclineBid?: (proposalId: string) => Promise<void>;
+  onWithdrawBid?: (proposalId: string) => Promise<void>;
+  onApproveWithdrawal?: (proposalId: string) => Promise<void>;
+  onRejectWithdrawal?: (proposalId: string) => Promise<void>;
+  onMarkSuggestionUsed?: (suggestionId: string) => Promise<void>;
+  onDismissSuggestion?: (suggestionId: string) => Promise<void>;
+  // Auth props
+  isLoggedIn?: boolean;
+  onAuthRequired?: () => void;
+  // Trip visibility for marketplace
+  tripVisibility?: string;
 }
 
 const getTimeRange = (activities: Activity[]): string => {
@@ -53,9 +75,56 @@ const getTimeRange = (activities: Activity[]): string => {
 };
 
 const DayTimeline = forwardRef<HTMLDivElement, DayTimelineProps>(
-  ({ dayNumber, dayTitle, activities, onActivityMapView, onUpdateDescription, onUpdateUrl, onUpdateLocation, isOwner }, ref) => {
+  ({
+    dayNumber,
+    dayTitle,
+    activities,
+    onActivityMapView,
+    onUpdateDescription,
+    onUpdateUrl,
+    onUpdateLocation,
+    isOwner,
+    viewMode = 'normal',
+    proposals = {},
+    suggestions = {},
+    proposalCounts = {},
+    suggestionCounts = {},
+    business,
+    onSubmitBid,
+    onSubmitSuggestion,
+    onAcceptBid,
+    onDeclineBid,
+    onWithdrawBid,
+    onApproveWithdrawal,
+    onRejectWithdrawal,
+    onMarkSuggestionUsed,
+    onDismissSuggestion,
+    isLoggedIn = true,
+    onAuthRequired,
+    tripVisibility,
+  }, ref) => {
     const dayColor = getDayColor(dayNumber);
-    const sortedActivities = [...activities].sort((a, b) => a.order_index - b.order_index);
+
+    // Sort activities with hotel-first ordering
+    const sortedActivities = useMemo(() => {
+      const sorted = [...activities].sort((a, b) => a.order_index - b.order_index);
+
+      // Separate hotels/accommodations from other activities
+      const hotels = sorted.filter(a =>
+        a.category?.toLowerCase() === 'hotel' ||
+        a.category?.toLowerCase() === 'accommodation' ||
+        a.category?.toLowerCase() === 'lodging'
+      );
+      const others = sorted.filter(a =>
+        a.category?.toLowerCase() !== 'hotel' &&
+        a.category?.toLowerCase() !== 'accommodation' &&
+        a.category?.toLowerCase() !== 'lodging'
+      );
+
+      // Hotels first, then others
+      return [...hotels, ...others];
+    }, [activities]);
+
     const timeRange = getTimeRange(sortedActivities);
     const placeCount = sortedActivities.length;
 
@@ -115,6 +184,25 @@ const DayTimeline = forwardRef<HTMLDivElement, DayTimelineProps>(
                 onUpdateUrl={onUpdateUrl}
                 onUpdateLocation={onUpdateLocation}
                 isOwner={isOwner}
+                viewMode={viewMode}
+                bids={proposals[activity.id] || []}
+                suggestions={suggestions[activity.id] || []}
+                bidCount={proposalCounts[activity.id] || 0}
+                suggestionCount={suggestionCounts[activity.id] || 0}
+                business={business}
+                tripId=""
+                onSubmitBid={onSubmitBid ? (data) => onSubmitBid(activity.id, data) : undefined}
+                onSubmitSuggestion={onSubmitSuggestion ? (data) => onSubmitSuggestion(activity.id, data) : undefined}
+                onAcceptBid={onAcceptBid}
+                onDeclineBid={onDeclineBid}
+                onWithdrawBid={onWithdrawBid}
+                onApproveWithdrawal={onApproveWithdrawal}
+                onRejectWithdrawal={onRejectWithdrawal}
+                onMarkSuggestionUsed={onMarkSuggestionUsed}
+                onDismissSuggestion={onDismissSuggestion}
+                isLoggedIn={isLoggedIn}
+                onAuthRequired={onAuthRequired}
+                tripVisibility={tripVisibility}
               />
             ))
           )}

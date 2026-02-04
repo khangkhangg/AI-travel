@@ -21,6 +21,8 @@ import CreatorProfile from './CreatorProfile';
 import DayTimeline from './DayTimeline';
 import TripImageUpload from './TripImageUpload';
 import AuthModal from '@/components/auth/AuthModal';
+import { ViewModeMenu, ServiceSuggestionsGrid } from '@/components/marketplace';
+import type { ViewMode, UserMarketplaceContext, Proposal, TripSuggestion, BidFormData, SuggestionFormData } from '@/lib/types/marketplace';
 
 interface Activity {
   id: string;
@@ -90,6 +92,10 @@ interface Trip {
 interface CuratedTripViewProps {
   trip: Trip;
   onBack?: () => void;
+  viewMode?: ViewMode;
+  userMarketplaceContext?: UserMarketplaceContext;
+  proposalCounts?: Record<string, number>;
+  suggestionCounts?: Record<string, number>;
 }
 
 interface TripImage {
@@ -98,9 +104,17 @@ interface TripImage {
   display_order: number;
 }
 
-export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) {
+export default function CuratedTripView({
+  trip,
+  onBack,
+  viewMode = 'normal',
+  userMarketplaceContext = { isBusiness: false, isGuide: false, isOwner: false, isLoggedIn: false, currentUser: null },
+  proposalCounts = {},
+  suggestionCounts = {},
+}: CuratedTripViewProps) {
   const router = useRouter();
   const [activeDay, setActiveDay] = useState(1);
+  const [showAllDays, setShowAllDays] = useState(false);
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [tripImages, setTripImages] = useState<TripImage[]>([]);
@@ -109,6 +123,210 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
   const [cloning, setCloning] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const cloneButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Marketplace state
+  const [proposals, setProposals] = useState<Record<string, Proposal[]>>({});
+  const [suggestions, setSuggestions] = useState<Record<string, TripSuggestion[]>>({});
+
+  // Define fetchProposals before the useEffect that uses it
+  const fetchProposals = useCallback(async () => {
+    try {
+      // For trip owners: fetch all proposals on their trip
+      // For business users (non-owners): fetch only their own proposals with ?forBusiness=true
+      const isBusinessNonOwner = userMarketplaceContext.isBusiness && !userMarketplaceContext.isOwner;
+      const url = isBusinessNonOwner
+        ? `/api/trips/${trip.id}/proposals?forBusiness=true`
+        : `/api/trips/${trip.id}/proposals`;
+
+      const response = await fetch(url);
+
+      if (response.ok) {
+        const data = await response.json();
+        // Group proposals by activity_id
+        const grouped: Record<string, Proposal[]> = {};
+        (data.proposals || []).forEach((p: Proposal) => {
+          const key = p.activity_id || 'trip';
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(p);
+        });
+        setProposals(grouped);
+      }
+    } catch (error) {
+      console.error('Failed to fetch proposals:', error);
+    }
+  }, [trip.id, userMarketplaceContext.isBusiness, userMarketplaceContext.isOwner]);
+
+  // Fetch proposals when in business or owner view
+  useEffect(() => {
+    if (viewMode === 'business' || userMarketplaceContext.isOwner) {
+      fetchProposals();
+    }
+  }, [viewMode, userMarketplaceContext.isOwner, fetchProposals]);
+
+  // Always fetch suggestions so they can show on the map for everyone
+  // (Suggestions with coordinates will appear as purple pins)
+  useEffect(() => {
+    fetchSuggestions();
+  }, [trip.id]);
+
+  const fetchSuggestions = async () => {
+    try {
+      console.log('DEBUG: Fetching suggestions for trip:', trip.id);
+      const response = await fetch(`/api/trips/${trip.id}/suggestions`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('DEBUG: Raw suggestions from API:', data.suggestions);
+        console.log('DEBUG: Suggestions with coordinates:', data.suggestions?.filter((s: any) => s.location_lat && s.location_lng));
+        // Group suggestions by activity_id
+        const grouped: Record<string, TripSuggestion[]> = {};
+        (data.suggestions || []).forEach((s: TripSuggestion) => {
+          const key = s.activity_id || 'trip';
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push(s);
+        });
+        setSuggestions(grouped);
+      }
+    } catch (error) {
+      console.error('Failed to fetch suggestions:', error);
+    }
+  };
+
+  // Handle bid submission
+  const handleSubmitBid = async (activityId: string | undefined, data: BidFormData) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...data,
+        activity_id: activityId,
+      }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to submit bid');
+    }
+    await fetchProposals();
+  };
+
+  // Handle suggestion submission
+  const handleSubmitSuggestion = async (activityId: string | undefined, dayNumber: number | undefined, data: SuggestionFormData) => {
+    const response = await fetch(`/api/trips/${trip.id}/suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...data,
+        activity_id: activityId,
+        day_number: dayNumber,
+      }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to submit suggestion');
+    }
+    await fetchSuggestions();
+  };
+
+  // Handle accept bid (owner only)
+  const handleAcceptBid = async (proposalId: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: proposalId, status: 'accepted' }),
+    });
+    if (response.ok) {
+      await fetchProposals();
+    }
+  };
+
+  // Handle decline bid (owner only)
+  const handleDeclineBid = async (proposalId: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: proposalId, status: 'declined' }),
+    });
+    if (response.ok) {
+      await fetchProposals();
+    }
+  };
+
+  // Handle withdraw bid (business user withdrawing their own bid)
+  const handleWithdrawBid = async (proposalId: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: proposalId, status: 'withdrawn' }),
+    });
+    if (response.ok) {
+      await fetchProposals();
+    }
+  };
+
+  // Handle approve withdrawal request (owner approving business's withdrawal request)
+  const handleApproveWithdrawal = async (proposalId: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: proposalId, status: 'withdrawn' }),
+    });
+    if (response.ok) {
+      await fetchProposals();
+    }
+  };
+
+  // Handle reject withdrawal request (owner rejecting, keeping proposal accepted)
+  const handleRejectWithdrawal = async (proposalId: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/proposals`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: proposalId, status: 'accepted' }),
+    });
+    if (response.ok) {
+      await fetchProposals();
+    }
+  };
+
+  // Handle mark suggestion as used (owner only)
+  // Also updates the activity's source_url with the suggestion's URL
+  const handleMarkSuggestionUsed = async (suggestionId: string) => {
+    // Find the suggestion to get its source_url and activity_id
+    const allSuggestions = Object.values(suggestions).flat();
+    const suggestion = allSuggestions.find(s => s.id === suggestionId);
+
+    const response = await fetch(`/api/trips/${trip.id}/suggestions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suggestion_id: suggestionId, status: 'used' }),
+    });
+
+    if (response.ok) {
+      // If suggestion has source_url and activity_id, update the activity's URL
+      if (suggestion?.source_url && suggestion?.activity_id) {
+        try {
+          await fetch(`/api/trips/${trip.id}/items/${suggestion.activity_id}/url`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: suggestion.source_url }),
+          });
+        } catch (err) {
+          console.error('Failed to update activity URL:', err);
+        }
+      }
+      await fetchSuggestions();
+    }
+  };
+
+  // Handle dismiss suggestion (owner only)
+  const handleDismissSuggestion = async (suggestionId: string) => {
+    const response = await fetch(`/api/trips/${trip.id}/suggestions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suggestion_id: suggestionId, status: 'dismissed' }),
+    });
+    if (response.ok) {
+      await fetchSuggestions();
+    }
+  };
 
   // Fetch trip images
   useEffect(() => {
@@ -148,7 +366,7 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
   const allDays = days.length > 0 ? days : generatedDays;
 
   // Build map locations from activities (use location_lat/location_lng from database)
-  const mapLocations = (trip.itinerary_items || [])
+  const activityLocations = (trip.itinerary_items || [])
     .filter((item) => item.location_lat && item.location_lng)
     .map((item) => ({
       id: item.id,
@@ -157,12 +375,39 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
       lng: Number(item.location_lng),
       dayNumber: item.day_number,
       category: item.category,
+      type: 'activity' as const,
     }));
+
+  // Build map locations from suggestions (purple pins)
+  // Show pending and used suggestions, but not dismissed ones
+  const suggestionLocations = Object.values(suggestions)
+    .flat()
+    .filter((s) => s.location_lat && s.location_lng && s.status !== 'dismissed')
+    .map((s) => ({
+      id: `suggestion-${s.id}`,
+      title: s.place_name,
+      lat: Number(s.location_lat),
+      lng: Number(s.location_lng),
+      dayNumber: s.day_number || 1,
+      category: s.category,
+      type: 'suggestion' as const,
+    }));
+
+  // Combine activities and suggestions for the map
+  const mapLocations = [...activityLocations, ...suggestionLocations];
 
   // Debug logging
   console.log('DEBUG: itinerary_items count:', trip.itinerary_items?.length);
   console.log('DEBUG: mapLocations count:', mapLocations.length);
   console.log('DEBUG: Items with location:', trip.itinerary_items?.filter(i => i.location_lat || i.location_lng));
+  console.log('DEBUG: All suggestions:', Object.values(suggestions).flat().map(s => ({
+    place_name: s.place_name,
+    status: s.status,
+    has_coords: !!(s.location_lat && s.location_lng),
+    lat: s.location_lat,
+    lng: s.location_lng
+  })));
+  console.log('DEBUG: suggestionLocations count:', suggestionLocations.length);
 
   // Calculate stats
   const totalPlaces = (trip.itinerary_items || []).length;
@@ -204,6 +449,11 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
   };
 
   const handleSave = () => {
+    // Show auth modal if user is not logged in
+    if (!userMarketplaceContext.isLoggedIn) {
+      setShowAuthModal(true);
+      return;
+    }
     setSaved(!saved);
     // TODO: Implement actual save/favorite functionality
   };
@@ -377,6 +627,32 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                   <span className="font-medium">~${totalCost.toLocaleString()}</span>
                 </div>
               )}
+              {/* Trip marketplace status (show in business/creator view) */}
+              {viewMode !== 'normal' && (
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm ${
+                    trip.visibility === 'marketplace'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}
+                  title={
+                    trip.visibility === 'marketplace'
+                      ? 'Open for bids and suggestions'
+                      : `Status: ${trip.visibility || 'private'} - Bidding not available`
+                  }
+                >
+                  {trip.visibility === 'marketplace' ? (
+                    <>
+                      <Bookmark className="w-4 h-4" />
+                      <span className="font-medium">Marketplace</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium capitalize">{trip.visibility || 'Private'}</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Right: Actions */}
@@ -474,6 +750,43 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                   <span className="hidden sm:inline">Collaborate</span>
                 </button>
               )}
+
+              {/* View Mode Menu (3-dot) */}
+              <ViewModeMenu
+                isBusiness={userMarketplaceContext.isBusiness}
+                isOwner={userMarketplaceContext.isOwner}
+                currentView={viewMode}
+                tripId={trip.id}
+              />
+
+              {/* User Avatar / Visitor indicator */}
+              {userMarketplaceContext.isLoggedIn && userMarketplaceContext.currentUser ? (
+                <div className="flex items-center gap-2">
+                  {userMarketplaceContext.currentUser.avatar_url ? (
+                    <img
+                      src={userMarketplaceContext.currentUser.avatar_url}
+                      alt={userMarketplaceContext.currentUser.full_name || 'User'}
+                      className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-medium text-sm border-2 border-emerald-200">
+                      {(userMarketplaceContext.currentUser.full_name || userMarketplaceContext.currentUser.email || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center gap-2 px-2 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors cursor-pointer"
+                  title="Click to sign in"
+                >
+                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-medium text-xs">
+                    V
+                  </div>
+                  <span className="text-xs text-gray-500 font-medium pr-1">Visitor</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -504,9 +817,40 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                       onUpdateUrl={handleUpdateUrl}
                       onUpdateLocation={handleUpdateLocation}
                       isOwner={isOwner}
+                      viewMode={viewMode}
+                      proposals={proposals}
+                      suggestions={suggestions}
+                      proposalCounts={proposalCounts}
+                      suggestionCounts={suggestionCounts}
+                      business={userMarketplaceContext.business}
+                      onSubmitBid={(activityId, data) => handleSubmitBid(activityId, data)}
+                      onSubmitSuggestion={(activityId, data) => handleSubmitSuggestion(activityId, day, data)}
+                      onAcceptBid={handleAcceptBid}
+                      onDeclineBid={handleDeclineBid}
+                      onWithdrawBid={handleWithdrawBid}
+                      onApproveWithdrawal={handleApproveWithdrawal}
+                      onRejectWithdrawal={handleRejectWithdrawal}
+                      onMarkSuggestionUsed={handleMarkSuggestionUsed}
+                      onDismissSuggestion={handleDismissSuggestion}
+                      isLoggedIn={userMarketplaceContext.isLoggedIn}
+                      onAuthRequired={() => setShowAuthModal(true)}
+                      tripVisibility={trip.visibility}
                     />
                   );
                 })}
+
+                {/* Service Suggestions Grid */}
+                {(viewMode === 'business' || viewMode === 'creator') && (
+                  <ServiceSuggestionsGrid
+                    tripId={trip.id}
+                    viewMode={viewMode}
+                    business={userMarketplaceContext.business}
+                    onSubmitBid={(serviceType, data) => handleSubmitBid(undefined, data)}
+                    onSubmitSuggestion={(serviceType, data) => handleSubmitSuggestion(undefined, undefined, data)}
+                    isLoggedIn={userMarketplaceContext.isLoggedIn}
+                    onAuthRequired={() => setShowAuthModal(true)}
+                  />
+                )}
               </div>
             ) : (
               <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
@@ -543,6 +887,7 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                   totalDays={allDays.length}
                   height="100%"
                   onPinClick={handleMapPinClick}
+                  showAllDays={showAllDays}
                 />
               </div>
 
@@ -557,13 +902,14 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                       <button
                         key={day}
                         onClick={() => {
+                          setShowAllDays(false);
                           const ref = dayRefs.current.get(day);
                           if (ref) {
                             ref.scrollIntoView({ behavior: 'smooth', block: 'start' });
                           }
                         }}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          activeDay === day
+                          !showAllDays && activeDay === day
                             ? 'bg-emerald-600 text-white'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
@@ -571,6 +917,17 @@ export default function CuratedTripView({ trip, onBack }: CuratedTripViewProps) 
                         Day {day}
                       </button>
                     ))}
+                    {/* Show All Locations button */}
+                    <button
+                      onClick={() => setShowAllDays(!showAllDays)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        showAllDays
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                      }`}
+                    >
+                      {showAllDays ? 'Showing All' : 'Show All'}
+                    </button>
                   </div>
                 </div>
               )}

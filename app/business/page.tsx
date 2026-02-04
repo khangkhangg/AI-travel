@@ -150,6 +150,23 @@ export default function BusinessDashboardPage() {
         } catch (e) {
           // Services API might not exist yet, that's ok
         }
+
+        // Fetch proposals count
+        try {
+          const proposalsResponse = await fetch('/api/businesses/me/proposals');
+          if (proposalsResponse.ok) {
+            const proposalsData = await proposalsResponse.json();
+            const proposals = proposalsData.proposals || [];
+            const pendingCount = proposals.filter((p: any) => p.status === 'pending').length;
+            setStats((prev) => ({
+              ...prev,
+              totalProposals: proposals.length,
+              pendingProposals: pendingCount,
+            }));
+          }
+        } catch (e) {
+          // Proposals API might fail, that's ok
+        }
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -230,7 +247,18 @@ export default function BusinessDashboardPage() {
         );
 
       case 'proposals':
-        return <BusinessProposalsPanel />;
+        return (
+          <BusinessProposalsPanel
+            isActive={activeSection === 'proposals'}
+            onStatsChange={(total, pending) => {
+              setStats(prev => ({
+                ...prev,
+                totalProposals: total,
+                pendingProposals: pending,
+              }));
+            }}
+          />
+        );
 
       case 'marketplace':
         return <BusinessMarketplacePanel />;

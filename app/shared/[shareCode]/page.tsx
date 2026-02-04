@@ -79,7 +79,7 @@ export default function SharedTripPage() {
 
   const totalCost = days.reduce((total, day) => {
     return total + day.activities.reduce((dayTotal, activity) => {
-      return dayTotal + (activity.estimated_cost || 0);
+      return dayTotal + (Number(activity.estimated_cost) || 0);
     }, 0);
   }, 0);
 

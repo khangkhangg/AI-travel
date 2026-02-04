@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
     if (self === 'true') {
       const user = await getUser();
       if (!user) {
-        return NextResponse.json({ isBusiness: false });
+        // Not logged in - distinguish from "logged in but no business"
+        return NextResponse.json({ isBusiness: false, isLoggedIn: false });
       }
 
       const result = await query(
@@ -28,9 +29,9 @@ export async function GET(request: NextRequest) {
       );
 
       if (result.rows.length > 0) {
-        return NextResponse.json({ isBusiness: true, business: result.rows[0] });
+        return NextResponse.json({ isBusiness: true, isLoggedIn: true, business: result.rows[0] });
       }
-      return NextResponse.json({ isBusiness: false });
+      return NextResponse.json({ isBusiness: false, isLoggedIn: true });
     }
 
     // Build query for listing businesses

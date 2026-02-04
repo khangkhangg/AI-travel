@@ -14,6 +14,7 @@ interface ProfileLayoutProps {
   };
   isGuide: boolean;
   pendingBookings?: number;
+  pendingActivity?: number;
   children: (activeSection: SectionId, activeSubItem: SubItemId | null) => ReactNode;
   defaultSection?: SectionId;
   defaultSubItem?: SubItemId;
@@ -26,6 +27,7 @@ export default function ProfileLayout({
   user,
   isGuide,
   pendingBookings = 0,
+  pendingActivity = 0,
   children,
   defaultSection = 'dashboard',
   defaultSubItem,
@@ -66,6 +68,7 @@ export default function ProfileLayout({
         user={user}
         isGuide={isGuide}
         pendingBookings={pendingBookings}
+        pendingActivity={pendingActivity}
         activeSection={activeSection}
         activeSubItem={activeSubItem}
         onSectionChange={handleSectionChange}

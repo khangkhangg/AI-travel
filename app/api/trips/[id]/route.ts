@@ -40,9 +40,12 @@ export async function GET(
     // Check access permissions
     const isOwner = user && trip.user_id === user.id;
     const isCollaborator = trip.user_role !== null;
-    const isPublicOrCurated = trip.visibility === 'public' || trip.visibility === 'curated';
+    const isPubliclyAccessible =
+      trip.visibility === 'public' ||
+      trip.visibility === 'curated' ||
+      trip.visibility === 'marketplace';
 
-    if (!isPublicOrCurated && !isOwner && !isCollaborator) {
+    if (!isPubliclyAccessible && !isOwner && !isCollaborator) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -135,6 +138,102 @@ export async function GET(
       // Table doesn't exist yet, continue with 0
     }
 
+    // Get current user's marketplace context (business status, guide status)
+    let userMarketplaceContext = {
+      isBusiness: false,
+      business: null as any,
+      isGuide: false,
+      isLoggedIn: !!user,
+      currentUser: user ? {
+        id: user.id,
+        email: user.email,
+        avatar_url: null as string | null,
+        full_name: null as string | null,
+      } : null,
+    };
+
+    if (user) {
+      // Get current user's profile info
+      try {
+        const userProfileResult = await query(
+          `SELECT avatar_url, full_name FROM users WHERE id = $1`,
+          [user.id]
+        );
+        if (userProfileResult.rows.length > 0) {
+          userMarketplaceContext.currentUser = {
+            id: user.id,
+            email: user.email,
+            avatar_url: userProfileResult.rows[0].avatar_url,
+            full_name: userProfileResult.rows[0].full_name,
+          };
+        }
+      } catch {
+        // Continue without profile info
+      }
+      // Check if user has a business account
+      try {
+        const businessResult = await query(
+          `SELECT * FROM businesses WHERE user_id = $1 AND is_active = true LIMIT 1`,
+          [user.id]
+        );
+        if (businessResult.rows.length > 0) {
+          userMarketplaceContext.isBusiness = true;
+          userMarketplaceContext.business = businessResult.rows[0];
+        }
+      } catch {
+        // Table doesn't exist yet
+      }
+
+      // Check if user is a guide
+      try {
+        const guideResult = await query(
+          `SELECT is_guide FROM users WHERE id = $1`,
+          [user.id]
+        );
+        userMarketplaceContext.isGuide = guideResult.rows[0]?.is_guide || false;
+      } catch {
+        // Column doesn't exist yet
+      }
+    }
+
+    // Get proposal counts per activity (for marketplace badges)
+    let proposalCounts: Record<string, number> = {};
+    try {
+      const proposalCountsResult = await query(
+        `SELECT activity_id, COUNT(*) as count
+         FROM marketplace_proposals
+         WHERE trip_id = $1 AND status = 'pending'
+         GROUP BY activity_id`,
+        [id]
+      );
+      proposalCountsResult.rows.forEach((row: any) => {
+        if (row.activity_id) {
+          proposalCounts[row.activity_id] = parseInt(row.count);
+        }
+      });
+    } catch {
+      // Table doesn't exist yet
+    }
+
+    // Get suggestion counts per activity
+    let suggestionCounts: Record<string, number> = {};
+    try {
+      const suggestionCountsResult = await query(
+        `SELECT activity_id, COUNT(*) as count
+         FROM trip_suggestions
+         WHERE trip_id = $1 AND status = 'pending'
+         GROUP BY activity_id`,
+        [id]
+      );
+      suggestionCountsResult.rows.forEach((row: any) => {
+        if (row.activity_id) {
+          suggestionCounts[row.activity_id] = parseInt(row.count);
+        }
+      });
+    } catch {
+      // Table doesn't exist yet
+    }
+
     // Build creator object
     const creator = {
       id: trip.user_id,
@@ -155,7 +254,10 @@ export async function GET(
         collaborators: collaboratorsResult.rows,
         creator,
         payment_links: paymentLinks,
-      }
+      },
+      userMarketplaceContext,
+      proposalCounts,
+      suggestionCounts,
     });
   } catch (error: any) {
     console.error('Failed to fetch trip:', error);

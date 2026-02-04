@@ -20,7 +20,9 @@ export async function GET(
       }
 
       const result = await query(
-        `SELECT mp.*, t.title as trip_title, t.city as trip_city
+        `SELECT mp.*,
+          b.business_name, b.business_type, b.logo_url, b.rating, b.review_count,
+          t.title as trip_title, t.city as trip_city
          FROM marketplace_proposals mp
          JOIN trips t ON t.id = mp.trip_id
          JOIN businesses b ON b.id = mp.business_id
@@ -113,21 +115,26 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot submit proposal for your own trip' }, { status: 400 });
     }
 
-    // Check if already submitted a proposal
+    // Check if already submitted a proposal (exclude declined, expired, and withdrawn)
     const existingProposal = await query(
-      "SELECT id FROM marketplace_proposals WHERE trip_id = $1 AND business_id = $2 AND status NOT IN ('declined', 'expired')",
+      "SELECT id, status FROM marketplace_proposals WHERE trip_id = $1 AND business_id = $2 AND status NOT IN ('declined', 'expired', 'withdrawn')",
       [id, businessId]
     );
 
     if (existingProposal.rows.length > 0) {
+      const existing = existingProposal.rows[0];
+      const statusMsg = existing.status === 'withdrawal_requested'
+        ? 'You have a pending withdrawal request for this trip'
+        : 'You already have an active proposal for this trip';
       return NextResponse.json(
-        { error: 'You already have an active proposal for this trip' },
+        { error: statusMsg },
         { status: 400 }
       );
     }
 
     const body = await request.json();
     const {
+      activity_id,
       service_needs_ids,
       services_offered,
       pricing_breakdown,
@@ -148,13 +155,14 @@ export async function POST(
 
     const result = await query(
       `INSERT INTO marketplace_proposals (
-        trip_id, business_id, service_needs_ids, services_offered, pricing_breakdown,
+        trip_id, business_id, activity_id, service_needs_ids, services_offered, pricing_breakdown,
         total_price, currency, message, terms, attachments, expires_at, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
       RETURNING *`,
       [
         id,
         businessId,
+        activity_id || null,
         service_needs_ids || [],
         JSON.stringify(services_offered),
         JSON.stringify(pricing_breakdown),
@@ -179,5 +187,161 @@ export async function POST(
   } catch (error: any) {
     console.error('Failed to submit proposal:', error);
     return NextResponse.json({ error: 'Failed to submit proposal' }, { status: 500 });
+  }
+}
+
+// PATCH - Update proposal status (accept/decline by owner, withdraw by business)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const { proposal_id, status, message } = await request.json();
+
+    if (!proposal_id || !status) {
+      return NextResponse.json({ error: 'Proposal ID and status are required' }, { status: 400 });
+    }
+
+    // Validate status
+    const validStatuses = ['accepted', 'declined', 'withdrawn', 'withdrawal_requested'];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+    }
+
+    // Get proposal with business and trip info
+    const proposalCheck = await query(
+      `SELECT mp.*, b.user_id as business_user_id, t.user_id as trip_owner_id
+       FROM marketplace_proposals mp
+       JOIN businesses b ON b.id = mp.business_id
+       JOIN trips t ON t.id = mp.trip_id
+       WHERE mp.id = $1 AND mp.trip_id = $2`,
+      [proposal_id, id]
+    );
+
+    if (proposalCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
+    }
+
+    const proposal = proposalCheck.rows[0];
+
+    // Check permissions and valid state transitions based on action
+    if (status === 'withdrawn') {
+      // Business can withdraw their own pending proposal directly
+      // Trip owner can approve a withdrawal request (from withdrawal_requested to withdrawn)
+      if (proposal.business_user_id === user.id) {
+        // Business withdrawing - only allowed for pending proposals
+        if (proposal.status !== 'pending') {
+          return NextResponse.json({ error: 'Can only withdraw pending proposals directly. Use withdrawal request for accepted proposals.' }, { status: 400 });
+        }
+      } else if (proposal.trip_owner_id === user.id) {
+        // Trip owner approving withdrawal - only allowed for withdrawal_requested
+        if (proposal.status !== 'withdrawal_requested') {
+          return NextResponse.json({ error: 'Can only approve withdrawal for proposals with pending withdrawal request' }, { status: 400 });
+        }
+      } else {
+        return NextResponse.json({ error: 'Not authorized to withdraw this proposal' }, { status: 403 });
+      }
+    } else if (status === 'withdrawal_requested') {
+      // Only the business owner can request withdrawal for their accepted proposals
+      if (proposal.business_user_id !== user.id) {
+        return NextResponse.json({ error: 'Not authorized to request withdrawal' }, { status: 403 });
+      }
+      if (proposal.status !== 'accepted') {
+        return NextResponse.json({ error: 'Can only request withdrawal for accepted proposals' }, { status: 400 });
+      }
+    } else if (status === 'accepted' || status === 'declined') {
+      // Only trip owner can accept/decline
+      if (proposal.trip_owner_id !== user.id) {
+        return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      }
+      // Can accept/decline pending proposals OR decline withdrawal requests
+      if (proposal.status !== 'pending' && !(status === 'accepted' && proposal.status === 'withdrawal_requested')) {
+        // Trip owner can reject a withdrawal request by setting status back to 'accepted'
+        if (!(status === 'accepted' && proposal.status === 'withdrawal_requested')) {
+          return NextResponse.json({ error: 'Can only update pending proposals' }, { status: 400 });
+        }
+      }
+    }
+
+    // Update the proposal (optionally include withdrawal message in terms JSON)
+    let updateQuery = 'UPDATE marketplace_proposals SET status = $1, updated_at = NOW()';
+    const updateParams: any[] = [status, proposal_id];
+
+    if (status === 'withdrawal_requested' && message) {
+      // Store withdrawal reason in terms JSON
+      const terms = proposal.terms ? (typeof proposal.terms === 'string' ? JSON.parse(proposal.terms) : proposal.terms) : {};
+      terms.withdrawal_reason = message;
+      updateQuery = 'UPDATE marketplace_proposals SET status = $1, terms = $3, updated_at = NOW()';
+      updateParams.push(JSON.stringify(terms));
+    }
+
+    updateQuery += ` WHERE id = $2 RETURNING *`;
+
+    const result = await query(updateQuery, updateParams);
+
+    return NextResponse.json({ proposal: result.rows[0] });
+  } catch (error: any) {
+    console.error('Failed to update proposal:', error);
+    return NextResponse.json({ error: 'Failed to update proposal' }, { status: 500 });
+  }
+}
+
+// DELETE - Remove a proposal (business owner only, for their own proposals)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const proposalId = searchParams.get('proposalId');
+
+    if (!proposalId) {
+      return NextResponse.json({ error: 'Proposal ID is required' }, { status: 400 });
+    }
+
+    // Get proposal with business info
+    const proposalCheck = await query(
+      `SELECT mp.*, b.user_id as business_user_id
+       FROM marketplace_proposals mp
+       JOIN businesses b ON b.id = mp.business_id
+       WHERE mp.id = $1 AND mp.trip_id = $2`,
+      [proposalId, id]
+    );
+
+    if (proposalCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'Proposal not found' }, { status: 404 });
+    }
+
+    const proposal = proposalCheck.rows[0];
+
+    // Only the business owner can delete their own proposal
+    if (proposal.business_user_id !== user.id) {
+      return NextResponse.json({ error: 'Not authorized to delete this proposal' }, { status: 403 });
+    }
+
+    // Can only delete pending proposals
+    if (proposal.status !== 'pending') {
+      return NextResponse.json({ error: 'Can only delete pending proposals' }, { status: 400 });
+    }
+
+    // Delete the proposal
+    await query('DELETE FROM marketplace_proposals WHERE id = $1', [proposalId]);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Failed to delete proposal:', error);
+    return NextResponse.json({ error: 'Failed to delete proposal' }, { status: 500 });
   }
 }

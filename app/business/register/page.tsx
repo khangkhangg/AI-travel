@@ -20,6 +20,10 @@ import {
   Mail,
   Instagram,
   Facebook,
+  Upload,
+  Image as ImageIcon,
+  FileText,
+  X,
 } from 'lucide-react';
 
 type BusinessType = 'guide' | 'hotel' | 'transport' | 'experience' | 'health';
@@ -85,6 +89,36 @@ export default function BusinessRegistrationPage() {
     services: [],
   });
 
+  // File upload state
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<File[]>([]);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Handle logo file selection
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle document file selection
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setDocuments(prev => [...prev, ...files]);
+  };
+
+  // Remove a document from the list
+  const removeDocument = (index: number) => {
+    setDocuments(prev => prev.filter((_, i) => i !== index));
+  };
+
   // Check authentication and existing business
   useEffect(() => {
     const checkAuth = async () => {
@@ -92,10 +126,15 @@ export default function BusinessRegistrationPage() {
         const response = await fetch('/api/businesses?self=true');
         const data = await response.json();
 
-        if (data.isBusiness) {
-          setExistingBusiness(data.business);
+        // Check if user is logged in (new field from API)
+        if (data.isLoggedIn === false) {
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+          if (data.isBusiness) {
+            setExistingBusiness(data.business);
+          }
         }
-        setIsAuthenticated(true);
       } catch {
         setIsAuthenticated(false);
       } finally {
@@ -395,6 +434,100 @@ export default function BusinessRegistrationPage() {
                   />
                 </div>
 
+                {/* Logo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <ImageIcon className="w-4 h-4 inline mr-1" />
+                    Business Logo
+                  </label>
+                  <div className="flex items-start gap-4">
+                    {logoPreview ? (
+                      <div className="relative">
+                        <img
+                          src={logoPreview}
+                          alt="Logo preview"
+                          className="w-24 h-24 object-cover rounded-xl border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoFile(null);
+                            setLogoPreview(null);
+                          }}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 hover:bg-teal-50 transition-colors">
+                        <Upload className="w-6 h-6 text-gray-400" />
+                        <span className="text-xs text-gray-500 mt-1">Upload</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                    <div className="text-xs text-gray-500">
+                      <p>Upload your business logo</p>
+                      <p className="mt-1">Recommended: 200x200px, PNG or JPG</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Business Documentation */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FileText className="w-4 h-4 inline mr-1" />
+                    Business Documentation <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-3">
+                    Upload documents to verify your business (business license, certification, etc.)
+                  </p>
+
+                  {documents.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {documents.map((doc, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg"
+                        >
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          <span className="flex-1 text-sm text-gray-700 truncate">{doc.name}</span>
+                          <span className="text-xs text-gray-400">
+                            {(doc.size / 1024).toFixed(1)} KB
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeDocument(index)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <label className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-teal-500 hover:bg-teal-50 transition-colors">
+                    <Upload className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">Add Document</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      multiple
+                      onChange={handleDocumentChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-400 mt-2">
+                    Accepted formats: PDF, JPG, PNG, DOC, DOCX (max 5MB each)
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Coverage Areas <span className="text-red-500">*</span>
@@ -462,7 +595,7 @@ export default function BusinessRegistrationPage() {
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  disabled={!formData.business_name.trim() || !formData.description.trim() || formData.coverage_areas.length === 0}
+                  disabled={!formData.business_name.trim() || !formData.description.trim() || formData.coverage_areas.length === 0 || documents.length === 0}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 text-white rounded-xl font-semibold hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Continue
@@ -688,9 +821,19 @@ export default function BusinessRegistrationPage() {
                     <span className="font-medium text-gray-900">{formData.contact_info.email}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-2">
+                <div className="flex justify-between py-2 border-b border-gray-200">
                   <span className="text-gray-500">Services</span>
                   <span className="font-medium text-gray-900">{formData.services.length} services</span>
+                </div>
+                {logoPreview && (
+                  <div className="flex justify-between items-center py-2 border-b border-gray-200">
+                    <span className="text-gray-500">Logo</span>
+                    <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded-lg object-cover" />
+                  </div>
+                )}
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500">Documents</span>
+                  <span className="font-medium text-gray-900">{documents.length} file(s) uploaded</span>
                 </div>
               </div>
 

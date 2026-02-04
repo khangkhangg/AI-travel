@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { User, Loader2 } from 'lucide-react';
 import { UserProfile, UserTravelHistory, BADGE_DEFINITIONS } from '@/lib/types/user';
@@ -20,6 +20,7 @@ import {
   PrivacyPanel,
   GuideModePanel,
   BookingsPanel,
+  ActivityPanel,
 } from '@/components/profile/panels';
 
 // Dynamically import modals
@@ -42,6 +43,7 @@ interface GuideDetails {
 
 export default function ProfilePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [badgeLevels, setBadgeLevels] = useState<UserBadgeLevel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +69,9 @@ export default function ProfilePage() {
   });
   const [bookingFilter, setBookingFilter] = useState<string>('all');
 
+  // Activity state
+  const [pendingActivityCount, setPendingActivityCount] = useState(0);
+
   // Modal states
   const [showTravelModal, setShowTravelModal] = useState(false);
   const [showWishlistModal, setShowWishlistModal] = useState(false);
@@ -78,6 +83,7 @@ export default function ProfilePage() {
     fetchProfile();
     fetchGuideMode();
     fetchGoogleCalendarSetting();
+    fetchPendingActivityCount();
   }, []);
 
   const fetchProfile = async () => {
@@ -150,6 +156,25 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error('Failed to fetch Google Calendar setting:', err);
+    }
+  };
+
+  const fetchPendingActivityCount = async () => {
+    try {
+      const response = await fetch('/api/users/me/activity?limit=50');
+      if (response.ok) {
+        const data = await response.json();
+        const activities = data.activities || [];
+        // Count pending items (received proposals/suggestions with pending or withdrawal_requested status)
+        const pendingCount = activities.filter(
+          (a: any) =>
+            (a.type === 'bid_received' || a.type === 'suggestion_received') &&
+            (a.status === 'pending' || a.status === 'withdrawal_requested')
+        ).length;
+        setPendingActivityCount(pendingCount);
+      }
+    } catch (err) {
+      console.error('Failed to fetch pending activity count:', err);
     }
   };
 
@@ -393,6 +418,9 @@ export default function ProfilePage() {
           />
         );
 
+      case 'activity':
+        return <ActivityPanel />;
+
       case 'profile':
         switch (activeSubItem) {
           case 'personal-info':
@@ -553,6 +581,10 @@ export default function ProfilePage() {
     );
   }
 
+  // Get initial section from query params
+  const sectionParam = searchParams.get('section');
+  const defaultSection = (sectionParam === 'activity' ? 'activity' : 'dashboard') as SectionId;
+
   return (
     <>
       <ProfileLayout
@@ -566,6 +598,8 @@ export default function ProfilePage() {
         }}
         isGuide={isGuide}
         pendingBookings={bookingCounts.pending}
+        pendingActivity={pendingActivityCount}
+        defaultSection={defaultSection}
         onSectionChange={handleSectionChange}
       >
         {renderPanel}

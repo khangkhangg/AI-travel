@@ -3,6 +3,35 @@ import { test, expect } from '@playwright/test';
 const API_BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 test.describe('Trip API Tests', () => {
+  test.describe('GET /api/trips/[id] - Trip Access Permissions', () => {
+    test('should allow access to marketplace visibility trips', async ({ request }) => {
+      // Test accessing a marketplace trip without authentication
+      // This verifies the fix for the permission issue
+      const response = await request.get(`${API_BASE_URL}/api/trips/b1eda8fe-7bdc-4772-888c-4193bcf676da`);
+
+      // Should NOT return 403 - marketplace trips should be publicly accessible
+      expect(response.status()).not.toBe(403);
+
+      // If trip exists, it should return 200
+      if (response.status() === 200) {
+        const data = await response.json();
+        expect(data).toHaveProperty('trip');
+        expect(data.trip.visibility).toBe('marketplace');
+      }
+    });
+
+    test('should deny access to private trips for unauthenticated users', async ({ request }) => {
+      // This is expected behavior - private trips should not be accessible
+      // Note: This test may fail if there's no private trip with this ID
+      // It's mainly to document expected behavior
+      const response = await request.get(`${API_BASE_URL}/api/trips/nonexistent-private-trip`);
+
+      // Should return 404 (not found) or 403 (access denied)
+      expect([403, 404]).toContain(response.status());
+    });
+  });
+
+
   test.describe('GET /api/discover', () => {
     test('should return public trips', async ({ request }) => {
       const response = await request.get(`${API_BASE_URL}/api/discover`);

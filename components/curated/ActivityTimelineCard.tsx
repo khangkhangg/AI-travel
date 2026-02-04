@@ -25,6 +25,8 @@ import {
   Link,
   Loader2,
 } from 'lucide-react';
+import { BidCard, BidForm, SuggestionCard, SuggestionForm, ActivityBidsBadge } from '@/components/marketplace';
+import type { ViewMode, Proposal, TripSuggestion, Business, BidFormData, SuggestionFormData } from '@/lib/types/marketplace';
 
 interface ActivityTimelineCardProps {
   activity: {
@@ -48,6 +50,28 @@ interface ActivityTimelineCardProps {
   onUpdateUrl?: (activityId: string, url: string) => void;
   onUpdateLocation?: (activityId: string, lat: number, lng: number, address?: string) => void;
   isOwner?: boolean;
+  // Marketplace props
+  viewMode?: ViewMode;
+  bids?: Proposal[];
+  suggestions?: TripSuggestion[];
+  bidCount?: number;
+  suggestionCount?: number;
+  business?: Business | null;
+  tripId?: string;
+  onSubmitBid?: (data: BidFormData) => Promise<void>;
+  onSubmitSuggestion?: (data: SuggestionFormData) => Promise<void>;
+  onAcceptBid?: (proposalId: string) => Promise<void>;
+  onDeclineBid?: (proposalId: string) => Promise<void>;
+  onWithdrawBid?: (proposalId: string) => Promise<void>;
+  onApproveWithdrawal?: (proposalId: string) => Promise<void>;
+  onRejectWithdrawal?: (proposalId: string) => Promise<void>;
+  onMarkSuggestionUsed?: (suggestionId: string) => Promise<void>;
+  onDismissSuggestion?: (suggestionId: string) => Promise<void>;
+  // Auth props
+  isLoggedIn?: boolean;
+  onAuthRequired?: () => void;
+  // Trip visibility for marketplace
+  tripVisibility?: string;
 }
 
 interface FetchedPlace {
@@ -114,6 +138,25 @@ export default function ActivityTimelineCard({
   onUpdateUrl,
   onUpdateLocation,
   isOwner = false,
+  viewMode = 'normal',
+  bids = [],
+  suggestions = [],
+  bidCount = 0,
+  suggestionCount = 0,
+  business,
+  tripId,
+  onSubmitBid,
+  onSubmitSuggestion,
+  onAcceptBid,
+  onDeclineBid,
+  onWithdrawBid,
+  onApproveWithdrawal,
+  onRejectWithdrawal,
+  onMarkSuggestionUsed,
+  onDismissSuggestion,
+  isLoggedIn = true,
+  onAuthRequired,
+  tripVisibility,
 }: ActivityTimelineCardProps) {
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState(activity.description || '');
@@ -129,6 +172,11 @@ export default function ActivityTimelineCard({
   const hasLocation = activity.location_lat && activity.location_lng;
   const cost = formatCost(activity.estimated_cost);
   const canEdit = isOwner;
+
+  // Check if this is a hotel/accommodation
+  const isHotel = activity.category?.toLowerCase() === 'hotel' ||
+    activity.category?.toLowerCase() === 'accommodation' ||
+    activity.category?.toLowerCase() === 'lodging';
 
   // Auto-fetch when URL is pasted
   useEffect(() => {
@@ -247,7 +295,9 @@ export default function ActivityTimelineCard({
 
       {/* Card */}
       <div className="flex-1 pb-6">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow">
+        <div className={`bg-white rounded-xl border shadow-sm p-4 hover:shadow-md transition-shadow ${
+          isHotel ? 'border-amber-300 bg-amber-50/30' : 'border-gray-100'
+        }`} id={`activity-${activity.id}`}>
           {/* Header: Icon + Title */}
           <div className="flex items-start gap-3">
             <div
@@ -444,6 +494,14 @@ export default function ActivityTimelineCard({
             )}
 
             <div className="flex items-center gap-2 ml-auto">
+              {/* Marketplace badges (for owner in normal view) */}
+              {isOwner && viewMode === 'normal' && (
+                <>
+                  {bidCount > 0 && <ActivityBidsBadge count={bidCount} type="bids" />}
+                  {suggestionCount > 0 && <ActivityBidsBadge count={suggestionCount} type="suggestions" />}
+                </>
+              )}
+
               {/* Add/Edit URL button */}
               {canEdit && onUpdateUrl && !editingUrl && (
                 <button
@@ -479,6 +537,115 @@ export default function ActivityTimelineCard({
               )}
             </div>
           </div>
+
+          {/* Marketplace Section - Bids */}
+          {viewMode === 'business' && (
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+              {/* Existing bids */}
+              {bids.length > 0 && (
+                <div className="space-y-2">
+                  {bids.map((bid) => (
+                    <BidCard
+                      key={bid.id}
+                      proposal={bid}
+                      isOwner={isOwner}
+                      isOwnBid={!isOwner}  // In business view, non-owners see only their own bids
+                      onAccept={onAcceptBid}
+                      onDecline={onDeclineBid}
+                      onWithdraw={onWithdrawBid}
+                      onApproveWithdrawal={onApproveWithdrawal}
+                      onRejectWithdrawal={onRejectWithdrawal}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Bid form (for business users, not owners) */}
+              {!isOwner && business && onSubmitBid && (
+                <BidForm
+                  tripId={tripId || ''}
+                  activityId={activity.id}
+                  business={business}
+                  onSubmit={onSubmitBid}
+                  isLoggedIn={isLoggedIn}
+                  onAuthRequired={onAuthRequired}
+                  tripVisibility={tripVisibility}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Marketplace Section - Suggestions */}
+          {viewMode === 'creator' && (
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+              {/* Existing suggestions */}
+              {suggestions.length > 0 && (
+                <div className="space-y-2">
+                  {suggestions.map((suggestion) => (
+                    <SuggestionCard
+                      key={suggestion.id}
+                      suggestion={suggestion}
+                      isOwner={isOwner}
+                      onMarkUsed={onMarkSuggestionUsed}
+                      onDismiss={onDismissSuggestion}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Suggestion form (for non-owners) */}
+              {!isOwner && onSubmitSuggestion && (
+                <SuggestionForm
+                  tripId={tripId || ''}
+                  activityId={activity.id}
+                  onSubmit={onSubmitSuggestion}
+                  isLoggedIn={isLoggedIn}
+                  onAuthRequired={onAuthRequired}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Owner view - show both bids and suggestions */}
+          {isOwner && viewMode === 'normal' && (bids.length > 0 || suggestions.length > 0) && (
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
+              {/* Bids section */}
+              {bids.length > 0 && (
+                <div>
+                  <h5 className="text-sm font-medium text-green-700 mb-2">Business Bids</h5>
+                  <div className="space-y-2">
+                    {bids.map((bid) => (
+                      <BidCard
+                        key={bid.id}
+                        proposal={bid}
+                        isOwner={isOwner}
+                        onAccept={onAcceptBid}
+                        onDecline={onDeclineBid}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Suggestions section */}
+              {suggestions.length > 0 && (
+                <div>
+                  <h5 className="text-sm font-medium text-purple-700 mb-2">Creator Suggestions</h5>
+                  <div className="space-y-2">
+                    {suggestions.map((suggestion) => (
+                      <SuggestionCard
+                        key={suggestion.id}
+                        suggestion={suggestion}
+                        isOwner={isOwner}
+                        onMarkUsed={onMarkSuggestionUsed}
+                        onDismiss={onDismissSuggestion}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

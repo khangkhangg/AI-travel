@@ -114,14 +114,32 @@ function extractPlaceNameFromUrl(url: string): string | null {
 
 // Extract coordinates from Google Maps URL
 function extractCoordinatesFromUrl(url: string): { lat: number; lng: number } | null {
-  // Try various patterns for coordinates
-  const patterns = [
-    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,  // @lat,lng format
-    /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,  // !3d and !4d format
+  // Google Maps URLs often contain multiple !3d/!4d pairs when user searched from another location
+  // The LAST !3d/!4d pair is the actual selected place
+  // Example: /place/Restaurant/@center/data=!...!3d<ref_lat>!4d<ref_lng>...!3d<place_lat>!4d<place_lng>
+
+  // First, try to find ALL !3d/!4d matches and use the LAST one (the actual place)
+  const coordPattern = /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/g;
+  const matches = [...url.matchAll(coordPattern)];
+
+  if (matches.length > 0) {
+    // Use the LAST match - that's the actual selected place
+    const lastMatch = matches[matches.length - 1];
+    const lat = parseFloat(lastMatch[1]);
+    const lng = parseFloat(lastMatch[2]);
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      console.log(`DEBUG: Extracted coords from URL (${matches.length} matches found, using last): ${lat}, ${lng}`);
+      return { lat, lng };
+    }
+  }
+
+  // Fallback patterns (these usually have single matches)
+  const fallbackPatterns = [
+    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,  // @lat,lng format (map view center - fallback)
     /center=(-?\d+\.?\d*),(-?\d+\.?\d*)/,  // center= query param
   ];
 
-  for (const pattern of patterns) {
+  for (const pattern of fallbackPatterns) {
     const match = url.match(pattern);
     if (match) {
       const lat = parseFloat(match[1]);

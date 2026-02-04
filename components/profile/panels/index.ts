@@ -7,3 +7,4 @@ export { default as LinksPanel } from './LinksPanel';
 export { default as PrivacyPanel } from './PrivacyPanel';
 export { default as GuideModePanel } from './GuideModePanel';
 export { default as BookingsPanel } from './BookingsPanel';
+export { default as ActivityPanel } from './ActivityPanel';
