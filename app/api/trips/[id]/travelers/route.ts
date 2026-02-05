@@ -113,6 +113,75 @@ export async function POST(
   }
 }
 
+// PATCH update a traveler
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const user = await getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { travelerId, name, age } = body;
+
+    if (!travelerId) {
+      return NextResponse.json({ error: 'Traveler ID required' }, { status: 400 });
+    }
+
+    // Get current trip data
+    const tripResult = await query(
+      'SELECT generated_content FROM trips WHERE id = $1',
+      [id]
+    );
+
+    if (tripResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+
+    const currentContent = tripResult.rows[0].generated_content || {};
+    const travelers = currentContent.travelers || [];
+
+    // Find and update traveler
+    const travelerIndex = travelers.findIndex((t: any) => t.id === travelerId);
+    if (travelerIndex === -1) {
+      return NextResponse.json({ error: 'Traveler not found' }, { status: 404 });
+    }
+
+    // Update only provided fields
+    if (name !== undefined) {
+      travelers[travelerIndex].name = name;
+    }
+    if (age !== undefined) {
+      travelers[travelerIndex].age = age;
+      travelers[travelerIndex].isChild = age < 12;
+    }
+
+    const updatedContent = {
+      ...currentContent,
+      travelers,
+    };
+
+    // Update trip
+    await query(
+      'UPDATE trips SET generated_content = $1, updated_at = NOW() WHERE id = $2',
+      [JSON.stringify(updatedContent), id]
+    );
+
+    return NextResponse.json({ success: true, travelers });
+  } catch (error: any) {
+    console.error('Failed to update traveler:', error);
+    return NextResponse.json(
+      { error: 'Failed to update traveler' },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE remove a traveler
 export async function DELETE(
   request: NextRequest,

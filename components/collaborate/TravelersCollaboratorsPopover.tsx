@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Users, X, UserPlus, Mail, Copy, Check, Loader2, Link as LinkIcon } from 'lucide-react';
+import { Users, X, UserPlus, Mail, Copy, Check, Loader2, Link as LinkIcon, Pencil } from 'lucide-react';
 import { Traveler } from '@/lib/types/collaborate';
 
 interface Collaborator {
@@ -30,6 +30,8 @@ export default function TravelersCollaboratorsPopover({
   const [showAddTraveler, setShowAddTraveler] = useState(false);
   const [newTraveler, setNewTraveler] = useState({ name: '', age: '', email: '', phone: '' });
   const [addingTraveler, setAddingTraveler] = useState(false);
+  const [editingTravelerId, setEditingTravelerId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
   // Collaborators state
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -121,6 +123,48 @@ export default function TravelersCollaboratorsPopover({
       }
     } catch (error) {
       console.error('Failed to remove traveler:', error);
+    }
+  };
+
+  const handleStartEdit = (traveler: Traveler) => {
+    setEditingTravelerId(traveler.id);
+    setEditingName(traveler.name);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTravelerId(null);
+    setEditingName('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTravelerId || !editingName.trim()) return;
+
+    try {
+      const response = await fetch(`/api/trips/${tripId}/travelers`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          travelerId: editingTravelerId,
+          name: editingName.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        onTravelersChange(data.travelers);
+        setEditingTravelerId(null);
+        setEditingName('');
+      }
+    } catch (error) {
+      console.error('Failed to update traveler:', error);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
     }
   };
 
@@ -237,7 +281,7 @@ export default function TravelersCollaboratorsPopover({
                         className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
                       >
                         <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${
                             traveler.is_child
                               ? 'bg-gradient-to-br from-amber-400 to-orange-400'
                               : 'bg-gradient-to-br from-emerald-500 to-teal-500'
@@ -246,22 +290,69 @@ export default function TravelersCollaboratorsPopover({
                           {traveler.is_child ? '👶' : getInitials(traveler.name)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">{traveler.name}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
-                              {traveler.age}y {traveler.is_child ? '(Child)' : ''}
-                            </span>
-                          </div>
-                          {traveler.email && (
-                            <p className="text-xs text-gray-500 truncate">{traveler.email}</p>
+                          {editingTravelerId === traveler.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onKeyDown={handleEditKeyDown}
+                                autoFocus
+                                placeholder="Traveler name"
+                                aria-label="Traveler name"
+                                className="flex-1 px-2 py-1 text-sm border border-emerald-400 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleSaveEdit}
+                                title="Save"
+                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                title="Cancel"
+                                className="p-1 text-gray-400 hover:bg-gray-100 rounded"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">{traveler.name}</span>
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                                  {traveler.age}y {traveler.is_child ? '(Child)' : ''}
+                                </span>
+                              </div>
+                              {traveler.email && (
+                                <p className="text-xs text-gray-500 truncate">{traveler.email}</p>
+                              )}
+                            </>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRemoveTraveler(traveler.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                        {editingTravelerId !== traveler.id && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(traveler)}
+                              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                              title="Edit name"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTraveler(traveler.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Remove traveler"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
