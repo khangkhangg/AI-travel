@@ -1,6 +1,7 @@
 'use client';
 
 import { useDroppable } from '@dnd-kit/core';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Hotel, DollarSign, Trash2, GripVertical } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
@@ -35,6 +36,7 @@ interface DayColumnProps {
   };
   acceptedProposals?: Record<string, any>;
   usedSuggestions?: Record<string, any>;
+  dragListeners?: SyntheticListenerMap;
 }
 
 export default function DayColumn({
@@ -62,6 +64,7 @@ export default function DayColumn({
   marketplaceCounts,
   acceptedProposals,
   usedSuggestions,
+  dragListeners,
 }: DayColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${day.dayNumber}`,
@@ -140,7 +143,10 @@ export default function DayColumn({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {/* Drag handle - visible on hover */}
-            <div className={`cursor-grab text-gray-400 transition-opacity ${isHovering ? 'opacity-100' : 'opacity-0'}`}>
+            <div
+              {...dragListeners}
+              className={`cursor-grab text-gray-400 transition-opacity ${isHovering ? 'opacity-100' : 'opacity-0'}`}
+            >
               <GripVertical className="w-4 h-4" />
             </div>
 

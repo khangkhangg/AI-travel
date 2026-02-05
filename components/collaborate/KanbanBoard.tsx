@@ -12,7 +12,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
-import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import DayColumn from './DayColumn';
 import AddDayColumn from './AddDayColumn';
@@ -99,8 +99,8 @@ function SortableDayColumn(props: SortableDayColumnProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <DayColumn {...props} />
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <DayColumn {...props} dragListeners={listeners} />
     </div>
   );
 }
@@ -197,10 +197,7 @@ export default function KanbanBoard({
         const overIndex = currentOrder.indexOf(overDayNumber);
 
         if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
-          // Remove the active day from its position and insert at the new position
-          const newOrder = [...currentOrder];
-          newOrder.splice(activeIndex, 1);
-          newOrder.splice(overIndex, 0, activeDayNumber);
+          const newOrder = arrayMove(currentOrder, activeIndex, overIndex);
           onReorderDays(newOrder);
         }
       }
