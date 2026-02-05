@@ -234,15 +234,17 @@ function DiscoverContent() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {!isBusiness && (
+                <Link
+                  href="/business/register"
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg font-medium hover:bg-white/30 transition-colors"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Join as Business
+                </Link>
+              )}
               <Link
-                href="/business/register"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-lg font-medium hover:bg-white/30 transition-colors"
-              >
-                <Building2 className="w-4 h-4" />
-                Join as Business
-              </Link>
-              <Link
-                href="/trip/new"
+                href="/?action=start-planning"
                 className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors"
               >
                 <Sparkles className="w-4 h-4" />

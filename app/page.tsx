@@ -122,6 +122,21 @@ export default function HomePage() {
     fetchLandingSettings();
   }, []);
 
+  // Handle action query param (e.g., from "Create Trip" on discover page)
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'start-planning') {
+      // Trigger the Location command in ChatPanel
+      setTriggerCommand('location');
+      // Open mobile chat if on mobile
+      if (window.innerWidth < 1024) {
+        setMobileChat(true);
+      }
+      // Clean up URL without reloading
+      window.history.replaceState({}, '', '/');
+    }
+  }, [searchParams]);
+
   // Check auth state and restore pending session on mount
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
