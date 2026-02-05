@@ -546,6 +546,70 @@ export default function CollaboratePage() {
     setEditingTitleValue('');
   };
 
+  // Handle add day
+  const handleAddDay = async () => {
+    try {
+      const response = await fetch(`/api/trips/${tripId}/days`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (response.ok) {
+        await fetchTrip();
+      }
+    } catch (error) {
+      console.error('Failed to add day:', error);
+    }
+  };
+
+  // Handle edit day number (move day to new position)
+  const handleEditDayNumber = async (oldDay: number, newDay: number) => {
+    try {
+      const response = await fetch(`/api/trips/${tripId}/days/${oldDay}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newDayNumber: newDay }),
+      });
+      if (response.ok) {
+        await fetchTrip();
+      }
+    } catch (error) {
+      console.error('Failed to edit day number:', error);
+    }
+  };
+
+  // Handle delete day
+  const handleDeleteDay = async (dayNumber: number) => {
+    if (!confirm(`Delete Day ${dayNumber}? All activities will be removed.`)) {
+      return;
+    }
+    try {
+      const response = await fetch(`/api/trips/${tripId}/days/${dayNumber}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await fetchTrip();
+      }
+    } catch (error) {
+      console.error('Failed to delete day:', error);
+    }
+  };
+
+  // Handle reorder days via drag & drop
+  const handleReorderDays = async (order: number[]) => {
+    try {
+      const response = await fetch(`/api/trips/${tripId}/days/reorder`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order }),
+      });
+      if (response.ok) {
+        await fetchTrip();
+      }
+    } catch (error) {
+      console.error('Failed to reorder days:', error);
+    }
+  };
+
   // Handle location editing
   const handleStartEditLocation = () => {
     setEditingLocationValue(trip?.city || '');
@@ -861,6 +925,10 @@ export default function CollaboratePage() {
               marketplaceCounts={marketplaceCounts}
               acceptedProposals={acceptedProposals}
               usedSuggestions={usedSuggestions}
+              onAddDay={handleAddDay}
+              onEditDayNumber={handleEditDayNumber}
+              onDeleteDay={handleDeleteDay}
+              onReorderDays={handleReorderDays}
             />
           </div>
 
