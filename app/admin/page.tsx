@@ -65,6 +65,9 @@ interface AppSettings {
   aiUrlParsingEnabled: boolean;
   // Packages Tab (Chatbox)
   packagesTabEnabled: boolean;
+  // Landing Page Sections
+  tripCategoriesEnabled: boolean;
+  popularDestinationsEnabled: boolean;
   // Email
   emailProvider: string;
   emailFrom: string;
@@ -355,6 +358,8 @@ export default function AdminDashboard() {
         systemPrompt: settings?.systemPrompt,
         aiUrlParsingEnabled: settings?.aiUrlParsingEnabled,
         packagesTabEnabled: settings?.packagesTabEnabled,
+        tripCategoriesEnabled: settings?.tripCategoriesEnabled,
+        popularDestinationsEnabled: settings?.popularDestinationsEnabled,
       };
 
       if (newApiKey) {
@@ -3753,6 +3758,51 @@ export default function AdminDashboard() {
                       }`}
                     />
                   </button>
+                </div>
+
+                {/* Landing Page Sections */}
+                <div className="pt-4 border-t border-gray-200">
+                  <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Landing Page Sections</p>
+
+                  {/* Trip Categories Toggle */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="font-medium text-gray-900">Show Trip Categories</p>
+                      <p className="text-sm text-gray-500">Display the Trip Categories section on the landing page</p>
+                    </div>
+                    <button
+                      onClick={() => setSettings(s => s ? { ...s, tripCategoriesEnabled: !s.tripCategoriesEnabled } : s)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        settings?.tripCategoriesEnabled !== false ? 'bg-teal-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                          settings?.tripCategoriesEnabled !== false ? 'left-7' : 'left-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Popular Destinations Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">Show Popular Destinations</p>
+                      <p className="text-sm text-gray-500">Display the Popular Destinations section on the landing page</p>
+                    </div>
+                    <button
+                      onClick={() => setSettings(s => s ? { ...s, popularDestinationsEnabled: !s.popularDestinationsEnabled } : s)}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        settings?.popularDestinationsEnabled !== false ? 'bg-teal-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                          settings?.popularDestinationsEnabled !== false ? 'left-7' : 'left-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Max Tokens */}

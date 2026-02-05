@@ -97,6 +97,29 @@ export default function HomePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingTrip, setIsLoadingTrip] = useState(false);
   const [aiMetrics, setAIMetrics] = useState<AIMetrics | null>(null);
+  const [landingSettings, setLandingSettings] = useState<{
+    tripCategoriesEnabled: boolean;
+    popularDestinationsEnabled: boolean;
+  }>({ tripCategoriesEnabled: true, popularDestinationsEnabled: true });
+
+  // Fetch landing page settings on mount
+  useEffect(() => {
+    const fetchLandingSettings = async () => {
+      try {
+        const response = await fetch('/api/settings/public');
+        if (response.ok) {
+          const settings = await response.json();
+          setLandingSettings({
+            tripCategoriesEnabled: settings.tripCategoriesEnabled ?? true,
+            popularDestinationsEnabled: settings.popularDestinationsEnabled ?? true,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch landing settings:', error);
+      }
+    };
+    fetchLandingSettings();
+  }, []);
 
   // Check auth state and restore pending session on mount
   useEffect(() => {
@@ -498,10 +521,14 @@ export default function HomePage() {
               <HeroSection onSearch={handleSearch} />
 
               {/* Trip Categories */}
-              <TripCategories onCategorySelect={handleCategorySelect} />
+              {landingSettings.tripCategoriesEnabled && (
+                <TripCategories onCategorySelect={handleCategorySelect} />
+              )}
 
               {/* Popular Destinations */}
-              <PopularDestinations onDestinationSelect={handleDestinationSelect} />
+              {landingSettings.popularDestinationsEnabled && (
+                <PopularDestinations onDestinationSelect={handleDestinationSelect} />
+              )}
 
               {/* Curated Itineraries from Travelers */}
               <CuratedItineraries

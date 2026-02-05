@@ -20,6 +20,9 @@ interface Settings {
   aiUrlParsingEnabled: boolean;
   // Packages Tab (Chatbox)
   packagesTabEnabled: boolean;
+  // Landing Page Sections
+  tripCategoriesEnabled: boolean;
+  popularDestinationsEnabled: boolean;
   // Email Configuration
   emailProvider: string;
   emailFrom: string;
@@ -47,6 +50,9 @@ const DEFAULT_SETTINGS: Settings = {
   aiUrlParsingEnabled: false,
   // Packages Tab - enabled by default
   packagesTabEnabled: true,
+  // Landing Page Sections - enabled by default
+  tripCategoriesEnabled: true,
+  popularDestinationsEnabled: true,
   // Email - load from env
   emailProvider: process.env.EMAIL_PROVIDER || 'disabled',
   emailFrom: process.env.EMAIL_FROM || '',
@@ -209,6 +215,9 @@ export async function GET() {
     aiUrlParsingEnabled: settings.aiUrlParsingEnabled ?? false,
     // Packages Tab
     packagesTabEnabled: settings.packagesTabEnabled ?? true,
+    // Landing Page Sections
+    tripCategoriesEnabled: settings.tripCategoriesEnabled ?? true,
+    popularDestinationsEnabled: settings.popularDestinationsEnabled ?? true,
     // Email Configuration
     emailProvider: settings.emailProvider || 'disabled',
     emailFrom: settings.emailFrom || '',
@@ -248,6 +257,8 @@ export async function POST(request: NextRequest) {
       systemPrompt: body.systemPrompt ?? currentSettings.systemPrompt,
       aiUrlParsingEnabled: body.aiUrlParsingEnabled ?? currentSettings.aiUrlParsingEnabled,
       packagesTabEnabled: body.packagesTabEnabled ?? currentSettings.packagesTabEnabled,
+      tripCategoriesEnabled: body.tripCategoriesEnabled ?? currentSettings.tripCategoriesEnabled,
+      popularDestinationsEnabled: body.popularDestinationsEnabled ?? currentSettings.popularDestinationsEnabled,
     };
 
     // Only update API key if provided (not masked value)
