@@ -681,10 +681,10 @@ function MarketplaceTripCard({ trip, isBusiness = false }: { trip: MarketplaceTr
         </div>
 
         {/* Services Needed */}
-        {serviceNeeds.length > 0 && (
-          <div className="mb-3">
-            <div className="flex flex-wrap gap-1.5">
-              {serviceNeeds.map((service) => {
+        <div className="mb-3">
+          <div className="flex flex-wrap gap-1.5">
+            {serviceNeeds.length > 0 ? (
+              serviceNeeds.map((service) => {
                 const Icon = SERVICE_ICONS[service] || Building2;
                 return (
                   <span
@@ -695,10 +695,14 @@ function MarketplaceTripCard({ trip, isBusiness = false }: { trip: MarketplaceTr
                     {service}
                   </span>
                 );
-              })}
-            </div>
+              })
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 text-gray-500 text-xs font-medium rounded-full">
+                Open to all services
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Budget */}
         {(trip.marketplace_budget_min || trip.marketplace_budget_max) && (
