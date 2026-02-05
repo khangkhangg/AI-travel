@@ -3,6 +3,22 @@
 // slot filling instead of sending full conversation history.
 
 // ============================================================================
+// Constants (defined first for use in types)
+// ============================================================================
+
+/**
+ * Valid travel style options
+ */
+export const TRAVEL_STYLES = ['adventure', 'relaxed', 'cultural', 'luxury'] as const;
+export type TravelStyle = typeof TRAVEL_STYLES[number];
+
+/**
+ * Valid accommodation type options
+ */
+export const ACCOMMODATION_TYPES = ['hotel', 'hostel', 'airbnb', 'luxury'] as const;
+export type AccommodationType = typeof ACCOMMODATION_TYPES[number];
+
+// ============================================================================
 // Core Types
 // ============================================================================
 
@@ -24,9 +40,9 @@ export interface TripSlots {
   };
 
   // Preferences (required)
-  travelStyle: string | null;      // 'adventure' | 'relaxed' | 'cultural' | 'luxury'
+  travelStyle: TravelStyle | null;
   interests: string[];             // ['food', 'temples', 'nightlife']
-  accommodationType: string | null; // 'hotel' | 'hostel' | 'airbnb' | 'luxury'
+  accommodationType: AccommodationType | null;
 
   // Derived
   isComplete: boolean;
@@ -107,14 +123,10 @@ export interface GeneratedTrip {
   };
 }
 
-// ============================================================================
-// Constants
-// ============================================================================
-
 /**
  * Human-readable labels for each slot, used in UI displays
  */
-export const SLOT_LABELS: Record<string, string> = {
+export const SLOT_LABELS = {
   destination: 'Destination',
   dates: 'Travel Dates',
   budget: 'Budget',
@@ -124,17 +136,7 @@ export const SLOT_LABELS: Record<string, string> = {
   accommodationType: 'Accommodation Type',
 } as const;
 
-/**
- * Valid travel style options
- */
-export const TRAVEL_STYLES = ['adventure', 'relaxed', 'cultural', 'luxury'] as const;
-export type TravelStyle = typeof TRAVEL_STYLES[number];
-
-/**
- * Valid accommodation type options
- */
-export const ACCOMMODATION_TYPES = ['hotel', 'hostel', 'airbnb', 'luxury'] as const;
-export type AccommodationType = typeof ACCOMMODATION_TYPES[number];
+export type SlotKey = keyof typeof SLOT_LABELS;
 
 /**
  * Common interest categories
@@ -202,13 +204,13 @@ export interface SlotProgress {
  */
 export function calculateSlotProgress(slots: TripSlots): SlotProgress {
   const slotChecks: Array<{ key: string; isFilled: boolean }> = [
-    { key: 'destination', isFilled: slots.destination !== null && slots.destination.trim() !== '' },
+    { key: 'destination', isFilled: !!slots.destination?.trim() },
     { key: 'dates', isFilled: slots.dates.startDate !== null && slots.dates.duration !== null && slots.dates.duration > 0 },
     { key: 'budget', isFilled: slots.budget.amount !== null && slots.budget.amount > 0 },
     { key: 'travelers', isFilled: slots.travelers.adults > 0 },
-    { key: 'travelStyle', isFilled: slots.travelStyle !== null && slots.travelStyle.trim() !== '' },
+    { key: 'travelStyle', isFilled: !!slots.travelStyle?.trim() },
     { key: 'interests', isFilled: slots.interests.length > 0 },
-    { key: 'accommodationType', isFilled: slots.accommodationType !== null && slots.accommodationType.trim() !== '' },
+    { key: 'accommodationType', isFilled: !!slots.accommodationType?.trim() },
   ];
 
   const filled = slotChecks.filter(s => s.isFilled).length;
