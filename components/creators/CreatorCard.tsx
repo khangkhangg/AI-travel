@@ -20,7 +20,8 @@ function formatNumber(num: number): string {
 }
 
 export default function CreatorCard({ creator, compact = false }: CreatorCardProps) {
-  const displayBadges = creator.badges.slice(0, 3);
+  // Deduplicate badges to avoid React key conflicts
+  const displayBadges = [...new Set(creator.badges)].slice(0, 3);
 
   if (compact) {
     // Compact variant for featured sections (horizontal scroll)
