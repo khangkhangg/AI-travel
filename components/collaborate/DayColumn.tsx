@@ -2,7 +2,8 @@
 
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus, Hotel, DollarSign } from 'lucide-react';
+import { Plus, Hotel, DollarSign, Trash2, GripVertical } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import ActivityCard from './ActivityCard';
 import { DayData, CollaborateActivity, Traveler } from '@/lib/types/collaborate';
 
@@ -12,6 +13,7 @@ interface DayColumnProps {
   isFirstDay: boolean;
   isLastDay: boolean;
   tripStartDate?: string;
+  totalDays: number;
   onVote: (activityId: string, vote: 'up' | 'down') => void;
   onFinalize: (activityId: string) => void;
   onAssignPayer: (activityId: string, payerId: string | null, isSplit: boolean) => void;
@@ -25,6 +27,8 @@ interface DayColumnProps {
   onUpdateSummary: (activityId: string, summary: string) => void;
   onUpdateDescription: (activityId: string, description: string) => void;
   onUpdateLocation?: (activityId: string, lat: number, lng: number, address?: string) => void;
+  onEditDayNumber?: (oldDay: number, newDay: number) => void;
+  onDeleteDay?: (dayNumber: number) => void;
   marketplaceCounts?: {
     proposals: Record<string, number>;
     suggestions: Record<string, number>;
@@ -39,6 +43,7 @@ export default function DayColumn({
   isFirstDay,
   isLastDay,
   tripStartDate,
+  totalDays,
   onVote,
   onFinalize,
   onAssignPayer,
@@ -52,6 +57,8 @@ export default function DayColumn({
   onUpdateSummary,
   onUpdateDescription,
   onUpdateLocation,
+  onEditDayNumber,
+  onDeleteDay,
   marketplaceCounts,
   acceptedProposals,
   usedSuggestions,
@@ -59,6 +66,37 @@ export default function DayColumn({
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${day.dayNumber}`,
   });
+
+  const [isEditingDay, setIsEditingDay] = useState(false);
+  const [editDayValue, setEditDayValue] = useState(day.dayNumber.toString());
+  const [isHovering, setIsHovering] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingDay && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingDay]);
+
+  const handleDayNumberSubmit = () => {
+    const newDay = parseInt(editDayValue);
+    if (newDay && newDay >= 1 && newDay <= totalDays && newDay !== day.dayNumber) {
+      onEditDayNumber?.(day.dayNumber, newDay);
+    }
+    setIsEditingDay(false);
+    setEditDayValue(day.dayNumber.toString());
+  };
+
+  const handleDayKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleDayNumberSubmit();
+    } else if (e.key === 'Escape') {
+      setIsEditingDay(false);
+      setEditDayValue(day.dayNumber.toString());
+    }
+  };
 
   // Calculate the actual date for this day based on trip start date
   const getDayDate = (): string | null => {
@@ -94,14 +132,44 @@ export default function DayColumn({
       }`}
     >
       {/* Day Header */}
-      <div className="mb-3">
+      <div
+        className="mb-3"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-gray-900">
-              Day {day.dayNumber}
-              {dayDate && <span className="font-normal text-gray-500 ml-2">• {dayDate}</span>}
-            </h3>
+          <div className="flex items-center gap-2">
+            {/* Drag handle - visible on hover */}
+            <div className={`cursor-grab text-gray-400 transition-opacity ${isHovering ? 'opacity-100' : 'opacity-0'}`}>
+              <GripVertical className="w-4 h-4" />
+            </div>
+
+            <div>
+              {isEditingDay ? (
+                <input
+                  ref={inputRef}
+                  type="number"
+                  min={1}
+                  max={totalDays}
+                  value={editDayValue}
+                  onChange={(e) => setEditDayValue(e.target.value)}
+                  onBlur={handleDayNumberSubmit}
+                  onKeyDown={handleDayKeyDown}
+                  className="w-16 px-2 py-0.5 text-sm font-bold border border-emerald-400 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              ) : (
+                <h3
+                  className="font-bold text-gray-900 cursor-pointer hover:text-emerald-600 transition-colors"
+                  onClick={() => setIsEditingDay(true)}
+                  title="Click to edit day number"
+                >
+                  Day {day.dayNumber}
+                  {dayDate && <span className="font-normal text-gray-500 ml-2">• {dayDate}</span>}
+                </h3>
+              )}
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">
               {otherActivities.length} activities
@@ -112,10 +180,26 @@ export default function DayColumn({
                 {dailyTotal}
               </span>
             )}
+
+            {/* Delete button - visible on hover, disabled if only 1 day */}
+            <button
+              onClick={() => onDeleteDay?.(day.dayNumber)}
+              disabled={totalDays <= 1}
+              className={`p-1 rounded transition-all ${
+                isHovering ? 'opacity-100' : 'opacity-0'
+              } ${
+                totalDays <= 1
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+              }`}
+              title={totalDays <= 1 ? 'Cannot delete the only day' : 'Delete this day'}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
         {day.title && (
-          <p className="text-sm text-gray-600 mt-0.5">{day.title}</p>
+          <p className="text-sm text-gray-600 mt-0.5 ml-6">{day.title}</p>
         )}
       </div>
 
