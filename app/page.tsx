@@ -551,6 +551,7 @@ export default function HomePage() {
               shareUrl={shareUrl}
               visibility={visibility}
               curatorInfo={curatorInfo}
+              tripId={currentTripId}
               onUpdateVisibility={handleUpdateVisibility}
             />
           )}
