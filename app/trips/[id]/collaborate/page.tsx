@@ -554,10 +554,13 @@ export default function CollaboratePage() {
         headers: { 'Content-Type': 'application/json' },
       });
       if (response.ok) {
-        await fetchTrip();
+        fetchTrip();
+      } else {
+        alert('Failed to add day');
       }
     } catch (error) {
       console.error('Failed to add day:', error);
+      alert('Failed to add day');
     }
   };
 
@@ -570,10 +573,13 @@ export default function CollaboratePage() {
         body: JSON.stringify({ newDayNumber: newDay }),
       });
       if (response.ok) {
-        await fetchTrip();
+        fetchTrip();
+      } else {
+        alert('Failed to move day');
       }
     } catch (error) {
       console.error('Failed to edit day number:', error);
+      alert('Failed to move day');
     }
   };
 
@@ -587,10 +593,13 @@ export default function CollaboratePage() {
         method: 'DELETE',
       });
       if (response.ok) {
-        await fetchTrip();
+        fetchTrip();
+      } else {
+        alert('Failed to delete day');
       }
     } catch (error) {
       console.error('Failed to delete day:', error);
+      alert('Failed to delete day');
     }
   };
 
@@ -603,10 +612,13 @@ export default function CollaboratePage() {
         body: JSON.stringify({ order }),
       });
       if (response.ok) {
-        await fetchTrip();
+        fetchTrip();
+      } else {
+        alert('Failed to reorder days');
       }
     } catch (error) {
       console.error('Failed to reorder days:', error);
+      alert('Failed to reorder days');
     }
   };
 
