@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUser } from '@/lib/auth/supabase';
 import { query } from '@/lib/db';
 import { nanoid } from 'nanoid';
+import { GeneratedTrip } from '@/lib/types/chat-session';
 
 // Generate a unique share code
 function generateShareCode(): string {
@@ -46,7 +47,63 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { destination, duration, itinerary, travelers, visibility = 'private', curatorInfo, chatHistory, aiMetrics } = body;
+
+    // Variables that may be populated from either format
+    let destination: string;
+    let duration: string;
+    let itinerary: any[];
+    let travelers: any[];
+    let generatedContent: any;
+
+    // Extract common fields that work for both formats
+    const { visibility = 'private', curatorInfo, chatHistory, aiMetrics } = body;
+
+    // Check if this is the new GeneratedTrip format
+    if (body.generatedTrip) {
+      const gt = body.generatedTrip as GeneratedTrip;
+
+      // Map to existing variables for compatibility
+      destination = gt.metadata.destination;
+      duration = `${gt.metadata.duration} days`;
+
+      // Convert itinerary format
+      itinerary = gt.itinerary.map(day => ({
+        day: day.dayNumber,
+        title: `Day ${day.dayNumber}`,
+        activities: day.items.map(item => ({
+          time: item.startTime || '',
+          title: item.title,
+          type: item.category,
+          description: item.description || '',
+          cost: item.estimatedCost || 0,
+          location: item.location?.name || '',
+        }))
+      }));
+
+      // Create travelers array from count (users will add names later)
+      travelers = [];
+      for (let i = 0; i < gt.metadata.travelers.adults; i++) {
+        travelers.push({ name: `Traveler ${i + 1}`, age: 30, isChild: false });
+      }
+      for (let i = 0; i < gt.metadata.travelers.children; i++) {
+        travelers.push({ name: `Child ${i + 1}`, age: 8, isChild: true });
+      }
+
+      // Include metadata and recommendations in generated_content
+      generatedContent = {
+        travelers,
+        itinerary,
+        metadata: gt.metadata,
+        recommendations: gt.recommendations,
+      };
+    } else {
+      // Old format - use directly from body
+      destination = body.destination;
+      duration = body.duration;
+      itinerary = body.itinerary;
+      travelers = body.travelers;
+      generatedContent = { travelers, itinerary };
+    }
 
     // Generate unique share code
     const shareCode = generateShareCode();
@@ -83,7 +140,7 @@ export async function POST(request: NextRequest) {
         duration || '',
         visibility,
         shareCode,
-        JSON.stringify({ travelers, itinerary }),
+        JSON.stringify(generatedContent),
         JSON.stringify(chatHistory || []),
         visibility === 'curated' ? curatorInfo?.isLocal : null,
         visibility === 'curated' ? curatorInfo?.yearsLived : null,
