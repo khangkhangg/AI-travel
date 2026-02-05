@@ -87,8 +87,9 @@ export default function CollaboratePage() {
           });
         } else {
           dayNumbers.forEach((dayNum: any) => {
+            // Filter out day_marker items (they're placeholders for empty days)
             const dayItems = itineraryItems
-              .filter((item: any) => item.day_number === dayNum)
+              .filter((item: any) => item.day_number === dayNum && item.category !== 'day_marker')
               .sort((a: any, b: any) => a.order_index - b.order_index);
 
             days.push({

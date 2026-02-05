@@ -31,6 +31,14 @@ export async function POST(
     );
     const newDayNumber = (maxDayResult.rows[0]?.max_day || 0) + 1;
 
+    // Create a placeholder item for the new day so it appears in the UI
+    // Using order_index -1 to put it at the beginning and mark it as a day marker
+    await query(
+      `INSERT INTO itinerary_items (trip_id, day_number, order_index, title, category)
+       VALUES ($1, $2, -1, '', 'day_marker')`,
+      [tripId, newDayNumber]
+    );
+
     return NextResponse.json({
       success: true,
       dayNumber: newDayNumber,
