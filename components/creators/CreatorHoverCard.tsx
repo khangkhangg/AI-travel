@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { MapPin, Eye, Copy, FileText, CheckCircle, Star, ArrowRight } from 'lucide-react';
 import { Creator, BADGE_DEFINITIONS } from '@/lib/types/user';
 
@@ -47,6 +48,7 @@ export default function CreatorHoverCard({ creator, children, disabled = false }
   const cardRef = useRef<HTMLDivElement>(null);
   const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const router = useRouter();
 
   // Don't show hover card if no username (can't link to profile)
   const canShowHoverCard = !disabled && creator?.username;
@@ -109,20 +111,30 @@ export default function CreatorHoverCard({ creator, children, disabled = false }
   const stats = creator.stats || { itineraryCount: 0, totalViews: 0, totalClones: 0 };
   const recentItineraries = creator.recentItineraries || [];
 
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(`/profile/${creator.username}`);
+  };
+
   return (
     <div className="relative inline-block">
       <div
         ref={triggerRef}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onClick={handleTriggerClick}
+        className="cursor-pointer"
+        role="link"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            router.push(`/profile/${creator.username}`);
+          }
+        }}
       >
-        <Link
-          href={`/profile/${creator.username}`}
-          onClick={(e) => e.stopPropagation()}
-          className="block"
-        >
-          {children}
-        </Link>
+        {children}
       </div>
 
       {isVisible && (
