@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Calendar,
   Clock,
@@ -37,6 +38,8 @@ import {
   Star,
   Loader2,
   Link,
+  Bot,
+  Eye,
 } from 'lucide-react';
 import { ItineraryVisibility, CuratorInfo } from '@/lib/types/user';
 import ShareModal, { MarketplaceSettings } from './ShareModal';
@@ -92,6 +95,7 @@ interface ItineraryDisplayProps {
   visibility?: ItineraryVisibility;
   curatorInfo?: CuratorInfo;
   marketplaceSettings?: MarketplaceSettings;
+  tripId?: string;
   onUpdateVisibility?: (visibility: ItineraryVisibility, curatorInfo?: CuratorInfo, marketplaceSettings?: MarketplaceSettings) => Promise<void>;
 }
 
@@ -145,6 +149,7 @@ export default function ItineraryDisplay({
   visibility = 'private',
   curatorInfo,
   marketplaceSettings,
+  tripId,
   onUpdateVisibility,
 }: ItineraryDisplayProps) {
   const [editingActivity, setEditingActivity] = useState<string | null>(null);
@@ -167,6 +172,10 @@ export default function ItineraryDisplay({
   const [dayHotels, setDayHotels] = useState<DayHotels[]>([]);
   const [loadingHotels, setLoadingHotels] = useState(false);
   const [expandedHotelDay, setExpandedHotelDay] = useState<number | null>(null);
+  const [showEditMenu, setShowEditMenu] = useState(false);
+  const [showSavedState, setShowSavedState] = useState(false);
+  const editMenuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Scroll detection for floating cost summary
   useEffect(() => {
@@ -181,6 +190,33 @@ export default function ItineraryDisplay({
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Timer to transition from "Saved" to "Edit" button after 5 seconds
+  useEffect(() => {
+    if (isSaved && !hasUnsavedChanges) {
+      setShowSavedState(true);
+      const timer = setTimeout(() => {
+        setShowSavedState(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowSavedState(false);
+    }
+  }, [isSaved, hasUnsavedChanges]);
+
+  // Close Edit menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (editMenuRef.current && !editMenuRef.current.contains(event.target as Node)) {
+        setShowEditMenu(false);
+      }
+    };
+
+    if (showEditMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showEditMenu]);
 
   // Get primary location for each day from activities
   const getDayLocation = (day: ItineraryDay): string => {
@@ -575,28 +611,103 @@ export default function ItineraryDisplay({
             <div className="flex items-center gap-2 relative">
               {isLoggedIn ? (
                 <>
-                  {/* Save Button */}
-                  <button
-                    onClick={handleSaveClick}
-                    disabled={isSaving || (isSaved && !hasUnsavedChanges)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all font-medium text-sm border ${
-                      isSaved && !hasUnsavedChanges
-                        ? 'bg-green-500/90 text-white border-green-400/50 cursor-default'
-                        : 'bg-white/90 text-teal-700 hover:bg-white disabled:opacity-50 border-white/50'
-                    }`}
-                  >
-                    {isSaved && !hasUnsavedChanges ? (
-                      <>
+                  {/* Save/Saved/Edit Button */}
+                  {isSaved && !hasUnsavedChanges ? (
+                    showSavedState ? (
+                      // Saved state (green, shows for 5 seconds)
+                      <button
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/90 text-white rounded-full transition-all font-medium text-sm border border-green-400/50 cursor-default"
+                      >
                         <Check className="w-3.5 h-3.5" />
                         Saved
-                      </>
+                      </button>
                     ) : (
-                      <>
-                        <Save className="w-3.5 h-3.5" />
-                        {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Save'}
-                      </>
-                    )}
-                  </button>
+                      // Edit dropdown button (appears after 5 seconds)
+                      <div className="relative" ref={editMenuRef}>
+                        <button
+                          onClick={() => setShowEditMenu(!showEditMenu)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all font-medium text-sm border ${
+                            showEditMenu
+                              ? 'bg-white text-teal-700 border-white shadow-lg'
+                              : 'bg-white/90 text-teal-700 hover:bg-white border-white/50'
+                          }`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Edit
+                          <ChevronDown className={`w-3 h-3 transition-transform ${showEditMenu ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Edit Dropdown Menu */}
+                        {showEditMenu && (
+                          <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50">
+                            {/* Edit with AI - Informational (current page) */}
+                            <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                                  <Bot className="w-5 h-5 text-teal-600" />
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900 text-sm">Edit with AI</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">Continue chatting with AI to refine your trip</p>
+                                  <p className="text-[10px] text-teal-600 mt-1 font-medium">Currently on this page</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Collaborate Option */}
+                            <button
+                              onClick={() => {
+                                setShowEditMenu(false);
+                                if (tripId) router.push(`/trips/${tripId}/collaborate`);
+                              }}
+                              disabled={!tripId}
+                              className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 group disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 transition-colors">
+                                  <Users className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900 text-sm">Collaborate</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">Plan together with friends and family</p>
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* View Suggestions Option */}
+                            <button
+                              onClick={() => {
+                                setShowEditMenu(false);
+                                if (tripId) router.push(`/trips/${tripId}`);
+                              }}
+                              disabled={!tripId}
+                              className="w-full px-4 py-3 text-left hover:bg-amber-50 transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+                                  <Eye className="w-5 h-5 text-amber-600" />
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900 text-sm">View Suggestions</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">See bids and suggestions from local guides</p>
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    // Save button (unsaved state)
+                    <button
+                      onClick={handleSaveClick}
+                      disabled={isSaving}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white/90 text-teal-700 rounded-full hover:bg-white disabled:opacity-50 transition-all font-medium text-sm border border-white/50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Save'}
+                    </button>
+                  )}
 
                   {/* Share Button with Tooltip */}
                   <div className="relative">
