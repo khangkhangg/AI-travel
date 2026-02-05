@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         t.marketplace_needs,
         t.marketplace_budget_min,
         t.marketplace_budget_max,
-        t.interests,
+        t.travel_type,
         t.created_at,
         -- Creator info
         u.id as creator_id,
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
         travelers: row.num_people || 1,
         budget,
         status,
-        categories: (row.interests || []).slice(0, 2),
+        categories: (row.travel_type || []).slice(0, 2),
         needs: needs.slice(0, 4),
         offersCount: proposalCount,
         createdAt: createdAtFormatted,

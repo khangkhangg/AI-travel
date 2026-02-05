@@ -101,6 +101,7 @@ export default function HomePage() {
     tripCategoriesEnabled: boolean;
     popularDestinationsEnabled: boolean;
   }>({ tripCategoriesEnabled: true, popularDestinationsEnabled: true });
+  const [triggerCommand, setTriggerCommand] = useState<'location' | 'duration' | 'budget' | 'travelers' | null>(null);
 
   // Fetch landing page settings on mount
   useEffect(() => {
@@ -314,10 +315,15 @@ export default function HomePage() {
   }, []);
 
   const handleGetStarted = useCallback(() => {
-    setChatPrompt('Help me plan my dream trip');
+    // Trigger the Location command in ChatPanel instead of sending a message
+    setTriggerCommand('location');
     if (window.innerWidth < 1024) {
       setMobileChat(true);
     }
+  }, []);
+
+  const handleTriggerCommandHandled = useCallback(() => {
+    setTriggerCommand(null);
   }, []);
 
   const handleConversationStart = useCallback(() => {
@@ -625,6 +631,8 @@ export default function HomePage() {
               onItineraryGenerated={handleItineraryGenerated}
               onMessagesChange={setChatMessages}
               onAIMetricsUpdate={handleAIMetricsUpdate}
+              triggerCommand={triggerCommand}
+              onTriggerCommandHandled={handleTriggerCommandHandled}
             />
           </div>
         </div>
@@ -685,6 +693,8 @@ export default function HomePage() {
                   onItineraryGenerated={handleItineraryGenerated}
                   onMessagesChange={setChatMessages}
                   onAIMetricsUpdate={handleAIMetricsUpdate}
+                  triggerCommand={triggerCommand}
+                  onTriggerCommandHandled={handleTriggerCommandHandled}
                 />
               </div>
             </div>

@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
         (SELECT jsonb_agg(badge_type)
          FROM user_badges ub
          WHERE ub.user_id = u.id) as creator_badges,
-        -- Interest tags from trip
-        t.interests,
+        -- Interest tags from trip (travel_type is the array column)
+        t.travel_type,
         -- Activity count
         (SELECT COUNT(*) FROM itinerary_items ii WHERE ii.trip_id = t.id) as activity_count
       FROM trips t
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
           clones: row.clone_count || 0,
         },
         rating: Math.round(rating * 10) / 10, // Round to 1 decimal
-        tags: (row.interests || []).slice(0, 3),
+        tags: (row.travel_type || []).slice(0, 3),
       };
     });
 

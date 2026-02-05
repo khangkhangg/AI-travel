@@ -104,6 +104,8 @@ interface ChatPanelProps {
   onMessagesChange?: (messages: Message[]) => void;
   onAIMetricsUpdate?: (metrics: AIMetrics) => void;
   packagesTabEnabled?: boolean;
+  triggerCommand?: 'location' | 'duration' | 'budget' | 'travelers' | null;
+  onTriggerCommandHandled?: () => void;
 }
 
 const smartTags = [
@@ -452,7 +454,7 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
   timestamp: new Date(),
 };
 
-export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate, packagesTabEnabled }: ChatPanelProps) {
+export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate, packagesTabEnabled, triggerCommand, onTriggerCommandHandled }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(
     initialMessages && initialMessages.length > 0
       ? initialMessages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
@@ -859,6 +861,21 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
       handleSendMessage(initialPrompt);
     }
   }, [initialPrompt]);
+
+  // Handle external trigger to activate a command (e.g., from "Start Planning" button)
+  useEffect(() => {
+    if (triggerCommand) {
+      const cmd = commandOptions.find(c => c.id === triggerCommand);
+      if (cmd) {
+        // Switch to chat tab first
+        setActiveTab('chat');
+        // Then activate the command
+        selectCommand(cmd);
+        // Notify parent that we handled the trigger
+        onTriggerCommandHandled?.();
+      }
+    }
+  }, [triggerCommand, onTriggerCommandHandled]);
 
   // Parse initial messages to restore trip context and itinerary when resuming
   useEffect(() => {

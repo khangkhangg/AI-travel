@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapPin, Clock, Users, Calendar, Briefcase, Hotel, Car, ChevronRight, Sparkles, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Users, Calendar, Briefcase, Hotel, Car, ChevronRight, Sparkles, DollarSign, AlertCircle, Loader2, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 
 interface MarketplaceTrip {
@@ -41,6 +41,10 @@ export default function MarketplaceItineraries({ onViewItinerary, onMakeOffer }:
   const [filter, setFilter] = useState<'all' | 'guide' | 'hotel' | 'transport'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [businessStatus, setBusinessStatus] = useState<{
+    isLoggedIn: boolean;
+    isBusiness: boolean;
+  }>({ isLoggedIn: false, isBusiness: false });
 
   useEffect(() => {
     const fetchTrips = async () => {
@@ -63,6 +67,26 @@ export default function MarketplaceItineraries({ onViewItinerary, onMakeOffer }:
     };
     fetchTrips();
   }, [filter]);
+
+  // Fetch business status for current user
+  useEffect(() => {
+    const fetchBusinessStatus = async () => {
+      try {
+        const response = await fetch('/api/businesses?self=true');
+        if (response.ok) {
+          const data = await response.json();
+          setBusinessStatus({
+            isLoggedIn: data.isLoggedIn ?? false,
+            isBusiness: data.isBusiness ?? false,
+          });
+        }
+      } catch (err) {
+        // Silently fail - user is not logged in or API error
+        console.error('Failed to fetch business status:', err);
+      }
+    };
+    fetchBusinessStatus();
+  }, []);
 
   // Generate gradient colors based on destination
   const getGradientColors = (destination: string) => {
@@ -268,21 +292,46 @@ export default function MarketplaceItineraries({ onViewItinerary, onMakeOffer }:
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center flex-shrink-0">
-                <Briefcase className="w-5 h-5 text-teal-600" />
+                {businessStatus.isBusiness ? (
+                  <LayoutDashboard className="w-5 h-5 text-teal-600" />
+                ) : (
+                  <Briefcase className="w-5 h-5 text-teal-600" />
+                )}
               </div>
               <div>
-                <h3 className="font-bold text-gray-900">Are you a tour guide, hotel, or service provider?</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Register your business to receive notifications and make offers to travelers.
-                </p>
+                {businessStatus.isBusiness ? (
+                  <>
+                    <h3 className="font-bold text-gray-900">Welcome back! Manage your business</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      View and respond to traveler requests, track your proposals, and manage your business profile.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-bold text-gray-900">Are you a tour guide, hotel, or service provider?</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Register your business to receive notifications and make offers to travelers.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
-            <Link
-              href="/business/register"
-              className="w-full sm:w-auto px-6 py-2.5 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 transition-all shadow-md text-center"
-            >
-              Register Business
-            </Link>
+            {businessStatus.isBusiness ? (
+              <Link
+                href="/business/dashboard"
+                className="w-full sm:w-auto px-6 py-2.5 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 transition-all shadow-md text-center flex items-center justify-center gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
+              </Link>
+            ) : (
+              <Link
+                href="/business/register"
+                className="w-full sm:w-auto px-6 py-2.5 bg-teal-600 text-white rounded-xl font-semibold text-sm hover:bg-teal-700 transition-all shadow-md text-center"
+              >
+                Register Business
+              </Link>
+            )}
           </div>
         </div>
 
