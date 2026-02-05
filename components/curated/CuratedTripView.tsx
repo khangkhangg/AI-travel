@@ -87,6 +87,8 @@ interface Trip {
   };
   creator?: Creator;
   payment_links?: PaymentLink[];
+  love_count?: number;
+  is_loved?: boolean;
 }
 
 interface CuratedTripViewProps {
@@ -96,6 +98,7 @@ interface CuratedTripViewProps {
   userMarketplaceContext?: UserMarketplaceContext;
   proposalCounts?: Record<string, number>;
   suggestionCounts?: Record<string, number>;
+  hasNonHotelBid?: boolean;
 }
 
 interface TripImage {
@@ -111,6 +114,7 @@ export default function CuratedTripView({
   userMarketplaceContext = { isBusiness: false, isGuide: false, isOwner: false, isLoggedIn: false, currentUser: null },
   proposalCounts = {},
   suggestionCounts = {},
+  hasNonHotelBid = false,
 }: CuratedTripViewProps) {
   const router = useRouter();
   const [activeDay, setActiveDay] = useState(1);
@@ -123,6 +127,11 @@ export default function CuratedTripView({
   const [cloning, setCloning] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const cloneButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Love state
+  const [isLoved, setIsLoved] = useState(trip.is_loved || false);
+  const [loveCount, setLoveCount] = useState(trip.love_count || 0);
+  const [lovingTrip, setLovingTrip] = useState(false);
 
   // Marketplace state
   const [proposals, setProposals] = useState<Record<string, Proposal[]>>({});
@@ -507,6 +516,33 @@ export default function CuratedTripView({
     setShowCloneModal(true);
   };
 
+  const handleLoveClick = async () => {
+    // Check if user is logged in
+    if (!userMarketplaceContext.isLoggedIn) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    setLovingTrip(true);
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/love`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle love');
+      }
+
+      const data = await response.json();
+      setIsLoved(data.isLoved);
+      setLoveCount(data.loveCount);
+    } catch (error) {
+      console.error('Love error:', error);
+    } finally {
+      setLovingTrip(false);
+    }
+  };
+
   // Check if trip date has passed (for clone button visibility)
   // If no specific date, show clone for public/curated trips
   const canShowCloneButton = trip.visibility === 'public' || trip.visibility === 'curated';
@@ -673,16 +709,23 @@ export default function CuratedTripView({
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
+              {/* Love Button */}
               <button
-                onClick={handleSave}
-                className={`p-2 rounded-lg transition-colors ${
-                  saved
+                onClick={handleLoveClick}
+                disabled={lovingTrip}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors ${
+                  isLoved
                     ? 'bg-rose-50 text-rose-500'
                     : 'hover:bg-gray-100 text-gray-600'
                 }`}
-                title={saved ? 'Saved' : 'Save'}
+                title={isLoved ? 'Loved' : 'Love this trip'}
               >
-                <Heart className={`w-5 h-5 ${saved ? 'fill-current' : ''}`} />
+                <Heart className={`w-5 h-5 ${isLoved ? 'fill-current' : ''}`} />
+                {loveCount > 0 && (
+                  <span className={`text-sm font-medium ${isLoved ? 'text-rose-600' : 'text-gray-700'}`}>
+                    {loveCount}
+                  </span>
+                )}
               </button>
 
               {/* Clone Button with Dropdown */}
@@ -852,6 +895,7 @@ export default function CuratedTripView({
                       isLoggedIn={userMarketplaceContext.isLoggedIn}
                       onAuthRequired={() => setShowAuthModal(true)}
                       tripVisibility={trip.visibility}
+                      hasNonHotelBid={hasNonHotelBid}
                     />
                   );
                 })}
@@ -939,8 +983,8 @@ export default function CuratedTripView({
                       onClick={() => setShowAllDays(!showAllDays)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         showAllDays
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                       }`}
                     >
                       {showAllDays ? 'Showing All' : 'Show All'}

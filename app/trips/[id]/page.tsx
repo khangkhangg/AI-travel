@@ -30,6 +30,7 @@ export default function TripDetailPage() {
   });
   const [proposalCounts, setProposalCounts] = useState<Record<string, number>>({});
   const [suggestionCounts, setSuggestionCounts] = useState<Record<string, number>>({});
+  const [hasNonHotelBid, setHasNonHotelBid] = useState(false);
 
   // Get view mode from URL params
   const requestedView = searchParams.get('view') as ViewMode | null;
@@ -50,6 +51,38 @@ export default function TripDetailPage() {
       fetchTrip();
     }
   }, [tripId]);
+
+  // Fetch business's own proposals when in business view
+  useEffect(() => {
+    if (viewMode === 'business' && userMarketplaceContext.isBusiness) {
+      fetchBusinessProposals();
+    }
+  }, [viewMode, userMarketplaceContext.isBusiness, tripId]);
+
+  const fetchBusinessProposals = async () => {
+    try {
+      const response = await fetch(`/api/trips/${tripId}/proposals?forBusiness=true`);
+      if (response.ok) {
+        const data = await response.json();
+        // Check if business has any active non-hotel proposals
+        const hasNonHotel = data.proposals?.some((p: any) => {
+          const isActive = p.status !== 'declined' && p.status !== 'expired' && p.status !== 'withdrawn';
+          // We need to check the activity category from trip data
+          // For now, we'll fetch this info from the activity
+          return isActive && !isHotelActivity(p);
+        });
+        setHasNonHotelBid(hasNonHotel || false);
+      }
+    } catch (err) {
+      console.error('Failed to fetch business proposals:', err);
+    }
+  };
+
+  const isHotelActivity = (proposal: any) => {
+    if (!trip || !proposal.activity_id) return false;
+    const activity = trip.itinerary?.find((item: any) => item.id === proposal.activity_id);
+    return activity?.category === 'hotel' || activity?.category === 'accommodation';
+  };
 
   const fetchTrip = async () => {
     try {
@@ -140,6 +173,7 @@ export default function TripDetailPage() {
       userMarketplaceContext={userMarketplaceContext}
       proposalCounts={proposalCounts}
       suggestionCounts={suggestionCounts}
+      hasNonHotelBid={hasNonHotelBid}
     />
   );
 }

@@ -115,6 +115,108 @@ export async function GET(request: NextRequest) {
       // marketplace_proposals or businesses table might not exist
     }
 
+    // Fetch trips the user has loved
+    let lovesGivenResult = { rows: [] as any[] };
+    try {
+      lovesGivenResult = await query(
+        `SELECT
+          tl.id,
+          tl.created_at,
+          t.id as trip_id,
+          t.title as trip_title,
+          t.city as trip_city,
+          u.full_name as trip_owner_name,
+          u.username as trip_owner_username
+        FROM trip_loves tl
+        JOIN trips t ON tl.trip_id = t.id
+        LEFT JOIN users u ON t.user_id = u.id
+        WHERE tl.user_id = $1
+        ORDER BY tl.created_at DESC
+        LIMIT $2`,
+        [user.id, limit]
+      );
+    } catch {
+      // trip_loves table might not exist
+    }
+
+    // Fetch loves received on user's trips
+    let lovesReceivedResult = { rows: [] as any[] };
+    try {
+      lovesReceivedResult = await query(
+        `SELECT
+          tl.id,
+          tl.created_at,
+          t.id as trip_id,
+          t.title as trip_title,
+          u.full_name as lover_name,
+          u.username as lover_username,
+          u.avatar_url as lover_avatar
+        FROM trip_loves tl
+        JOIN trips t ON tl.trip_id = t.id
+        JOIN users u ON tl.user_id = u.id
+        WHERE t.user_id = $1 AND tl.user_id != $1
+        ORDER BY tl.created_at DESC
+        LIMIT $2`,
+        [user.id, limit]
+      );
+    } catch {
+      // trip_loves table might not exist
+    }
+
+    // Fetch reviews written by the user on businesses
+    let reviewsWrittenResult = { rows: [] as any[] };
+    try {
+      reviewsWrittenResult = await query(
+        `SELECT
+          br.id,
+          br.rating,
+          br.review_text,
+          br.created_at,
+          br.response_text,
+          br.response_at,
+          br.status,
+          b.id as business_id,
+          b.business_name,
+          b.logo_url as business_logo,
+          b.handle as business_handle
+        FROM business_reviews br
+        JOIN businesses b ON br.business_id = b.id
+        WHERE br.reviewer_id = $1
+        ORDER BY br.created_at DESC
+        LIMIT $2`,
+        [user.id, limit]
+      );
+    } catch {
+      // business_reviews table might not exist
+    }
+
+    // Fetch responses received on user's reviews (business responded to user's review)
+    let reviewResponsesResult = { rows: [] as any[] };
+    try {
+      reviewResponsesResult = await query(
+        `SELECT
+          br.id,
+          br.rating,
+          br.response_text,
+          br.response_at,
+          br.status,
+          b.id as business_id,
+          b.business_name,
+          b.logo_url as business_logo,
+          b.handle as business_handle
+        FROM business_reviews br
+        JOIN businesses b ON br.business_id = b.id
+        WHERE br.reviewer_id = $1
+          AND br.response_text IS NOT NULL
+          AND br.response_at IS NOT NULL
+        ORDER BY br.response_at DESC
+        LIMIT $2`,
+        [user.id, limit]
+      );
+    } catch {
+      // business_reviews table might not exist
+    }
+
     // Combine and format activities
     const activities: any[] = [];
 
@@ -186,6 +288,67 @@ export async function GET(request: NextRequest) {
         message: p.message || undefined,
         withdrawalReason,
         createdAt: p.created_at,
+      });
+    });
+
+    // Add trips loved by user
+    lovesGivenResult.rows.forEach((l) => {
+      activities.push({
+        id: `love-given-${l.id}`,
+        type: 'trip_loved',
+        title: `You loved "${l.trip_title}"`,
+        subtitle: l.trip_owner_username ? `by @${l.trip_owner_username}` : (l.trip_owner_name || 'Unknown'),
+        tripId: l.trip_id,
+        createdAt: l.created_at,
+      });
+    });
+
+    // Add loves received on user's trips
+    lovesReceivedResult.rows.forEach((l) => {
+      activities.push({
+        id: `love-received-${l.id}`,
+        type: 'love_received',
+        title: l.lover_username ? `@${l.lover_username} loved your trip` : `${l.lover_name || 'Someone'} loved your trip`,
+        subtitle: `"${l.trip_title}"`,
+        tripId: l.trip_id,
+        loverName: l.lover_name,
+        loverAvatar: l.lover_avatar,
+        createdAt: l.created_at,
+      });
+    });
+
+    // Add reviews written by the user
+    reviewsWrittenResult.rows.forEach((r) => {
+      activities.push({
+        id: `review-written-${r.id}`,
+        type: 'review_written',
+        title: `You reviewed ${r.business_name}`,
+        subtitle: `${r.rating} star${r.rating !== 1 ? 's' : ''}${r.review_text ? ' - "' + r.review_text.slice(0, 50) + (r.review_text.length > 50 ? '...' : '') + '"' : ''}`,
+        rating: r.rating,
+        businessId: r.business_id,
+        businessName: r.business_name,
+        businessLogo: r.business_logo,
+        businessHandle: r.business_handle,
+        hasResponse: !!r.response_text,
+        status: r.status,
+        createdAt: r.created_at,
+      });
+    });
+
+    // Add responses received on user's reviews
+    reviewResponsesResult.rows.forEach((r) => {
+      activities.push({
+        id: `review-response-${r.id}`,
+        type: 'review_response_received',
+        title: `${r.business_name} responded to your review`,
+        subtitle: `"${r.response_text.slice(0, 60)}${r.response_text.length > 60 ? '...' : ''}"`,
+        businessId: r.business_id,
+        businessName: r.business_name,
+        businessLogo: r.business_logo,
+        businessHandle: r.business_handle,
+        responseText: r.response_text,
+        status: r.status,
+        createdAt: r.response_at,
       });
     });
 

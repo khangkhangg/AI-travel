@@ -21,6 +21,7 @@ import {
   Share2,
 } from 'lucide-react';
 import BusinessSidebar, { BusinessSectionId, BusinessSubItemId } from '@/components/business/BusinessSidebar';
+import BusinessReviewForm from '@/components/business/BusinessReviewForm';
 
 interface CoverageArea {
   city: string;
@@ -109,6 +110,7 @@ export default function BusinessProfileClient({ businessId }: BusinessProfileCli
   const [activeTab, setActiveTab] = useState<'overview' | 'reviews'>('overview');
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // User/owner state
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -226,6 +228,28 @@ export default function BusinessProfileClient({ businessId }: BusinessProfileCli
     setShowShareMenu(false);
   };
 
+  const refreshReviews = async () => {
+    try {
+      const reviewsResponse = await fetch(`/api/businesses/${businessId}/reviews?limit=5`);
+      if (reviewsResponse.ok) {
+        const reviewsData = await reviewsResponse.json();
+        setReviews(reviewsData.reviews || []);
+        setVerificationCounts(reviewsData.verificationCounts);
+        // Update business review count
+        if (business) {
+          setBusiness({ ...business, review_count: reviewsData.total });
+        }
+      }
+    } catch (e) {
+      // Silently fail
+    }
+  };
+
+  const handleReviewSuccess = () => {
+    setShowReviewModal(false);
+    refreshReviews();
+  };
+
   const formatPrice = (price: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -332,16 +356,29 @@ export default function BusinessProfileClient({ businessId }: BusinessProfileCli
                   </p>
                 </div>
 
-                {/* Share Button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowShareMenu(!showShareMenu)}
-                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors"
-                    aria-label="Share this business"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Share</span>
-                  </button>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Write a Review Button - only show for non-owners */}
+                  {!isOwner && currentUser && (
+                    <button
+                      onClick={() => setShowReviewModal(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors font-medium"
+                    >
+                      <Star className="w-4 h-4" />
+                      <span className="hidden sm:inline">Write a Review</span>
+                    </button>
+                  )}
+
+                  {/* Share Button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowShareMenu(!showShareMenu)}
+                      className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl transition-colors"
+                      aria-label="Share this business"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Share</span>
+                    </button>
 
                   {showShareMenu && (
                     <>
@@ -374,6 +411,7 @@ export default function BusinessProfileClient({ businessId }: BusinessProfileCli
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
               </div>
 
@@ -635,10 +673,34 @@ export default function BusinessProfileClient({ businessId }: BusinessProfileCli
         >
           {activeTab === 'reviews' && (
             <section>
+              {/* Reviews Header with Write Review Button */}
+              {!isOwner && currentUser && (
+                <div className="flex justify-end mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowReviewModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors font-medium"
+                  >
+                    <Star className="w-4 h-4" />
+                    Write a Review
+                  </button>
+                </div>
+              )}
+
               {reviews.length === 0 ? (
                 <div className="text-center py-12">
                   <Star className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-                  <p className="text-zinc-400">No reviews yet</p>
+                  <p className="text-zinc-400 mb-4">No reviews yet</p>
+                  {!isOwner && currentUser && (
+                    <button
+                      type="button"
+                      onClick={() => setShowReviewModal(true)}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors font-medium"
+                    >
+                      <Star className="w-4 h-4" />
+                      Be the first to review
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -728,6 +790,32 @@ export default function BusinessProfileClient({ businessId }: BusinessProfileCli
           )}
         </div>
       </main>
+
+      {/* Review Modal */}
+      {showReviewModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/70 z-50"
+            onClick={() => setShowReviewModal(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <BusinessReviewForm
+                  businessId={business.id}
+                  businessName={business.business_name}
+                  onSuccess={handleReviewSuccess}
+                  onCancel={() => setShowReviewModal(false)}
+                  variant="dark"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 

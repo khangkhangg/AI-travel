@@ -18,6 +18,7 @@ export default function Header() {
   const [showActivityBadge, setShowActivityBadge] = useState(false);
   const [userProfile, setUserProfile] = useState<{ username?: string; fullName?: string } | null>(null);
   const [isCreator, setIsCreator] = useState(false);
+  const [isBusiness, setIsBusiness] = useState(false);
   const signInButtonRef = useRef<HTMLButtonElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function Header() {
         setTripCount(0);
         setPendingActivityCount(0);
         setUserProfile(null);
+        setIsBusiness(false);
         return;
       }
       try {
@@ -86,6 +88,13 @@ export default function Header() {
         if (guideModeResponse.ok) {
           const guideModeData = await guideModeResponse.json();
           setIsCreator(guideModeData.is_guide || false);
+        }
+
+        // Fetch business status
+        const businessResponse = await fetch('/api/businesses?self=true');
+        if (businessResponse.ok) {
+          const businessData = await businessResponse.json();
+          setIsBusiness(businessData.isBusiness || false);
         }
       } catch (error) {
         console.error('Failed to fetch user data:', error);
@@ -183,7 +192,7 @@ export default function Header() {
 
           {/* Right side */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {!isCreator && (
+            {!isCreator && !isBusiness && (
               <button
                 onClick={() => router.push('/guide/register')}
                 className="hidden md:flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 transition-colors"
@@ -304,7 +313,7 @@ export default function Header() {
                         )}
 
                         <button
-                          onClick={() => handleMenuItemClick('/profile')}
+                          onClick={() => handleMenuItemClick(isBusiness ? '/business' : '/profile')}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
                         >
                           <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
@@ -312,10 +321,10 @@ export default function Header() {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-900">
-                              {userProfile?.username ? 'Edit Profile' : 'Set Up Profile'}
+                              {isBusiness ? 'Manage Business' : 'My Profile'}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {userProfile?.username ? 'Manage your account' : 'Add username & bio'}
+                              {isBusiness ? 'Edit your business profile' : 'Manage your account'}
                             </p>
                           </div>
                         </button>
@@ -425,7 +434,7 @@ export default function Header() {
                 { label: 'Discover', icon: Map, path: '/discover' },
                 { label: 'My Trips', icon: Heart, path: '/my-trips', showBadge: true },
                 { label: 'Creators', icon: User, path: '/creators' },
-                ...(!isCreator ? [{ label: 'Become Creator', icon: Sparkles, path: '/guide/register' }] : []),
+                ...(!isCreator && !isBusiness ? [{ label: 'Become Creator', icon: Sparkles, path: '/guide/register' }] : []),
               ].map((item) => (
                 <button
                   key={item.label}

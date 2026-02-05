@@ -186,7 +186,7 @@ export default function SuggestionForm({
       <button
         type="button"
         onClick={handleExpandClick}
-        className="w-full p-4 border-2 border-dashed border-purple-400 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
+        className="w-full p-4 border-2 border-dashed border-amber-400 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"
       >
         <MapPin className="w-5 h-5" />
         <span className="font-medium">Suggest a Place</span>
@@ -197,11 +197,11 @@ export default function SuggestionForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="border-2 border-dashed border-purple-400 rounded-lg p-4 bg-purple-50/30"
+      className="border-2 border-dashed border-amber-400 rounded-lg p-4 bg-amber-50/30"
     >
       <div className="flex items-center justify-between mb-4">
         <h4 className="font-medium text-gray-900 flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-purple-600" />
+          <MapPin className="w-4 h-4 text-amber-600" />
           Suggest a Better Place
         </h4>
         <button
@@ -231,11 +231,11 @@ export default function SuggestionForm({
               value={urlValue}
               onChange={(e) => setUrlValue(e.target.value)}
               placeholder="Paste Google Maps URL to auto-fill details..."
-              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
             />
             {fetchingUrl && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />
+                <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
               </div>
             )}
             {!fetchingUrl && fetchedPlace && (
@@ -247,9 +247,9 @@ export default function SuggestionForm({
 
           {/* Fetched Place Preview */}
           {fetchedPlace && (
-            <div className="mt-2 p-3 bg-purple-100 rounded-lg border border-purple-200">
+            <div className="mt-2 p-3 bg-amber-100 rounded-lg border border-amber-200">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center shrink-0">
                   <MapPin className="w-4 h-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -268,7 +268,7 @@ export default function SuggestionForm({
                       </span>
                     )}
                     {fetchedPlace.categories?.[0] && (
-                      <span className="text-xs px-1.5 py-0.5 bg-purple-200 text-purple-700 rounded">
+                      <span className="text-xs px-1.5 py-0.5 bg-amber-200 text-amber-700 rounded">
                         {fetchedPlace.categories[0]}
                       </span>
                     )}
@@ -295,7 +295,7 @@ export default function SuggestionForm({
             value={formData.place_name}
             onChange={(e) => setFormData({ ...formData, place_name: e.target.value })}
             placeholder="e.g., Ben Thanh Market, Pho Hung Restaurant"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
           />
         </div>
 
@@ -308,7 +308,7 @@ export default function SuggestionForm({
           <select
             value={formData.category || ''}
             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
           >
             <option value="">Select a category</option>
             {CATEGORY_OPTIONS.map((opt) => (
@@ -330,7 +330,7 @@ export default function SuggestionForm({
             onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
             placeholder="Share your experience! Why is this place special? What makes it worth visiting?"
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
           />
         </div>
 
@@ -344,7 +344,7 @@ export default function SuggestionForm({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
           >
             <Send className="w-4 h-4" />
             {isSubmitting ? 'Submitting...' : 'Submit Suggestion'}

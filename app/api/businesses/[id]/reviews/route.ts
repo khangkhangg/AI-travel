@@ -64,6 +64,9 @@ export async function GET(
         verified_services: row.verified_services,
         verified_pricing: row.verified_pricing,
         created_at: row.created_at,
+        response_text: row.response_text,
+        response_at: row.response_at,
+        status: row.status || 'open',
         reviewer: {
           id: row.reviewer_id,
           name: row.reviewer_name,
@@ -264,7 +267,7 @@ export async function PUT(
 
 // DELETE - delete a review
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -288,5 +291,63 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Failed to delete review:', error);
     return NextResponse.json({ error: 'Failed to delete review' }, { status: 500 });
+  }
+}
+
+// PATCH - business responds to a review
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id: businessId } = await params;
+
+    // Verify user owns this business
+    const businessCheck = await query(
+      'SELECT id FROM businesses WHERE id = $1 AND user_id = $2 AND is_active = true',
+      [businessId, user.id]
+    );
+
+    if (businessCheck.rows.length === 0) {
+      return NextResponse.json({ error: 'You can only respond to reviews on your own business' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { reviewId, responseText, status } = body;
+
+    if (!reviewId) {
+      return NextResponse.json({ error: 'Review ID is required' }, { status: 400 });
+    }
+
+    // Validate status if provided
+    const validStatuses = ['open', 'resolved', 'flagged'];
+    if (status && !validStatuses.includes(status)) {
+      return NextResponse.json({ error: 'Invalid status. Must be open, resolved, or flagged' }, { status: 400 });
+    }
+
+    // Update the review with response
+    const result = await query(
+      `UPDATE business_reviews SET
+        response_text = $1::text,
+        response_at = CASE WHEN $1::text IS NOT NULL THEN NOW() ELSE response_at END,
+        status = COALESCE($2::text, status)
+       WHERE id = $3 AND business_id = $4
+       RETURNING *`,
+      [responseText || null, status || null, reviewId, businessId]
+    );
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Review not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ review: result.rows[0] });
+  } catch (error: any) {
+    console.error('Failed to respond to review:', error);
+    return NextResponse.json({ error: 'Failed to respond to review' }, { status: 500 });
   }
 }

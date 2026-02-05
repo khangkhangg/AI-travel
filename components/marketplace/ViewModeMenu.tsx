@@ -108,11 +108,11 @@ export default function ViewModeMenu({
           {canShowCreatorView && currentView !== 'creator' && (
             <button
               onClick={() => handleViewChange('creator')}
-              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-purple-50 flex items-center gap-2"
+              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-amber-50 flex items-center gap-2"
             >
-              <Lightbulb className="w-4 h-4 text-purple-600" />
+              <Lightbulb className="w-4 h-4 text-amber-600" />
               <span>Creator View</span>
-              <span className="ml-auto text-xs text-purple-600 font-medium">Suggest</span>
+              <span className="ml-auto text-xs text-amber-600 font-medium">Suggest</span>
             </button>
           )}
 

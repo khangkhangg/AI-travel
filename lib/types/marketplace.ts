@@ -41,6 +41,8 @@ export interface Proposal {
   status: ProposalStatus;
   expires_at?: string;
   created_at: string;
+  contact_email?: string;
+  contact_phone?: string;
 }
 
 export interface ServiceOffered {
@@ -57,11 +59,29 @@ export interface PricingItem {
   total: number;
 }
 
+export interface HotelDurationTerms {
+  can_provide_full_duration: boolean;
+  original_nights: number;
+  provided_nights?: number;
+  alternative_offer?: string;
+  original_check_in?: number;
+  original_check_out?: number;
+}
+
+export interface ProposalLocation {
+  name?: string;
+  address?: string;
+  source_url?: string;
+}
+
 export interface ProposalTerms {
   cancellation_policy?: string;
   payment_terms?: string;
   includes?: string[];
   excludes?: string[];
+  hotel_duration?: HotelDurationTerms;
+  withdrawal_reason?: string;
+  location?: ProposalLocation;
 }
 
 export interface TripSuggestion {

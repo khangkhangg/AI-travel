@@ -15,10 +15,11 @@ import {
   ChevronDown,
   CheckCircle,
   XCircle,
+  Heart,
 } from 'lucide-react';
 
-type ActivityType = 'suggestion_made' | 'bid_made' | 'suggestion_received' | 'bid_received';
-type FilterType = 'all' | 'bids' | 'suggestions' | 'sent' | 'received';
+type ActivityType = 'suggestion_made' | 'bid_made' | 'suggestion_received' | 'bid_received' | 'trip_loved' | 'love_received';
+type FilterType = 'all' | 'bids' | 'suggestions' | 'loves' | 'sent' | 'received';
 
 interface Activity {
   id: string;
@@ -238,6 +239,9 @@ export default function ActivityPanel() {
         return <MessageSquare className="w-4 h-4 text-blue-600" />;
       case 'bid_received':
         return <DollarSign className="w-4 h-4 text-emerald-600" />;
+      case 'trip_loved':
+      case 'love_received':
+        return <Heart className="w-4 h-4 text-rose-500 fill-current" />;
       default:
         return null;
     }
@@ -253,6 +257,9 @@ export default function ActivityPanel() {
         return 'bg-blue-50';
       case 'bid_received':
         return 'bg-emerald-50';
+      case 'trip_loved':
+      case 'love_received':
+        return 'bg-rose-50';
       default:
         return 'bg-gray-50';
     }
@@ -321,6 +328,10 @@ export default function ActivityPanel() {
         return 'Suggestion Received';
       case 'bid_received':
         return 'Bid Received';
+      case 'trip_loved':
+        return 'Trip Loved';
+      case 'love_received':
+        return 'Love Received';
       default:
         return '';
     }
@@ -340,10 +351,12 @@ export default function ActivityPanel() {
         return activity.type === 'bid_made' || activity.type === 'bid_received';
       case 'suggestions':
         return activity.type === 'suggestion_made' || activity.type === 'suggestion_received';
+      case 'loves':
+        return activity.type === 'trip_loved' || activity.type === 'love_received';
       case 'sent':
-        return activity.type === 'bid_made' || activity.type === 'suggestion_made';
+        return activity.type === 'bid_made' || activity.type === 'suggestion_made' || activity.type === 'trip_loved';
       case 'received':
-        return activity.type === 'bid_received' || activity.type === 'suggestion_received';
+        return activity.type === 'bid_received' || activity.type === 'suggestion_received' || activity.type === 'love_received';
       default:
         return true;
     }
@@ -353,6 +366,7 @@ export default function ActivityPanel() {
     { value: 'all', label: 'All Activity' },
     { value: 'bids', label: 'Bids Only' },
     { value: 'suggestions', label: 'Suggestions Only' },
+    { value: 'loves', label: 'Loves Only' },
     { value: 'sent', label: 'Sent by Me' },
     { value: 'received', label: 'Received on My Trips' },
   ];
@@ -363,6 +377,8 @@ export default function ActivityPanel() {
     bidsReceived: activities.filter((a) => a.type === 'bid_received').length,
     suggestionsSent: activities.filter((a) => a.type === 'suggestion_made').length,
     suggestionsReceived: activities.filter((a) => a.type === 'suggestion_received').length,
+    tripsLoved: activities.filter((a) => a.type === 'trip_loved').length,
+    lovesReceived: activities.filter((a) => a.type === 'love_received').length,
     pendingBids: activities.filter(
       (a) => (a.type === 'bid_made' || a.type === 'bid_received') && a.status === 'pending'
     ).length,
@@ -741,6 +757,30 @@ export default function ActivityPanel() {
                   <div>
                     <p className="text-lg font-bold text-gray-900">{stats.suggestionsReceived}</p>
                     <p className="text-xs text-gray-500">Suggestions Received</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-gray-100 p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
+                    <Heart className="w-4 h-4 text-rose-500 fill-current" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-gray-900">{stats.tripsLoved}</p>
+                    <p className="text-xs text-gray-500">Trips Loved</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-gray-100 p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center">
+                    <Heart className="w-4 h-4 text-rose-500 fill-current" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-gray-900">{stats.lovesReceived}</p>
+                    <p className="text-xs text-gray-500">Loves Received</p>
                   </div>
                 </div>
               </div>

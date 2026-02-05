@@ -41,6 +41,12 @@ export default function AddPlaceModal({
 
   const isHotelMode = defaultCategory === 'hotel';
 
+  // Hotel duration state
+  const [hotelNights, setHotelNights] = useState(1);
+
+  // Calculate max nights available from selected day
+  const maxNights = totalDays - selectedDay + 1;
+
   // Auto-fetch when a valid URL is pasted
   useEffect(() => {
     const trimmedUrl = url.trim();
@@ -111,29 +117,78 @@ export default function AddPlaceModal({
     setError('');
 
     try {
-      const response = await fetch(`/api/trips/${tripId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dayNumber: selectedDay,
-          title: preview.name,
-          description: preview.description,
-          locationName: preview.name,
-          locationAddress: preview.address,
-          category,
-          estimatedCost,
-          timeStart,
-          sourceUrl: url,
-          placeData: preview,
-          coordinates: preview.coordinates,
-        }),
-      });
+      // Handle multi-day hotel stays
+      if (isHotelMode && hotelNights > 1) {
+        const endDay = Math.min(selectedDay + hotelNights - 1, totalDays);
+        const checkOutDay = endDay + 1;
+        const hotelStayInfo = {
+          checkInDay: selectedDay,
+          checkOutDay,
+          totalNights: hotelNights,
+        };
 
-      if (response.ok) {
-        onPlaceAdded();
+        // Create promises for each day
+        const promises = [];
+        for (let day = selectedDay; day <= endDay; day++) {
+          promises.push(
+            fetch(`/api/trips/${tripId}/items`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                dayNumber: day,
+                title: preview.name,
+                description: preview.description,
+                locationName: preview.name,
+                locationAddress: preview.address,
+                category,
+                estimatedCost: day === selectedDay ? estimatedCost : 0, // Only charge on first day
+                timeStart: day === selectedDay ? timeStart : '', // Only set time on check-in day
+                sourceUrl: url,
+                placeData: preview,
+                coordinates: preview.coordinates,
+                metadata: hotelStayInfo, // Store hotel stay information
+              }),
+            })
+          );
+        }
+
+        // Execute all requests in parallel
+        const responses = await Promise.all(promises);
+
+        // Check if all requests succeeded
+        const allSucceeded = responses.every((res) => res.ok);
+        if (allSucceeded) {
+          onPlaceAdded();
+        } else {
+          const failedCount = responses.filter((res) => !res.ok).length;
+          setError(`Failed to add hotel to ${failedCount} day(s). Some days may have been added successfully.`);
+        }
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to add place');
+        // Single day place (original logic)
+        const response = await fetch(`/api/trips/${tripId}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dayNumber: selectedDay,
+            title: preview.name,
+            description: preview.description,
+            locationName: preview.name,
+            locationAddress: preview.address,
+            category,
+            estimatedCost,
+            timeStart,
+            sourceUrl: url,
+            placeData: preview,
+            coordinates: preview.coordinates,
+          }),
+        });
+
+        if (response.ok) {
+          onPlaceAdded();
+        } else {
+          const data = await response.json();
+          setError(data.error || 'Failed to add place');
+        }
       }
     } catch (err) {
       setError('Failed to add place. Please try again.');
@@ -152,26 +207,72 @@ export default function AddPlaceModal({
     setError('');
 
     try {
-      const response = await fetch(`/api/trips/${tripId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dayNumber: selectedDay,
-          title: manualName,
-          description: manualDescription,
-          locationName: manualName,
-          locationAddress: manualLocation,
-          category,
-          estimatedCost,
-          timeStart,
-        }),
-      });
+      // Handle multi-day hotel stays
+      if (isHotelMode && hotelNights > 1) {
+        const endDay = Math.min(selectedDay + hotelNights - 1, totalDays);
+        const checkOutDay = endDay + 1;
+        const hotelStayInfo = {
+          checkInDay: selectedDay,
+          checkOutDay,
+          totalNights: hotelNights,
+        };
 
-      if (response.ok) {
-        onPlaceAdded();
+        // Create promises for each day
+        const promises = [];
+        for (let day = selectedDay; day <= endDay; day++) {
+          promises.push(
+            fetch(`/api/trips/${tripId}/items`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                dayNumber: day,
+                title: manualName,
+                description: manualDescription,
+                locationName: manualName,
+                locationAddress: manualLocation,
+                category,
+                estimatedCost: day === selectedDay ? estimatedCost : 0, // Only charge on first day
+                timeStart: day === selectedDay ? timeStart : '', // Only set time on check-in day
+                metadata: hotelStayInfo, // Store hotel stay information
+              }),
+            })
+          );
+        }
+
+        // Execute all requests in parallel
+        const responses = await Promise.all(promises);
+
+        // Check if all requests succeeded
+        const allSucceeded = responses.every((res) => res.ok);
+        if (allSucceeded) {
+          onPlaceAdded();
+        } else {
+          const failedCount = responses.filter((res) => !res.ok).length;
+          setError(`Failed to add hotel to ${failedCount} day(s). Some days may have been added successfully.`);
+        }
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to add place');
+        // Single day place (original logic)
+        const response = await fetch(`/api/trips/${tripId}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dayNumber: selectedDay,
+            title: manualName,
+            description: manualDescription,
+            locationName: manualName,
+            locationAddress: manualLocation,
+            category,
+            estimatedCost,
+            timeStart,
+          }),
+        });
+
+        if (response.ok) {
+          onPlaceAdded();
+        } else {
+          const data = await response.json();
+          setError(data.error || 'Failed to add place');
+        }
       }
     } catch (err) {
       setError('Failed to add place. Please try again.');
@@ -364,6 +465,34 @@ export default function AddPlaceModal({
                     </select>
                   </div>
 
+                  {/* Hotel Duration Selector */}
+                  {isHotelMode && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                      <label htmlFor="hotel-nights-url" className="block text-sm font-medium text-gray-900">
+                        Number of Nights
+                      </label>
+                      <input
+                        id="hotel-nights-url"
+                        type="number"
+                        min="1"
+                        max={maxNights}
+                        value={hotelNights}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 1;
+                          setHotelNights(Math.min(Math.max(1, value), maxNights));
+                        }}
+                        className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      />
+                      <p className="text-xs text-amber-700">
+                        Hotel will be added from <span className="font-semibold">Day {selectedDay}</span> to{' '}
+                        <span className="font-semibold">Day {Math.min(selectedDay + hotelNights - 1, totalDays)}</span>
+                        {hotelNights > 1 && (
+                          <span> (check-out Day {Math.min(selectedDay + hotelNights, totalDays + 1)})</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Time */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -488,6 +617,34 @@ export default function AddPlaceModal({
                   <option value="hotel">Hotel</option>
                 </select>
               </div>
+
+              {/* Hotel Duration Selector */}
+              {isHotelMode && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                  <label htmlFor="hotel-nights-manual" className="block text-sm font-medium text-gray-900">
+                    Number of Nights
+                  </label>
+                  <input
+                    id="hotel-nights-manual"
+                    type="number"
+                    min="1"
+                    max={maxNights}
+                    value={hotelNights}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 1;
+                      setHotelNights(Math.min(Math.max(1, value), maxNights));
+                    }}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                  <p className="text-xs text-amber-700">
+                    Hotel will be added from <span className="font-semibold">Day {selectedDay}</span> to{' '}
+                    <span className="font-semibold">Day {Math.min(selectedDay + hotelNights - 1, totalDays)}</span>
+                    {hotelNights > 1 && (
+                      <span> (check-out Day {Math.min(selectedDay + hotelNights, totalDays + 1)})</span>
+                    )}
+                  </p>
+                </div>
+              )}
 
               {/* Time */}
               <div>

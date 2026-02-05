@@ -181,23 +181,6 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot submit proposal for your own trip' }, { status: 400 });
     }
 
-    // Check if already submitted a proposal (exclude declined, expired, and withdrawn)
-    const existingProposal = await query(
-      "SELECT id, status FROM marketplace_proposals WHERE trip_id = $1 AND business_id = $2 AND status NOT IN ('declined', 'expired', 'withdrawn')",
-      [id, businessId]
-    );
-
-    if (existingProposal.rows.length > 0) {
-      const existing = existingProposal.rows[0];
-      const statusMsg = existing.status === 'withdrawal_requested'
-        ? 'You have a pending withdrawal request for this trip'
-        : 'You already have an active proposal for this trip';
-      return NextResponse.json(
-        { error: statusMsg },
-        { status: 400 }
-      );
-    }
-
     const body = await request.json();
     const {
       activity_id,
@@ -209,7 +192,12 @@ export async function POST(
       message,
       terms,
       attachments,
-      expires_at
+      expires_at,
+      hotel_duration,
+      location_name,
+      location_address,
+      coordinates,
+      source_url,
     } = body;
 
     if (!services_offered || !pricing_breakdown || !total_price) {
@@ -217,6 +205,72 @@ export async function POST(
         { error: 'Services offered, pricing breakdown, and total price are required' },
         { status: 400 }
       );
+    }
+
+    // Check if this activity is a hotel
+    let isHotelActivity = false;
+    if (activity_id) {
+      const activityResult = await query(
+        'SELECT category FROM itinerary_items WHERE id = $1',
+        [activity_id]
+      );
+      if (activityResult.rows.length > 0) {
+        const category = activityResult.rows[0].category;
+        isHotelActivity = category === 'hotel' || category === 'accommodation';
+      }
+    }
+
+    // For hotels: check if there's already a proposal for THIS specific hotel
+    // For other activities: check if there's any active proposal for the trip
+    if (isHotelActivity && activity_id) {
+      const existingProposal = await query(
+        "SELECT id, status FROM marketplace_proposals WHERE trip_id = $1 AND business_id = $2 AND activity_id = $3 AND status NOT IN ('declined', 'expired', 'withdrawn')",
+        [id, businessId, activity_id]
+      );
+
+      if (existingProposal.rows.length > 0) {
+        const existing = existingProposal.rows[0];
+        const statusMsg = existing.status === 'withdrawal_requested'
+          ? 'You have a pending withdrawal request for this hotel'
+          : 'You already have an active proposal for this hotel';
+        return NextResponse.json(
+          { error: statusMsg },
+          { status: 400 }
+        );
+      }
+    } else {
+      // Non-hotel activities: only one proposal per trip
+      const existingProposal = await query(
+        "SELECT id, status FROM marketplace_proposals WHERE trip_id = $1 AND business_id = $2 AND status NOT IN ('declined', 'expired', 'withdrawn')",
+        [id, businessId]
+      );
+
+      if (existingProposal.rows.length > 0) {
+        const existing = existingProposal.rows[0];
+        const statusMsg = existing.status === 'withdrawal_requested'
+          ? 'You have a pending withdrawal request for this trip'
+          : 'You already have an active proposal for this trip';
+        return NextResponse.json(
+          { error: statusMsg },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Build final terms with hotel_duration and location data
+    let finalTerms = { ...terms };
+
+    if (hotel_duration) {
+      finalTerms.hotel_duration = hotel_duration;
+    }
+
+    if (location_name || location_address || coordinates) {
+      finalTerms.location = {
+        name: location_name,
+        address: location_address,
+        coordinates,
+        source_url,
+      };
     }
 
     const result = await query(
@@ -235,7 +289,7 @@ export async function POST(
         total_price,
         currency || 'USD',
         message || '',
-        terms ? JSON.stringify(terms) : null,
+        finalTerms ? JSON.stringify(finalTerms) : null,
         JSON.stringify(attachments || []),
         expires_at || null
       ]

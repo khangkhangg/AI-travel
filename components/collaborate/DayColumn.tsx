@@ -141,7 +141,6 @@ export default function DayColumn({
             suggestionCount={marketplaceCounts?.suggestions[hotelActivity.id] || 0}
             acceptedProposal={acceptedProposals?.[hotelActivity.id]}
             usedSuggestion={usedSuggestions?.[hotelActivity.id]}
-            suggestionCount={marketplaceCounts?.suggestions[hotelActivity.id] || 0}
           />
         ) : (
           <button
@@ -180,7 +179,6 @@ export default function DayColumn({
               suggestionCount={marketplaceCounts?.suggestions[activity.id] || 0}
               acceptedProposal={acceptedProposals?.[activity.id]}
               usedSuggestion={usedSuggestions?.[activity.id]}
-              suggestionCount={marketplaceCounts?.suggestions[activity.id] || 0}
             />
           ))}
         </div>

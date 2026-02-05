@@ -43,6 +43,12 @@ interface ActivityTimelineCardProps {
     source_url?: string;
     location_lat?: number;
     location_lng?: number;
+    metadata?: {
+      checkInDay?: number;
+      checkOutDay?: number;
+      totalNights?: number;
+      [key: string]: any;
+    };
   };
   dayColor: string;
   isFirst?: boolean;
@@ -75,6 +81,8 @@ interface ActivityTimelineCardProps {
   onAuthRequired?: () => void;
   // Trip visibility for marketplace
   tripVisibility?: string;
+  // Hide bid button for non-hotels when business has active non-hotel bid
+  hasNonHotelBid?: boolean;
 }
 
 interface FetchedPlace {
@@ -161,6 +169,7 @@ export default function ActivityTimelineCard({
   isLoggedIn = true,
   onAuthRequired,
   tripVisibility,
+  hasNonHotelBid = false,
 }: ActivityTimelineCardProps) {
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionValue, setDescriptionValue] = useState(activity.description || '');
@@ -635,6 +644,13 @@ export default function ActivityTimelineCard({
                   isLoggedIn={isLoggedIn}
                   onAuthRequired={onAuthRequired}
                   tripVisibility={tripVisibility}
+                  activityCategory={activity.category}
+                  hotelStayInfo={activity.metadata?.checkInDay ? {
+                    checkInDay: activity.metadata.checkInDay,
+                    checkOutDay: activity.metadata.checkOutDay ?? activity.metadata.checkInDay,
+                    totalNights: activity.metadata.totalNights ?? 1,
+                  } : null}
+                  hasNonHotelBid={hasNonHotelBid}
                 />
               )}
             </div>

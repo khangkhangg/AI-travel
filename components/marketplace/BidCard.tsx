@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, X, Clock, Star, Building2, AlertCircle } from 'lucide-react';
+import { Check, X, Clock, Star, Building2, AlertCircle, MapPin, ExternalLink, Hotel } from 'lucide-react';
 import type { Proposal } from '@/lib/types/marketplace';
 
 interface BidCardProps {
@@ -205,6 +205,73 @@ export default function BidCard({
               {service.service_name}
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Hotel Duration Commitment */}
+      {proposal.terms?.hotel_duration && (
+        <div className={`mt-3 p-3 rounded-lg border ${
+          proposal.terms.hotel_duration.can_provide_full_duration
+            ? 'bg-green-50 border-green-200'
+            : 'bg-yellow-50 border-yellow-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            <Hotel className={`w-4 h-4 ${
+              proposal.terms.hotel_duration.can_provide_full_duration
+                ? 'text-green-600'
+                : 'text-yellow-600'
+            }`} />
+            <span className={`text-sm font-semibold ${
+              proposal.terms.hotel_duration.can_provide_full_duration
+                ? 'text-green-900'
+                : 'text-yellow-900'
+            }`}>
+              {proposal.terms.hotel_duration.can_provide_full_duration
+                ? `✓ Can host for entire ${proposal.terms.hotel_duration.original_nights}-night stay`
+                : `⚠ Partial duration only`
+              }
+            </span>
+          </div>
+          {proposal.terms.hotel_duration.alternative_offer && (
+            <p className="text-xs text-yellow-700 mt-1 pl-6">
+              Alternative: {proposal.terms.hotel_duration.alternative_offer}
+            </p>
+          )}
+          {proposal.terms.hotel_duration.original_check_in != null && (
+            <p className="text-xs text-gray-600 mt-1 pl-6">
+              Day {proposal.terms.hotel_duration.original_check_in} to Day{' '}
+              {proposal.terms.hotel_duration.original_check_in! + proposal.terms.hotel_duration.original_nights - 1}
+              {' '}(check-out Day {proposal.terms.hotel_duration.original_check_out})
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Location Information */}
+      {proposal.terms?.location && (proposal.terms.location.name || proposal.terms.location.address) && (
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <MapPin className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              {proposal.terms.location.name && (
+                <p className="text-sm font-semibold text-blue-900">{proposal.terms.location.name}</p>
+              )}
+              {proposal.terms.location.address && (
+                <p className="text-xs text-blue-700 mt-0.5">{proposal.terms.location.address}</p>
+              )}
+              {proposal.terms.location.source_url && (
+                <a
+                  href={proposal.terms.location.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1 font-medium"
+                >
+                  View on map
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

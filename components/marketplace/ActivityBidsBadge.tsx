@@ -23,7 +23,7 @@ export default function ActivityBidsBadge({
       className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full transition-colors ${
         isBids
           ? 'bg-green-100 text-green-700 hover:bg-green-200'
-          : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+          : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
       }`}
     >
       {isBids ? (

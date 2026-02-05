@@ -23,6 +23,8 @@ export async function GET(
         m.display_name as ai_model_name,
         (SELECT COUNT(*) FROM trip_likes WHERE trip_id = t.id) as likes_count,
         ${user ? `(SELECT COUNT(*) > 0 FROM trip_likes WHERE trip_id = t.id AND user_id = '${user.id}') as is_liked,` : 'false as is_liked,'}
+        COALESCE(t.love_count, 0) as love_count,
+        ${user ? `(SELECT COUNT(*) > 0 FROM trip_loves WHERE trip_id = t.id AND user_id = '${user.id}') as is_loved,` : 'false as is_loved,'}
         ${user ? `(SELECT role FROM trip_collaborators WHERE trip_id = t.id AND user_id = '${user.id}') as user_role` : 'null as user_role'}
        FROM trips t
        LEFT JOIN users u ON t.user_id = u.id

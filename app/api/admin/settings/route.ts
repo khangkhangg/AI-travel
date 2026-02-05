@@ -18,6 +18,8 @@ interface Settings {
   databaseUrl: string;
   // AI URL Parsing
   aiUrlParsingEnabled: boolean;
+  // Packages Tab (Chatbox)
+  packagesTabEnabled: boolean;
   // Email Configuration
   emailProvider: string;
   emailFrom: string;
@@ -43,6 +45,8 @@ const DEFAULT_SETTINGS: Settings = {
   databaseUrl: process.env.DATABASE_URL || '',
   // AI URL Parsing - disabled by default to save costs
   aiUrlParsingEnabled: false,
+  // Packages Tab - enabled by default
+  packagesTabEnabled: true,
   // Email - load from env
   emailProvider: process.env.EMAIL_PROVIDER || 'disabled',
   emailFrom: process.env.EMAIL_FROM || '',
@@ -203,6 +207,8 @@ export async function GET() {
     hasDatabaseConfig: !!settings.databaseUrl,
     // AI URL Parsing
     aiUrlParsingEnabled: settings.aiUrlParsingEnabled ?? false,
+    // Packages Tab
+    packagesTabEnabled: settings.packagesTabEnabled ?? true,
     // Email Configuration
     emailProvider: settings.emailProvider || 'disabled',
     emailFrom: settings.emailFrom || '',
@@ -241,6 +247,7 @@ export async function POST(request: NextRequest) {
       maxTokens: body.maxTokens ?? currentSettings.maxTokens,
       systemPrompt: body.systemPrompt ?? currentSettings.systemPrompt,
       aiUrlParsingEnabled: body.aiUrlParsingEnabled ?? currentSettings.aiUrlParsingEnabled,
+      packagesTabEnabled: body.packagesTabEnabled ?? currentSettings.packagesTabEnabled,
     };
 
     // Only update API key if provided (not masked value)

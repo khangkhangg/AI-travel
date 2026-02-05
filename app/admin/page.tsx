@@ -63,6 +63,8 @@ interface AppSettings {
   hasDatabaseConfig: boolean;
   // AI URL Parsing
   aiUrlParsingEnabled: boolean;
+  // Packages Tab (Chatbox)
+  packagesTabEnabled: boolean;
   // Email
   emailProvider: string;
   emailFrom: string;
@@ -352,6 +354,7 @@ export default function AdminDashboard() {
         maxTokens: settings?.maxTokens,
         systemPrompt: settings?.systemPrompt,
         aiUrlParsingEnabled: settings?.aiUrlParsingEnabled,
+        packagesTabEnabled: settings?.packagesTabEnabled,
       };
 
       if (newApiKey) {
@@ -3727,6 +3730,26 @@ export default function AdminDashboard() {
                     <div
                       className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
                         settings?.aiUrlParsingEnabled ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Packages Tab Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">Show Packages Tab</p>
+                    <p className="text-sm text-gray-500">Display the Packages tab in the Chatbox for travel packages</p>
+                  </div>
+                  <button
+                    onClick={() => setSettings(s => s ? { ...s, packagesTabEnabled: !s.packagesTabEnabled } : s)}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      settings?.packagesTabEnabled ? 'bg-teal-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                        settings?.packagesTabEnabled ? 'left-7' : 'left-1'
                       }`}
                     />
                   </button>

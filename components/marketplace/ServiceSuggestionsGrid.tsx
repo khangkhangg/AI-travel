@@ -68,14 +68,14 @@ export default function ServiceSuggestionsGrid({
               activeService === service.id
                 ? isBusiness
                   ? 'border-green-500 bg-green-50'
-                  : 'border-purple-500 bg-purple-50'
+                  : 'border-amber-500 bg-amber-50'
                 : 'border-gray-200 hover:border-gray-300 bg-white'
             }`}
           >
             <div className="text-3xl mb-2">{service.icon}</div>
             <div className="text-sm font-medium text-gray-900">{service.label}</div>
             <div className={`text-xs mt-1 ${
-              isBusiness ? 'text-green-600' : 'text-purple-600'
+              isBusiness ? 'text-green-600' : 'text-amber-600'
             }`}>
               {isBusiness ? 'Bid' : 'Suggest'}
             </div>

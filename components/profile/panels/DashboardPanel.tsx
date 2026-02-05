@@ -16,19 +16,25 @@ import {
   X,
   Clock,
   Loader2,
+  Star,
+  Reply,
+  Heart,
 } from 'lucide-react';
 
 interface Activity {
   id: string;
-  type: 'suggestion_made' | 'bid_made' | 'suggestion_received' | 'bid_received';
+  type: 'suggestion_made' | 'bid_made' | 'suggestion_received' | 'bid_received' | 'review_written' | 'review_response_received' | 'trip_loved' | 'love_received';
   title: string;
   subtitle: string;
-  status: string;
-  tripId: string;
+  status?: string;
+  tripId?: string;
   tripOwner?: string;
   suggesterAvatar?: string;
   businessLogo?: string;
   businessType?: string;
+  businessId?: string;
+  businessHandle?: string;
+  rating?: number;
   createdAt: string;
 }
 
@@ -75,6 +81,14 @@ export default function DashboardPanel({ stats, username }: DashboardPanelProps)
         return <MessageSquare className="w-4 h-4 text-blue-600" />;
       case 'bid_received':
         return <DollarSign className="w-4 h-4 text-emerald-600" />;
+      case 'review_written':
+        return <Star className="w-4 h-4 text-amber-500" />;
+      case 'review_response_received':
+        return <Reply className="w-4 h-4 text-blue-600" />;
+      case 'trip_loved':
+        return <Heart className="w-4 h-4 text-rose-500" />;
+      case 'love_received':
+        return <Heart className="w-4 h-4 text-rose-500" />;
       default:
         return <Eye className="w-4 h-4 text-gray-400" />;
     }
@@ -90,19 +104,28 @@ export default function DashboardPanel({ stats, username }: DashboardPanelProps)
         return 'bg-blue-50';
       case 'bid_received':
         return 'bg-emerald-50';
+      case 'review_written':
+        return 'bg-amber-50';
+      case 'review_response_received':
+        return 'bg-blue-50';
+      case 'trip_loved':
+      case 'love_received':
+        return 'bg-rose-50';
       default:
         return 'bg-gray-50';
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | undefined) => {
+    if (!status) return null;
     switch (status) {
       case 'used':
       case 'accepted':
+      case 'resolved':
         return (
           <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
             <Check className="w-3 h-3" />
-            {status === 'used' ? 'Used' : 'Accepted'}
+            {status === 'used' ? 'Used' : status === 'resolved' ? 'Resolved' : 'Accepted'}
           </span>
         );
       case 'dismissed':
@@ -115,10 +138,11 @@ export default function DashboardPanel({ stats, username }: DashboardPanelProps)
           </span>
         );
       case 'pending':
+      case 'open':
         return (
           <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
             <Clock className="w-3 h-3" />
-            Pending
+            {status === 'open' ? 'Open' : 'Pending'}
           </span>
         );
       case 'withdrawal_requested':
@@ -126,6 +150,13 @@ export default function DashboardPanel({ stats, username }: DashboardPanelProps)
           <span className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
             <Clock className="w-3 h-3" />
             Withdrawal Requested
+          </span>
+        );
+      case 'flagged':
+        return (
+          <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+            <X className="w-3 h-3" />
+            Flagged
           </span>
         );
       default:
@@ -232,33 +263,49 @@ export default function DashboardPanel({ stats, username }: DashboardPanelProps)
               <Eye className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               <p className="text-sm">No recent activity</p>
               <p className="text-xs text-gray-400 mt-1">
-                Suggestions and bids you make will appear here
+                Reviews, suggestions, and bids you make will appear here
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {activities.map((activity) => (
-                <Link
-                  key={activity.id}
-                  href={`/trips/${activity.tripId}`}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
-                >
-                  <div className={`w-8 h-8 rounded-lg ${getActivityBg(activity.type)} flex items-center justify-center flex-shrink-0`}>
-                    {getActivityIcon(activity.type)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-600 transition-colors truncate">
-                      {activity.title}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">{activity.subtitle}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      {getStatusBadge(activity.status)}
-                      <span className="text-xs text-gray-400">{formatDate(activity.createdAt)}</span>
+              {activities.map((activity) => {
+                // Determine the link destination based on activity type
+                const getActivityHref = () => {
+                  if (activity.type === 'review_written' || activity.type === 'review_response_received') {
+                    return `/business/${activity.businessHandle || activity.businessId}`;
+                  }
+                  return `/trips/${activity.tripId}`;
+                };
+
+                return (
+                  <Link
+                    key={activity.id}
+                    href={getActivityHref()}
+                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className={`w-8 h-8 rounded-lg ${getActivityBg(activity.type)} flex items-center justify-center flex-shrink-0`}>
+                      {getActivityIcon(activity.type)}
                     </div>
-                  </div>
-                  <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 flex-shrink-0 mt-1" />
-                </Link>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-600 transition-colors truncate">
+                        {activity.title}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">{activity.subtitle}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {activity.rating && (
+                          <span className="flex items-center gap-0.5 text-xs text-amber-600">
+                            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                            {activity.rating}
+                          </span>
+                        )}
+                        {getStatusBadge(activity.status)}
+                        <span className="text-xs text-gray-400">{formatDate(activity.createdAt)}</span>
+                      </div>
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 flex-shrink-0 mt-1" />
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>

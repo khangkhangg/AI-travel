@@ -103,6 +103,7 @@ interface ChatPanelProps {
   onContextUpdate?: (context: TripContext) => void;
   onMessagesChange?: (messages: Message[]) => void;
   onAIMetricsUpdate?: (metrics: AIMetrics) => void;
+  packagesTabEnabled?: boolean;
 }
 
 const smartTags = [
@@ -451,7 +452,7 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
   timestamp: new Date(),
 };
 
-export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate }: ChatPanelProps) {
+export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate, packagesTabEnabled }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(
     initialMessages && initialMessages.length > 0
       ? initialMessages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
@@ -482,6 +483,7 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     cost: 0,
     responseCount: 0,
   });
+  const [showPackagesTab, setShowPackagesTab] = useState(packagesTabEnabled ?? true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandMenuRef = useRef<HTMLDivElement>(null);
@@ -808,6 +810,27 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     scrollToBottom();
   }, [messages]);
 
+  // Fetch packages tab setting from admin API if not provided as prop
+  useEffect(() => {
+    if (packagesTabEnabled !== undefined) {
+      setShowPackagesTab(packagesTabEnabled);
+      return;
+    }
+
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/admin/settings');
+        if (response.ok) {
+          const data = await response.json();
+          setShowPackagesTab(data.packagesTabEnabled ?? true);
+        }
+      } catch {
+        // If fetch fails, keep default (true)
+      }
+    };
+    fetchSettings();
+  }, [packagesTabEnabled]);
+
   // Notify parent when messages change (for saving to database)
   useEffect(() => {
     if (onMessagesChange && messages.length > 1) {
@@ -1026,7 +1049,7 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
         {[
           { id: 'chat', label: 'Chat', icon: MessageSquare },
           { id: 'journey', label: 'Your Journey', icon: MapPin, badge: (parentItinerary || itinerary)?.length },
-          { id: 'packages', label: 'Packages', icon: Package },
+          ...(showPackagesTab ? [{ id: 'packages', label: 'Packages', icon: Package }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1497,7 +1520,7 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
           </div>
         )}
 
-        {activeTab === 'packages' && (
+        {showPackagesTab && activeTab === 'packages' && (
           <TourBrowser
             destination={tripContext.destination}
             compact={true}

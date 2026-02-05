@@ -70,11 +70,11 @@ export default function SuggestionCard({
   ).slice(0, 2) || [];
 
   return (
-    <div className={`bg-white rounded-lg border ${suggestion.status === 'used' ? 'border-purple-300 bg-purple-50/30' : 'border-gray-200'} p-4 shadow-sm`}>
+    <div className={`bg-white rounded-lg border ${suggestion.status === 'used' ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'} p-4 shadow-sm`}>
       {/* Header */}
       <div className="flex items-start gap-3">
         {/* User Avatar */}
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center overflow-hidden flex-shrink-0">
           {suggestion.user_avatar ? (
             <img src={suggestion.user_avatar} alt={suggestion.user_name} className="w-full h-full object-cover" />
           ) : (
@@ -123,7 +123,7 @@ export default function SuggestionCard({
 
       {/* Place Name */}
       <div className="mt-3">
-        <div className="flex items-center gap-1.5 text-purple-700 font-medium">
+        <div className="flex items-center gap-1.5 text-amber-700 font-medium">
           <MapPin className="w-4 h-4" />
           {suggestion.place_name}
           {/* Google Maps link - use source_url or construct from coordinates */}
@@ -132,7 +132,7 @@ export default function SuggestionCard({
               href={suggestion.source_url || `https://www.google.com/maps?q=${suggestion.location_lat},${suggestion.location_lng}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-1 p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+              className="ml-1 p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
               title="View on Google Maps"
             >
               <ExternalLink className="w-4 h-4" />
@@ -153,7 +153,7 @@ export default function SuggestionCard({
       {/* Category */}
       {suggestion.category && (
         <div className="mt-2">
-          <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-600 rounded">
+          <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-600 rounded">
             {suggestion.category}
           </span>
         </div>
@@ -165,7 +165,7 @@ export default function SuggestionCard({
           <button
             onClick={handleMarkUsed}
             disabled={isLoading}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
           >
             <Check className="w-4 h-4" />
             I will try

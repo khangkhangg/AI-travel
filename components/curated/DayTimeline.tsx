@@ -18,6 +18,12 @@ interface Activity {
   location_lat?: number;
   location_lng?: number;
   order_index: number;
+  metadata?: {
+    checkInDay?: number;
+    checkOutDay?: number;
+    totalNights?: number;
+    [key: string]: any;
+  };
 }
 
 interface DayTimelineProps {
@@ -51,6 +57,8 @@ interface DayTimelineProps {
   onAuthRequired?: () => void;
   // Trip visibility for marketplace
   tripVisibility?: string;
+  // Hide bid button for non-hotels when business has active non-hotel bid
+  hasNonHotelBid?: boolean;
 }
 
 const getTimeRange = (activities: Activity[]): string => {
@@ -104,6 +112,7 @@ const DayTimeline = forwardRef<HTMLDivElement, DayTimelineProps>(
     isLoggedIn = true,
     onAuthRequired,
     tripVisibility,
+    hasNonHotelBid = false,
   }, ref) => {
     const dayColor = getDayColor(dayNumber);
 
@@ -206,6 +215,7 @@ const DayTimeline = forwardRef<HTMLDivElement, DayTimelineProps>(
                 isLoggedIn={isLoggedIn}
                 onAuthRequired={onAuthRequired}
                 tripVisibility={tripVisibility}
+                hasNonHotelBid={hasNonHotelBid}
               />
             ))
           )}

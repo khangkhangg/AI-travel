@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Mode Menu - UI Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @keyframes fadeOut {
+      from { opacity: 1; transform: scale(1); }
+      to { opacity: 0; transform: scale(0.95); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    .dropdown-enter { animation: fadeIn 0.15s ease-out; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+
+  <!-- Header -->
+  <div class="max-w-4xl mx-auto mb-8">
+    <h1 class="text-2xl font-bold text-gray-900 mb-2">Edit Mode Menu - UI Mockup</h1>
+    <p class="text-gray-600">Interactive mockup showing the Save → Saved → Edit button transition</p>
+  </div>
+
+  <!-- State Demos -->
+  <div class="max-w-4xl mx-auto space-y-8">
+
+    <!-- State 1: Before Save -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-teal-100 text-sm mb-1">
+              <i class="fas fa-sparkles"></i>
+              <span>AI-Generated Itinerary</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Your Tokyo Adventure</h2>
+            <p class="text-teal-100 text-sm">5 days • 18 activities</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- Save Button (unsaved state) -->
+            <button class="flex items-center gap-1.5 px-4 py-2 bg-white/90 text-teal-700 rounded-full font-medium text-sm border border-white/50 hover:bg-white transition-all">
+              <i class="fas fa-save text-xs"></i>
+              Save
+            </button>
+            <!-- Share Button -->
+            <button class="flex items-center gap-1.5 px-4 py-2 bg-white/20 text-white rounded-full font-medium text-sm border border-white/30 hover:bg-white/30 transition-all">
+              <i class="fas fa-share-alt text-xs"></i>
+              Share
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-gray-50 border-t">
+        <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">State 1: Before Save</span>
+      </div>
+    </div>
+
+    <!-- State 2: Just Saved (shows for 5 seconds) -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-teal-100 text-sm mb-1">
+              <i class="fas fa-sparkles"></i>
+              <span>AI-Generated Itinerary</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Your Tokyo Adventure</h2>
+            <p class="text-teal-100 text-sm">5 days • 18 activities</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- Saved Button (green, shows checkmark) -->
+            <button class="flex items-center gap-1.5 px-4 py-2 bg-green-500/90 text-white rounded-full font-medium text-sm border border-green-400/50 cursor-default">
+              <i class="fas fa-check text-xs"></i>
+              Saved
+            </button>
+            <!-- Share Button -->
+            <button class="flex items-center gap-1.5 px-4 py-2 bg-white/20 text-white rounded-full font-medium text-sm border border-white/30 hover:bg-white/30 transition-all">
+              <i class="fas fa-share-alt text-xs"></i>
+              Share
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-green-50 border-t border-green-100">
+        <span class="text-xs font-medium text-green-600 uppercase tracking-wide">State 2: Just Saved (visible for 5 seconds)</span>
+      </div>
+    </div>
+
+    <!-- State 3: After 5 seconds - Edit Button with Dropdown -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-teal-100 text-sm mb-1">
+              <i class="fas fa-sparkles"></i>
+              <span>AI-Generated Itinerary</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Your Tokyo Adventure</h2>
+            <p class="text-teal-100 text-sm">5 days • 18 activities</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- Edit Button (replaces Saved) -->
+            <div class="relative" id="editMenuContainer">
+              <button
+                onclick="toggleMenu()"
+                class="flex items-center gap-1.5 px-4 py-2 bg-white/90 text-teal-700 rounded-full font-medium text-sm border border-white/50 hover:bg-white transition-all"
+              >
+                <i class="fas fa-pen text-xs"></i>
+                Edit
+                <i class="fas fa-chevron-down text-[10px] ml-0.5"></i>
+              </button>
+
+              <!-- Dropdown Menu (hidden by default) -->
+              <div id="editDropdown" class="hidden absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50 dropdown-enter">
+                <!-- Edit Mode Info (not clickable - current mode) -->
+                <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                      <i class="fas fa-robot text-teal-600"></i>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-900 text-sm">Edit with AI</p>
+                      <p class="text-xs text-gray-500 mt-0.5">Continue chatting with AI to refine your trip</p>
+                      <p class="text-[10px] text-teal-600 mt-1 font-medium">Currently on this page</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Collaborate Mode Option -->
+                <button class="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 group">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 transition-colors">
+                      <i class="fas fa-users text-blue-600"></i>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-900 text-sm">Collaborate</p>
+                      <p class="text-xs text-gray-500 mt-0.5">Plan together with friends and family</p>
+                    </div>
+                  </div>
+                </button>
+
+                <!-- View Mode Option -->
+                <button class="w-full px-4 py-3 text-left hover:bg-amber-50 transition-colors group">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+                      <i class="fas fa-eye text-amber-600"></i>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-900 text-sm">View Suggestions</p>
+                      <p class="text-xs text-gray-500 mt-0.5">See bids and suggestions from local guides</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Share Button -->
+            <button class="flex items-center gap-1.5 px-4 py-2 bg-white/20 text-white rounded-full font-medium text-sm border border-white/30 hover:bg-white/30 transition-all">
+              <i class="fas fa-share-alt text-xs"></i>
+              Share
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-blue-50 border-t border-blue-100">
+        <span class="text-xs font-medium text-blue-600 uppercase tracking-wide">State 3: After 5 seconds - Edit Button with Dropdown (click to toggle)</span>
+      </div>
+    </div>
+
+    <!-- Dropdown Open State Demo -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-4 pb-40">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-teal-100 text-sm mb-1">
+              <i class="fas fa-sparkles"></i>
+              <span>AI-Generated Itinerary</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white">Your Tokyo Adventure</h2>
+            <p class="text-teal-100 text-sm">5 days • 18 activities</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- Edit Button (active state) -->
+            <div class="relative">
+              <button class="flex items-center gap-1.5 px-4 py-2 bg-white text-teal-700 rounded-full font-medium text-sm border border-white shadow-lg transition-all">
+                <i class="fas fa-pen text-xs"></i>
+                Edit
+                <i class="fas fa-chevron-up text-[10px] ml-0.5"></i>
+              </button>
+
+              <!-- Dropdown Menu (always visible in this demo) -->
+              <div class="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50">
+                <!-- Edit Mode Info (not clickable - current mode) -->
+                <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center flex-shrink-0">
+                      <i class="fas fa-robot text-teal-600"></i>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-900 text-sm">Edit with AI</p>
+                      <p class="text-xs text-gray-500 mt-0.5">Continue chatting with AI to refine your trip</p>
+                      <p class="text-[10px] text-teal-600 mt-1 font-medium">Currently on this page</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Collaborate Mode Option -->
+                <button class="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 group">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-200 transition-colors">
+                      <i class="fas fa-users text-blue-600"></i>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-900 text-sm">Collaborate</p>
+                      <p class="text-xs text-gray-500 mt-0.5">Plan together with friends and family</p>
+                    </div>
+                  </div>
+                </button>
+
+                <!-- View Mode Option -->
+                <button class="w-full px-4 py-3 text-left hover:bg-amber-50 transition-colors group">
+                  <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 group-hover:bg-amber-200 transition-colors">
+                      <i class="fas fa-eye text-amber-600"></i>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-900 text-sm">View Suggestions</p>
+                      <p class="text-xs text-gray-500 mt-0.5">See bids and suggestions from local guides</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Share Button -->
+            <button class="flex items-center gap-1.5 px-4 py-2 bg-white/20 text-white rounded-full font-medium text-sm border border-white/30 hover:bg-white/30 transition-all">
+              <i class="fas fa-share-alt text-xs"></i>
+              Share
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-purple-50 border-t border-purple-100">
+        <span class="text-xs font-medium text-purple-600 uppercase tracking-wide">State 4: Dropdown Menu Open</span>
+      </div>
+    </div>
+
+    <!-- Flow Diagram -->
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <h3 class="text-lg font-bold text-gray-900 mb-4">User Flow</h3>
+      <div class="flex items-center justify-center gap-4 flex-wrap">
+        <div class="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+          <i class="fas fa-save text-teal-600"></i>
+          <span class="text-sm font-medium">Save</span>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div class="flex items-center gap-2 px-4 py-2 bg-green-100 rounded-lg">
+          <i class="fas fa-check text-green-600"></i>
+          <span class="text-sm font-medium text-green-700">Saved</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fas fa-arrow-right text-gray-400"></i>
+          <span class="text-[10px] text-gray-400">5 sec</span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2 bg-teal-100 rounded-lg">
+          <i class="fas fa-pen text-teal-600"></i>
+          <span class="text-sm font-medium text-teal-700">Edit ▼</span>
+        </div>
+        <i class="fas fa-arrow-right text-gray-400"></i>
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-xs text-gray-500">
+            <i class="fas fa-robot text-teal-600"></i>
+            <span>Edit with AI (current)</span>
+          </div>
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg text-xs">
+            <i class="fas fa-users text-blue-600"></i>
+            <span>Collaborate</span>
+          </div>
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg text-xs">
+            <i class="fas fa-eye text-amber-600"></i>
+            <span>View Suggestions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Targets -->
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <h3 class="text-lg font-bold text-gray-900 mb-4">Navigation Targets</h3>
+      <div class="space-y-3">
+        <div class="flex items-center gap-4 p-3 bg-gray-100 rounded-lg">
+          <div class="w-10 h-10 rounded-lg bg-teal-100 flex items-center justify-center">
+            <i class="fas fa-robot text-teal-600"></i>
+          </div>
+          <div class="flex-1">
+            <p class="font-medium text-gray-900">Edit with AI</p>
+            <p class="text-sm text-gray-500">Current page - informational text only (not a link)</p>
+          </div>
+          <span class="text-xs bg-teal-100 px-2 py-1 rounded text-teal-700 font-medium">Current</span>
+        </div>
+        <div class="flex items-center gap-4 p-3 bg-blue-50 rounded-lg">
+          <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+            <i class="fas fa-users text-blue-600"></i>
+          </div>
+          <div class="flex-1">
+            <p class="font-medium text-gray-900">Collaborate</p>
+            <p class="text-sm text-gray-500">Navigate to collaboration page</p>
+          </div>
+          <code class="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">/trips/[id]/collaborate</code>
+        </div>
+        <div class="flex items-center gap-4 p-3 bg-amber-50 rounded-lg">
+          <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+            <i class="fas fa-eye text-amber-600"></i>
+          </div>
+          <div class="flex-1">
+            <p class="font-medium text-gray-900">View Suggestions</p>
+            <p class="text-sm text-gray-500">Navigate to curated trip view (public view)</p>
+          </div>
+          <code class="text-xs bg-gray-100 px-2 py-1 rounded text-gray-600">/trips/[id]</code>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function toggleMenu() {
+      const dropdown = document.getElementById('editDropdown');
+      dropdown.classList.toggle('hidden');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      const container = document.getElementById('editMenuContainer');
+      const dropdown = document.getElementById('editDropdown');
+      if (container && !container.contains(event.target)) {
+        dropdown.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

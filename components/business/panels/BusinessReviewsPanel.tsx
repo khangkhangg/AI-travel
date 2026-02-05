@@ -11,7 +11,12 @@ import {
   DollarSign,
   Loader2,
   ChevronDown,
+  MessageSquare,
+  Send,
+  Flag,
 } from 'lucide-react';
+
+type ReviewStatus = 'open' | 'resolved' | 'flagged';
 
 interface Review {
   id: string;
@@ -25,6 +30,9 @@ interface Review {
   verified_services: boolean;
   verified_pricing: boolean;
   created_at: string;
+  response_text?: string;
+  response_at?: string;
+  status: ReviewStatus;
 }
 
 interface VerificationCounts {
@@ -48,6 +56,12 @@ export default function BusinessReviewsPanel({ businessId }: BusinessReviewsPane
   const [hasMore, setHasMore] = useState(false);
   const [sortBy, setSortBy] = useState<'recent' | 'rating_high' | 'rating_low'>('recent');
 
+  // Response form state
+  const [respondingTo, setRespondingTo] = useState<string | null>(null);
+  const [responseText, setResponseText] = useState('');
+  const [responseStatus, setResponseStatus] = useState<ReviewStatus>('resolved');
+  const [submittingResponse, setSubmittingResponse] = useState(false);
+
   useEffect(() => {
     fetchReviews(1, true);
   }, [businessId, sortBy]);
@@ -65,7 +79,7 @@ export default function BusinessReviewsPanel({ businessId }: BusinessReviewsPane
           setReviews((prev) => [...prev, ...data.reviews]);
         }
         setTotalReviews(data.total);
-        setAvgRating(data.averageRating || 0);
+        setAvgRating(parseFloat(data.averageRating) || 0);
         setHasMore(data.reviews.length === 10);
         setVerificationCounts(data.verificationCounts);
         setPage(pageNum);
@@ -79,6 +93,77 @@ export default function BusinessReviewsPanel({ businessId }: BusinessReviewsPane
 
   const loadMore = () => {
     fetchReviews(page + 1);
+  };
+
+  const handleStartResponse = (reviewId: string, currentStatus: ReviewStatus) => {
+    setRespondingTo(reviewId);
+    setResponseText('');
+    setResponseStatus(currentStatus === 'open' ? 'resolved' : currentStatus);
+  };
+
+  const handleCancelResponse = () => {
+    setRespondingTo(null);
+    setResponseText('');
+  };
+
+  const handleSubmitResponse = async (reviewId: string) => {
+    if (!responseText.trim()) return;
+
+    setSubmittingResponse(true);
+    try {
+      const response = await fetch(`/api/businesses/${businessId}/reviews`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewId,
+          responseText: responseText.trim(),
+          status: responseStatus,
+        }),
+      });
+
+      if (response.ok) {
+        // Update the review in local state
+        setReviews((prev) =>
+          prev.map((r) =>
+            r.id === reviewId
+              ? {
+                  ...r,
+                  response_text: responseText.trim(),
+                  response_at: new Date().toISOString(),
+                  status: responseStatus,
+                }
+              : r
+          )
+        );
+        setRespondingTo(null);
+        setResponseText('');
+      }
+    } catch (err) {
+      console.error('Failed to submit response:', err);
+    } finally {
+      setSubmittingResponse(false);
+    }
+  };
+
+  const handleUpdateStatus = async (reviewId: string, newStatus: ReviewStatus) => {
+    try {
+      const response = await fetch(`/api/businesses/${businessId}/reviews`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reviewId,
+          status: newStatus,
+        }),
+      });
+
+      if (response.ok) {
+        setReviews((prev) =>
+          prev.map((r) => (r.id === reviewId ? { ...r, status: newStatus } : r))
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update status:', err);
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -126,6 +211,24 @@ export default function BusinessReviewsPanel({ businessId }: BusinessReviewsPane
       {count !== undefined && <span className="font-medium">({count})</span>}
     </div>
   );
+
+  const StatusBadge = ({ status }: { status: ReviewStatus }) => {
+    const styles = {
+      open: 'bg-yellow-100 text-yellow-700',
+      resolved: 'bg-green-100 text-green-700',
+      flagged: 'bg-red-100 text-red-700',
+    };
+    const labels = {
+      open: 'Open',
+      resolved: 'Resolved',
+      flagged: 'Flagged',
+    };
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}>
+        {labels[status]}
+      </span>
+    );
+  };
 
   if (loading) {
     return (
@@ -237,6 +340,20 @@ export default function BusinessReviewsPanel({ businessId }: BusinessReviewsPane
                           </span>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={review.status || 'open'} />
+                        <select
+                          value={review.status || 'open'}
+                          onChange={(e) => handleUpdateStatus(review.id, e.target.value as ReviewStatus)}
+                          className="text-xs px-2 py-1 border border-gray-200 rounded-lg bg-white"
+                          title="Change review status"
+                          aria-label="Change review status"
+                        >
+                          <option value="open">Open</option>
+                          <option value="resolved">Resolved</option>
+                          <option value="flagged">Flagged</option>
+                        </select>
+                      </div>
                     </div>
 
                     {/* Review Text */}
@@ -280,6 +397,85 @@ export default function BusinessReviewsPanel({ businessId }: BusinessReviewsPane
                         )}
                       </div>
                     )}
+
+                    {/* Existing Response */}
+                    {review.response_text && (
+                      <div className="mt-4 ml-0 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <MessageSquare className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-800">Your Response</span>
+                          {review.response_at && (
+                            <span className="text-xs text-blue-600">
+                              {formatDate(review.response_at)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-blue-900">{review.response_text}</p>
+                      </div>
+                    )}
+
+                    {/* Response Form */}
+                    {respondingTo === review.id ? (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Your Response
+                        </label>
+                        <textarea
+                          value={responseText}
+                          onChange={(e) => setResponseText(e.target.value)}
+                          placeholder="Write your response to this review..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        />
+                        <div className="flex items-center justify-between mt-3">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-600">Set status:</label>
+                            <select
+                              value={responseStatus}
+                              onChange={(e) => setResponseStatus(e.target.value as ReviewStatus)}
+                              className="text-xs px-2 py-1 border border-gray-200 rounded-lg"
+                              title="Set review status"
+                              aria-label="Set review status"
+                            >
+                              <option value="open">Open</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="flagged">Flagged</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleCancelResponse}
+                              className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSubmitResponse(review.id)}
+                              disabled={!responseText.trim() || submittingResponse}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {submittingResponse ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Send className="w-3 h-3" />
+                              )}
+                              Send
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : !review.response_text ? (
+                      <button
+                        type="button"
+                        onClick={() => handleStartResponse(review.id, review.status || 'open')}
+                        className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-sm text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                        Respond to this review
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

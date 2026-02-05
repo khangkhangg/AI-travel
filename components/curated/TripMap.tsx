@@ -11,7 +11,7 @@ interface MapLocation {
   lng: number;
   dayNumber: number;
   category?: string;
-  type?: 'activity' | 'suggestion';  // Suggestions show with purple pin
+  type?: 'activity' | 'suggestion';  // Suggestions show with amber pin
 }
 
 interface TripMapProps {
@@ -77,9 +77,9 @@ const createDayIcon = (dayNumber: number, isActive: boolean) => {
   });
 };
 
-// Create suggestion marker icon (purple)
+// Create suggestion marker icon (amber)
 const createSuggestionIcon = (isActive: boolean) => {
-  const color = '#9333ea';  // Purple-600
+  const color = '#d97706';  // Amber-600
   const size = isActive ? 28 : 22;
   const opacity = isActive ? 1 : 0.7;
 
@@ -193,7 +193,7 @@ export default function TripMap({
       const popupContent = `
         <div style="min-width: 150px;">
           <strong style="font-size: 14px;">${loc.title}</strong>
-          <div style="color: ${isSuggestion ? '#9333ea' : '#666'}; font-size: 12px; margin-top: 4px;">
+          <div style="color: ${isSuggestion ? '#d97706' : '#666'}; font-size: 12px; margin-top: 4px;">
             ${typeLabel}${loc.category ? ` · ${loc.category}` : ''}
           </div>
         </div>
@@ -313,7 +313,7 @@ export default function TripMap({
             <div className="flex items-center gap-1.5 font-semibold">
               <div
                 className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: '#9333ea' }}
+                style={{ backgroundColor: '#d97706' }}
               />
               <span>Suggestions</span>
             </div>
