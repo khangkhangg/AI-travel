@@ -30,6 +30,16 @@ import {
 } from 'lucide-react';
 import TourBrowser from '@/components/tours/TourBrowser';
 import { Tour } from '@/lib/types/tour';
+import {
+  TripSlots,
+  ConversationState,
+  ChatSession,
+  GeneratedTrip,
+  getEmptySlots,
+  createEmptyChatSession,
+} from '@/lib/types/chat-session';
+import { saveSession, loadSession, clearSession } from '@/lib/chat/session-storage';
+import SlotProgressBar from './SlotProgressBar';
 
 interface Message {
   id: string;
@@ -486,6 +496,14 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     responseCount: 0,
   });
   const [showPackagesTab, setShowPackagesTab] = useState(packagesTabEnabled ?? true);
+
+  // Slot-filling state
+  const [slots, setSlots] = useState<TripSlots>(() => getEmptySlots());
+  const [conversationState, setConversationState] = useState<ConversationState>('gathering');
+  const [generatedTrip, setGeneratedTrip] = useState<GeneratedTrip | null>(null);
+  const [activeSlot, setActiveSlot] = useState<string | null>(null);
+  const [useV2Api, setUseV2Api] = useState(true); // Feature flag to switch between APIs
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commandMenuRef = useRef<HTMLDivElement>(null);
@@ -812,6 +830,19 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     scrollToBottom();
   }, [messages]);
 
+  // Load saved session on mount
+  useEffect(() => {
+    const savedSession = loadSession();
+    if (savedSession) {
+      setSlots(savedSession.slots);
+      setConversationState(savedSession.conversationState);
+      setGeneratedTrip(savedSession.generatedTrip);
+      if (savedSession.lastMessages.length > 0) {
+        setMessages(savedSession.lastMessages);
+      }
+    }
+  }, []);
+
   // Fetch packages tab setting from admin API if not provided as prop
   useEffect(() => {
     if (packagesTabEnabled !== undefined) {
@@ -915,79 +946,165 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput('');
     setIsTyping(true);
 
     try {
-      // Prepare conversation history for API
-      const conversationHistory = [...messages, userMessage].map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: conversationHistory }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.message) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.message,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => {
-          const newMessages = [...prev, assistantMessage];
-          // Update context based on conversation
-          const context = extractTripContext(newMessages);
-          setTripContext(context);
-          onContextUpdate?.(context);
-          return newMessages;
+      if (useV2Api) {
+        // Use slot-based v2 API
+        const response = await fetch('/api/chat/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: crypto.randomUUID(), // or use a stored session ID
+            slots,
+            conversationState,
+            latestMessage: messageText,
+            generatedTrip,
+          }),
         });
 
-        // Update AI metrics from response (wrapped in try/catch to not break itinerary flow)
-        try {
-          if (data.aiMetrics) {
-            setAIMetrics((prev) => {
-              const updated = {
-                model: data.aiMetrics.model || prev.model,
-                provider: data.aiMetrics.provider || prev.provider,
-                tokensUsed: prev.tokensUsed + (data.aiMetrics.tokensUsed || 0),
-                cost: prev.cost + (data.aiMetrics.cost || 0),
-                responseCount: prev.responseCount + 1,
-              };
-              // Notify parent of metrics update
-              onAIMetricsUpdate?.(updated);
-              return updated;
-            });
-          }
-        } catch (metricsError) {
-          console.error('Error updating AI metrics:', metricsError);
-        }
+        if (response.ok) {
+          const data = await response.json();
 
-        // Parse itinerary from response
-        const parsedItinerary = parseItineraryFromResponse(data.message);
-        console.log('[ChatPanel] Parsed itinerary:', parsedItinerary.length, 'days');
-        if (parsedItinerary.length > 0) {
-          setItinerary(parsedItinerary);
-          // Stay on chat tab - don't auto-switch to itinerary
-          console.log('[ChatPanel] Calling onItineraryGenerated');
-          onItineraryGenerated?.(parsedItinerary);
+          // Update slots and state
+          setSlots(data.updatedSlots);
+          setConversationState(data.newState);
+          if (data.generatedTrip) {
+            setGeneratedTrip(data.generatedTrip);
+          }
+
+          // Determine active slot from missing slots
+          if (data.slotProgress.missing.length > 0) {
+            setActiveSlot(data.slotProgress.missing[0]);
+          } else {
+            setActiveSlot(null);
+          }
+
+          // Add assistant message
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: data.message,
+            timestamp: new Date(),
+          };
+          const updatedMessages = [...newMessages, assistantMessage];
+          setMessages(updatedMessages);
+
+          // Update context based on conversation
+          const context = extractTripContext(updatedMessages);
+          setTripContext(context);
+          onContextUpdate?.(context);
+
+          // Auto-save session
+          saveSession({
+            sessionId: crypto.randomUUID(),
+            slots: data.updatedSlots,
+            conversationState: data.newState,
+            lastMessages: updatedMessages.slice(-5), // Keep last 5 messages
+            generatedTrip: data.generatedTrip || null,
+            updatedAt: Date.now(),
+          });
+
+          // Update AI metrics
+          if (onAIMetricsUpdate && data.aiMetrics) {
+            const updated = {
+              model: data.aiMetrics.model,
+              provider: data.aiMetrics.provider,
+              tokensUsed: (aiMetrics?.tokensUsed || 0) + data.aiMetrics.tokensUsed,
+              cost: (aiMetrics?.cost || 0) + data.aiMetrics.cost,
+              responseCount: (aiMetrics?.responseCount || 0) + 1,
+            };
+            setAIMetrics(updated);
+            onAIMetricsUpdate(updated);
+          }
+
+          // Parse itinerary from response
+          const parsedItinerary = parseItineraryFromResponse(data.message);
+          console.log('[ChatPanel v2] Parsed itinerary:', parsedItinerary.length, 'days');
+          if (parsedItinerary.length > 0) {
+            setItinerary(parsedItinerary);
+            console.log('[ChatPanel v2] Calling onItineraryGenerated');
+            onItineraryGenerated?.(parsedItinerary);
+          }
+        } else {
+          // Fallback to v1 API if v2 fails
+          console.warn('[ChatPanel] v2 API failed, falling back to v1');
+          throw new Error('v2 API failed');
         }
       } else {
-        // Fallback to mock response if API fails
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.error || getAIFallbackResponse(messageText),
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
+        // Existing v1 API logic
+        // Prepare conversation history for API
+        const conversationHistory = [...messages, userMessage].map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: conversationHistory }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.message) {
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: data.message,
+            timestamp: new Date(),
+          };
+          setMessages((prev) => {
+            const newMsgs = [...prev, assistantMessage];
+            // Update context based on conversation
+            const context = extractTripContext(newMsgs);
+            setTripContext(context);
+            onContextUpdate?.(context);
+            return newMsgs;
+          });
+
+          // Update AI metrics from response (wrapped in try/catch to not break itinerary flow)
+          try {
+            if (data.aiMetrics) {
+              setAIMetrics((prev) => {
+                const updated = {
+                  model: data.aiMetrics.model || prev.model,
+                  provider: data.aiMetrics.provider || prev.provider,
+                  tokensUsed: prev.tokensUsed + (data.aiMetrics.tokensUsed || 0),
+                  cost: prev.cost + (data.aiMetrics.cost || 0),
+                  responseCount: prev.responseCount + 1,
+                };
+                // Notify parent of metrics update
+                onAIMetricsUpdate?.(updated);
+                return updated;
+              });
+            }
+          } catch (metricsError) {
+            console.error('Error updating AI metrics:', metricsError);
+          }
+
+          // Parse itinerary from response
+          const parsedItinerary = parseItineraryFromResponse(data.message);
+          console.log('[ChatPanel] Parsed itinerary:', parsedItinerary.length, 'days');
+          if (parsedItinerary.length > 0) {
+            setItinerary(parsedItinerary);
+            // Stay on chat tab - don't auto-switch to itinerary
+            console.log('[ChatPanel] Calling onItineraryGenerated');
+            onItineraryGenerated?.(parsedItinerary);
+          }
+        } else {
+          // Fallback to mock response if API fails
+          const assistantMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: data.error || getAIFallbackResponse(messageText),
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
       }
     } catch (error) {
       console.error('Chat error:', error);
@@ -1053,12 +1170,30 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
             <p className="text-xs text-teal-100">Powered by AI</p>
           </div>
         </div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white"
-        >
-          {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              clearSession();
+              setSlots(getEmptySlots());
+              setConversationState('gathering');
+              setGeneratedTrip(null);
+              setMessages([DEFAULT_WELCOME_MESSAGE]);
+              setActiveSlot(null);
+              setItinerary(null);
+              setCollectedInfo({});
+              setTripContext({});
+            }}
+            className="text-xs text-teal-100 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
+          >
+            New Trip
+          </button>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white"
+          >
+            {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1095,6 +1230,16 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
       <div className="flex-1 overflow-hidden">
         {activeTab === 'chat' && (
           <div className="flex flex-col h-full">
+            {/* Slot Progress Bar */}
+            {conversationState !== 'refining' && (
+              <div className="px-4 pt-4">
+                <SlotProgressBar
+                  slots={slots}
+                  isExpanded={messages.length < 3}
+                  activeSlot={activeSlot || undefined}
+                />
+              </div>
+            )}
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => (
