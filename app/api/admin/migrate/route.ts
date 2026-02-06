@@ -121,6 +121,46 @@ export async function POST(request: NextRequest) {
       results.push({ name: 'user_badge_levels index', status: 'error', error: e.message });
     }
 
+    // Migration 8: chat_metrics table (token usage tracking for v2 chat API)
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS chat_metrics (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          session_id VARCHAR(255) NOT NULL,
+          user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          model VARCHAR(100) NOT NULL,
+          provider VARCHAR(100) NOT NULL,
+          prompt_tokens INTEGER NOT NULL DEFAULT 0,
+          completion_tokens INTEGER NOT NULL DEFAULT 0,
+          total_tokens INTEGER NOT NULL DEFAULT 0,
+          cost DECIMAL(10, 6) NOT NULL DEFAULT 0,
+          conversation_state VARCHAR(50),
+          slots_filled INTEGER,
+          slots_total INTEGER,
+          response_time_ms INTEGER,
+          trip_generated BOOLEAN DEFAULT false,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      results.push({ name: 'chat_metrics table', status: 'success' });
+    } catch (e: any) {
+      if (e.message.includes('already exists')) {
+        results.push({ name: 'chat_metrics table', status: 'skipped (exists)' });
+      } else {
+        results.push({ name: 'chat_metrics table', status: 'error', error: e.message });
+      }
+    }
+
+    // Migration 9: chat_metrics indexes
+    try {
+      await query(`CREATE INDEX IF NOT EXISTS idx_chat_metrics_created_at ON chat_metrics(created_at DESC)`);
+      await query(`CREATE INDEX IF NOT EXISTS idx_chat_metrics_session_id ON chat_metrics(session_id)`);
+      await query(`CREATE INDEX IF NOT EXISTS idx_chat_metrics_model ON chat_metrics(model)`);
+      results.push({ name: 'chat_metrics indexes', status: 'success' });
+    } catch (e: any) {
+      results.push({ name: 'chat_metrics indexes', status: 'error', error: e.message });
+    }
+
     return NextResponse.json({
       message: 'Migrations completed',
       results,
@@ -163,6 +203,12 @@ export async function GET(request: NextRequest) {
       )
     `);
     tables.push({ name: 'users.status', exists: statusCheck.rows[0].exists });
+
+    // Check chat_metrics
+    const chatMetricsCheck = await query(`
+      SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'chat_metrics')
+    `);
+    tables.push({ name: 'chat_metrics', exists: chatMetricsCheck.rows[0].exists });
 
     return NextResponse.json({ tables });
   } catch (error: any) {

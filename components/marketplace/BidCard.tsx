@@ -166,10 +166,10 @@ export default function BidCard({
           </div>
 
           {/* Rating */}
-          {(proposal.rating !== undefined && proposal.rating > 0) && (
+          {(proposal.rating != null && Number(proposal.rating) > 0) && (
             <div className="flex items-center gap-1 mt-0.5 text-sm text-gray-500">
               <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-              <span>{proposal.rating.toFixed(1)}</span>
+              <span>{Number(proposal.rating).toFixed(1)}</span>
               {proposal.review_count !== undefined && (
                 <span className="text-gray-400">({proposal.review_count})</span>
               )}

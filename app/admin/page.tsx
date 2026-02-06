@@ -65,6 +65,8 @@ interface AppSettings {
   aiUrlParsingEnabled: boolean;
   // Packages Tab (Chatbox)
   packagesTabEnabled: boolean;
+  // Trip Details Section (Chatbox)
+  tripDetailsEnabled: boolean;
   // Landing Page Sections
   tripCategoriesEnabled: boolean;
   popularDestinationsEnabled: boolean;
@@ -358,6 +360,7 @@ export default function AdminDashboard() {
         systemPrompt: settings?.systemPrompt,
         aiUrlParsingEnabled: settings?.aiUrlParsingEnabled,
         packagesTabEnabled: settings?.packagesTabEnabled,
+        tripDetailsEnabled: settings?.tripDetailsEnabled,
         tripCategoriesEnabled: settings?.tripCategoriesEnabled,
         popularDestinationsEnabled: settings?.popularDestinationsEnabled,
       };
@@ -3755,6 +3758,26 @@ export default function AdminDashboard() {
                     <div
                       className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
                         settings?.packagesTabEnabled ? 'left-7' : 'left-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Trip Details Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">Show Trip Details</p>
+                    <p className="text-sm text-gray-500">Display the Trip details section in the Chatbox (destination, dates, budget tags)</p>
+                  </div>
+                  <button
+                    onClick={() => setSettings(s => s ? { ...s, tripDetailsEnabled: !s.tripDetailsEnabled } : s)}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      settings?.tripDetailsEnabled !== false ? 'bg-teal-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow-md transition-all ${
+                        settings?.tripDetailsEnabled !== false ? 'left-7' : 'left-1'
                       }`}
                     />
                   </button>

@@ -114,6 +114,7 @@ interface ChatPanelProps {
   onMessagesChange?: (messages: Message[]) => void;
   onAIMetricsUpdate?: (metrics: AIMetrics) => void;
   packagesTabEnabled?: boolean;
+  tripDetailsEnabled?: boolean;
   triggerCommand?: 'location' | 'duration' | 'budget' | 'travelers' | null;
   onTriggerCommandHandled?: () => void;
 }
@@ -154,6 +155,25 @@ function isCostSummaryItem(time: string, title: string): boolean {
 
   const combinedText = `${lowerTime} ${lowerTitle}`;
   return summaryPatterns.some(pattern => pattern.test(combinedText));
+}
+
+// Convert GeneratedTrip (v2 API format) to ItineraryDay[] for display
+function convertGeneratedTripToItinerary(trip: GeneratedTrip): ItineraryDay[] {
+  if (!trip || !trip.itinerary || !Array.isArray(trip.itinerary)) {
+    return [];
+  }
+
+  return trip.itinerary.map((day) => ({
+    day: day.dayNumber,
+    title: `Day ${day.dayNumber} in ${trip.metadata?.destination || 'your destination'}`,
+    activities: (day.items || []).map((item) => ({
+      time: item.startTime || '',
+      title: item.title || '',
+      price: item.estimatedCost ? `$${item.estimatedCost}` : '',
+      description: item.description || '',
+      place: item.location?.name || item.location?.address || '',
+    })),
+  }));
 }
 
 // Parse itinerary from AI response markdown
@@ -464,7 +484,7 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
   timestamp: new Date(),
 };
 
-export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate, packagesTabEnabled, triggerCommand, onTriggerCommandHandled }: ChatPanelProps) {
+export default function ChatPanel({ initialPrompt, initialMessages, parentItinerary, selectedHotels = {}, onItineraryGenerated, onConversationStart, onContextUpdate, onMessagesChange, onAIMetricsUpdate, packagesTabEnabled, tripDetailsEnabled, triggerCommand, onTriggerCommandHandled }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>(
     initialMessages && initialMessages.length > 0
       ? initialMessages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
@@ -496,6 +516,7 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     responseCount: 0,
   });
   const [showPackagesTab, setShowPackagesTab] = useState(packagesTabEnabled ?? true);
+  const [showTripDetails, setShowTripDetails] = useState(tripDetailsEnabled ?? true);
 
   // Slot-filling state
   const [slots, setSlots] = useState<TripSlots>(() => getEmptySlots());
@@ -835,34 +856,67 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     const savedSession = loadSession();
     if (savedSession) {
       setSlots(savedSession.slots);
-      setConversationState(savedSession.conversationState);
-      setGeneratedTrip(savedSession.generatedTrip);
+
+      // If session has a generated trip, check if it has valid itinerary data
+      if (savedSession.generatedTrip) {
+        const restoredItinerary = convertGeneratedTripToItinerary(savedSession.generatedTrip);
+        if (restoredItinerary.length > 0) {
+          // Valid itinerary exists - restore everything
+          setConversationState(savedSession.conversationState);
+          setGeneratedTrip(savedSession.generatedTrip);
+          setItinerary(restoredItinerary);
+          console.log('[ChatPanel] Restored itinerary from session:', restoredItinerary.length, 'days');
+          onItineraryGenerated?.(restoredItinerary);
+        } else {
+          // Corrupted state: has generatedTrip metadata but no actual itinerary
+          // Clear the trip and reset to 'ready' state so user can regenerate
+          console.log('[ChatPanel] Corrupted session: generatedTrip exists but no itinerary data. Resetting to ready state.');
+          setGeneratedTrip(null);
+          // If all slots are filled, go to 'ready' state, otherwise 'gathering'
+          const filledSlots = Object.values(savedSession.slots).filter(v => v !== null && v !== '').length;
+          setConversationState(filledSlots >= 7 ? 'ready' : 'gathering');
+        }
+      } else {
+        // No generated trip - restore normally
+        setConversationState(savedSession.conversationState);
+        setGeneratedTrip(null);
+      }
+
       if (savedSession.lastMessages.length > 0) {
         setMessages(savedSession.lastMessages);
       }
     }
   }, []);
 
-  // Fetch packages tab setting from admin API if not provided as prop
+  // Fetch chatbox settings from public API if not provided as props
   useEffect(() => {
-    if (packagesTabEnabled !== undefined) {
+    // If both props are provided, use them directly
+    if (packagesTabEnabled !== undefined && tripDetailsEnabled !== undefined) {
       setShowPackagesTab(packagesTabEnabled);
+      setShowTripDetails(tripDetailsEnabled);
       return;
     }
 
     const fetchSettings = async () => {
       try {
-        const response = await fetch('/api/admin/settings');
+        // Use public endpoint (no auth required) instead of admin endpoint
+        const response = await fetch('/api/settings/public');
         if (response.ok) {
           const data = await response.json();
-          setShowPackagesTab(data.packagesTabEnabled ?? true);
+          // Only update from API if prop wasn't provided
+          if (packagesTabEnabled === undefined) {
+            setShowPackagesTab(data.packagesTabEnabled ?? true);
+          }
+          if (tripDetailsEnabled === undefined) {
+            setShowTripDetails(data.tripDetailsEnabled ?? true);
+          }
         }
       } catch {
-        // If fetch fails, keep default (true)
+        // If fetch fails, keep defaults (true)
       }
     };
     fetchSettings();
-  }, [packagesTabEnabled]);
+  }, [packagesTabEnabled, tripDetailsEnabled]);
 
   // Notify parent when messages change (for saving to database)
   useEffect(() => {
@@ -954,6 +1008,11 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
     try {
       if (useV2Api) {
         // Use slot-based v2 API
+        console.log('[ChatPanel v2] Sending request:', {
+          conversationState,
+          hasGeneratedTrip: !!generatedTrip,
+          slotsFilledCount: Object.values(slots).filter(v => v !== null && v !== '').length,
+        });
         const response = await fetch('/api/chat/v2', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -968,6 +1027,12 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
 
         if (response.ok) {
           const data = await response.json();
+          console.log('[ChatPanel v2] Response received:', {
+            newState: data.newState,
+            hasGeneratedTrip: !!data.generatedTrip,
+            itineraryDays: data.generatedTrip?.itinerary?.length || 0,
+            slotProgress: data.slotProgress,
+          });
 
           // Update slots and state
           setSlots(data.updatedSlots);
@@ -998,32 +1063,48 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
           setTripContext(context);
           onContextUpdate?.(context);
 
-          // Auto-save session
+          // Auto-save session - preserve existing generatedTrip if API doesn't return one
+          const tripToSave = data.generatedTrip || generatedTrip || null;
           saveSession({
             sessionId: crypto.randomUUID(),
             slots: data.updatedSlots,
             conversationState: data.newState,
             lastMessages: updatedMessages.slice(-5), // Keep last 5 messages
-            generatedTrip: data.generatedTrip || null,
+            generatedTrip: tripToSave,
             updatedAt: Date.now(),
           });
 
-          // Update AI metrics
-          if (onAIMetricsUpdate && data.aiMetrics) {
-            const updated = {
-              model: data.aiMetrics.model,
-              provider: data.aiMetrics.provider,
-              tokensUsed: (aiMetrics?.tokensUsed || 0) + data.aiMetrics.tokensUsed,
-              cost: (aiMetrics?.cost || 0) + data.aiMetrics.cost,
-              responseCount: (aiMetrics?.responseCount || 0) + 1,
-            };
-            setAIMetrics(updated);
-            onAIMetricsUpdate(updated);
+          // Update AI metrics - use functional update pattern like v1 to avoid stale closure
+          if (data.aiMetrics) {
+            console.log('[ChatPanel v2] aiMetrics received:', data.aiMetrics);
+            setAIMetrics((prev) => {
+              const updated = {
+                model: data.aiMetrics.model || prev.model,
+                provider: data.aiMetrics.provider || prev.provider,
+                tokensUsed: prev.tokensUsed + (data.aiMetrics.tokensUsed || 0),
+                cost: prev.cost + (data.aiMetrics.cost || 0),
+                responseCount: prev.responseCount + 1,
+              };
+              console.log('[ChatPanel v2] Updated metrics:', updated);
+              // Notify parent if callback exists
+              onAIMetricsUpdate?.(updated);
+              return updated;
+            });
+          } else {
+            console.warn('[ChatPanel v2] No aiMetrics in response');
           }
 
-          // Parse itinerary from response
-          const parsedItinerary = parseItineraryFromResponse(data.message);
-          console.log('[ChatPanel v2] Parsed itinerary:', parsedItinerary.length, 'days');
+          // Convert generated trip to itinerary format if available
+          // Otherwise fall back to parsing markdown from message
+          let parsedItinerary: ItineraryDay[] = [];
+          if (data.generatedTrip) {
+            parsedItinerary = convertGeneratedTripToItinerary(data.generatedTrip);
+            console.log('[ChatPanel v2] Converted generatedTrip to itinerary:', parsedItinerary.length, 'days');
+          } else {
+            parsedItinerary = parseItineraryFromResponse(data.message);
+            console.log('[ChatPanel v2] Parsed itinerary from message:', parsedItinerary.length, 'days');
+          }
+
           if (parsedItinerary.length > 0) {
             setItinerary(parsedItinerary);
             console.log('[ChatPanel v2] Calling onItineraryGenerated');
@@ -1230,12 +1311,12 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
       <div className="flex-1 overflow-hidden">
         {activeTab === 'chat' && (
           <div className="flex flex-col h-full">
-            {/* Slot Progress Bar */}
+            {/* Slot Progress Bar - always starts collapsed to not block chat input */}
             {conversationState !== 'refining' && (
               <div className="px-4 pt-4">
                 <SlotProgressBar
                   slots={slots}
-                  isExpanded={messages.length < 3}
+                  isExpanded={false}
                   activeSlot={activeSlot || undefined}
                 />
               </div>
@@ -1300,37 +1381,39 @@ export default function ChatPanel({ initialPrompt, initialMessages, parentItiner
             {/* Smart Suggestions - show trip info status tags */}
             <div className="px-4 py-3 border-t border-gray-100">
               {/* Trip Info Status Tags */}
-              <div className="mb-2">
-                <p className="text-xs text-gray-500 mb-2 font-medium">Trip details:</p>
-                <div className="flex gap-2 flex-wrap">
-                  {commandOptions.map((cmd) => {
-                    const filled = filledInfo.find(f => f.id === cmd.id);
-                    return (
-                      <button
-                        key={cmd.id}
-                        onClick={() => selectCommand(cmd)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                          filled
-                            ? 'bg-teal-100 border border-teal-300 text-teal-700'
-                            : 'bg-gray-100 border border-gray-200 text-gray-500 hover:bg-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        {cmd.icon}
-                        {filled ? (
-                          <>
-                            <span className="truncate max-w-[80px]">
-                              {cmd.id === 'budget' ? filled.value.replace(/^\$/, '') : filled.value}
-                            </span>
-                            <span className="text-teal-500 ml-1">✓</span>
-                          </>
-                        ) : (
-                          <span>{cmd.label}</span>
-                        )}
-                      </button>
-                    );
-                  })}
+              {showTripDetails && (
+                <div className="mb-2">
+                  <p className="text-xs text-gray-500 mb-2 font-medium">Trip details:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {commandOptions.map((cmd) => {
+                      const filled = filledInfo.find(f => f.id === cmd.id);
+                      return (
+                        <button
+                          key={cmd.id}
+                          onClick={() => selectCommand(cmd)}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                            filled
+                              ? 'bg-teal-100 border border-teal-300 text-teal-700'
+                              : 'bg-gray-100 border border-gray-200 text-gray-500 hover:bg-gray-200 hover:border-gray-300'
+                          }`}
+                        >
+                          {cmd.icon}
+                          {filled ? (
+                            <>
+                              <span className="truncate max-w-[80px]">
+                                {cmd.id === 'budget' ? filled.value.replace(/^\$/, '') : filled.value}
+                              </span>
+                              <span className="text-teal-500 ml-1">✓</span>
+                            </>
+                          ) : (
+                            <span>{cmd.label}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
               {/* Additional suggestion prompts if still missing info */}
               {suggestionPrompts.length > 0 && suggestionPrompts.length < 4 && (
                 <div className="mb-2">

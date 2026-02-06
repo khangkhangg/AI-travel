@@ -20,6 +20,8 @@ import {
   Heart,
   Hotel,
   DollarSign,
+  Plus,
+  PenLine,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import { Itinerary, UserSummary } from '@/lib/types/user';
@@ -102,6 +104,29 @@ function DiscoverContent() {
     end: searchParams.get('endDate') || '',
   });
   const [groupSize, setGroupSize] = useState<number | null>(null);
+  const [showPlanDropdown, setShowPlanDropdown] = useState(false);
+
+  const handleCreateCustomTrip = async () => {
+    try {
+      const response = await fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: '',
+          visibility: 'private',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/trips/${data.trip.id}/collaborate`);
+      } else {
+        console.error('Failed to create trip');
+      }
+    } catch (error) {
+      console.error('Failed to create trip:', error);
+    }
+  };
 
   const fetchItineraries = useCallback(async () => {
     setLoadingItineraries(true);
@@ -243,13 +268,42 @@ function DiscoverContent() {
                   Join as Business
                 </Link>
               )}
-              <Link
-                href="/?action=start-planning"
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors"
+              <div
+                className="relative"
+                onMouseEnter={() => setShowPlanDropdown(true)}
+                onMouseLeave={() => setShowPlanDropdown(false)}
               >
-                <Sparkles className="w-4 h-4" />
-                Create Trip
-              </Link>
+                <button className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors">
+                  <Plus className="w-4 h-4" />
+                  <span>Create Trip</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+
+                {showPlanDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                    <button
+                      onClick={() => router.push('/?action=start-planning')}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-emerald-50 transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">AI Assist</div>
+                        <div className="text-xs text-gray-500">Chat with AI to plan your trip</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleCreateCustomTrip}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-emerald-50 transition-colors border-t border-gray-100"
+                    >
+                      <PenLine className="w-4 h-4 text-emerald-600" />
+                      <div>
+                        <div className="font-medium text-gray-900">Custom Manually</div>
+                        <div className="text-xs text-gray-500">Build your itinerary from scratch</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

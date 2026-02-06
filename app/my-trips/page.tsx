@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   MapPin, Calendar, Users, Eye, Heart, Trash2, Share2,
   Plus, Compass, Lock, Globe, Building2, Star, Edit3, Users2,
-  Copy, ChevronDown, Check, Loader2, AlertTriangle,
+  Copy, ChevronDown, Check, Loader2, AlertTriangle, Sparkles, PenLine,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
@@ -79,6 +79,7 @@ export default function MyTripsPage() {
   const [editingDaysId, setEditingDaysId] = useState<string | null>(null);
   const [editingDaysValue, setEditingDaysValue] = useState<string>('');
   const [savingDays, setSavingDays] = useState<string | null>(null);
+  const [showPlanDropdown, setShowPlanDropdown] = useState(false);
   const visibilityMenuRef = useRef<HTMLDivElement>(null);
   const deleteMenuRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -162,6 +163,28 @@ export default function MyTripsPage() {
     const shareUrl = `${baseUrl}/shared/${shareCode}`;
     await navigator.clipboard.writeText(shareUrl);
     alert('Share link copied to clipboard!');
+  };
+
+  const handleCreateCustomTrip = async () => {
+    try {
+      const response = await fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: '',
+          visibility: 'private',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/trips/${data.trip.id}/collaborate`);
+      } else {
+        console.error('Failed to create trip');
+      }
+    } catch (error) {
+      console.error('Failed to create trip:', error);
+    }
   };
 
   const handleUpdateVisibility = async (tripId: string, newVisibility: ItineraryVisibility) => {
@@ -561,13 +584,42 @@ export default function MyTripsPage() {
                 {trips.length} {trips.length === 1 ? 'trip' : 'trips'} saved
               </p>
             </div>
-            <button
-              onClick={() => router.push('/')}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors"
+            <div
+              className="relative"
+              onMouseEnter={() => setShowPlanDropdown(true)}
+              onMouseLeave={() => setShowPlanDropdown(false)}
             >
-              <Plus className="w-4 h-4" />
-              <span>Plan New Trip</span>
-            </button>
+              <button className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 rounded-lg font-medium hover:bg-emerald-50 transition-colors">
+                <Plus className="w-4 h-4" />
+                <span>Plan New Trip</span>
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {showPlanDropdown && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                  <button
+                    onClick={() => router.push('/?action=start-planning')}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-emerald-50 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">AI Assist</div>
+                      <div className="text-xs text-gray-500">Chat with AI to plan your trip</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={handleCreateCustomTrip}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-emerald-50 transition-colors border-t border-gray-100"
+                  >
+                    <PenLine className="w-4 h-4 text-emerald-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">Custom Manually</div>
+                      <div className="text-xs text-gray-500">Build your itinerary from scratch</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -585,12 +637,22 @@ export default function MyTripsPage() {
               <p className="text-gray-600 mb-6 max-w-sm mx-auto">
                 Start planning your next adventure! Create an itinerary with our AI travel planner.
               </p>
-              <button
-                onClick={() => router.push('/')}
-                className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
-              >
-                Plan Your First Trip
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button
+                  onClick={() => router.push('/?action=start-planning')}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Plan with AI
+                </button>
+                <button
+                  onClick={handleCreateCustomTrip}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-emerald-700 border-2 border-emerald-200 rounded-xl font-semibold hover:bg-emerald-50 transition-colors"
+                >
+                  <PenLine className="w-4 h-4" />
+                  Create Manually
+                </button>
+              </div>
             </div>
           )}
 

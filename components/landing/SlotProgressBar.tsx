@@ -114,7 +114,7 @@ const SLOT_ORDER: SlotKey[] = [
 
 export default function SlotProgressBar({
   slots,
-  isExpanded: initialExpanded = true,
+  isExpanded: initialExpanded = false,
   activeSlot,
 }: SlotProgressBarProps) {
   const [isExpanded, setIsExpanded] = useState(initialExpanded);

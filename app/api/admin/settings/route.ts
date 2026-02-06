@@ -20,6 +20,8 @@ interface Settings {
   aiUrlParsingEnabled: boolean;
   // Packages Tab (Chatbox)
   packagesTabEnabled: boolean;
+  // Trip Details Section (Chatbox)
+  tripDetailsEnabled: boolean;
   // Landing Page Sections
   tripCategoriesEnabled: boolean;
   popularDestinationsEnabled: boolean;
@@ -50,6 +52,8 @@ const DEFAULT_SETTINGS: Settings = {
   aiUrlParsingEnabled: false,
   // Packages Tab - enabled by default
   packagesTabEnabled: true,
+  // Trip Details Section - enabled by default
+  tripDetailsEnabled: true,
   // Landing Page Sections - enabled by default
   tripCategoriesEnabled: true,
   popularDestinationsEnabled: true,
@@ -215,6 +219,8 @@ export async function GET() {
     aiUrlParsingEnabled: settings.aiUrlParsingEnabled ?? false,
     // Packages Tab
     packagesTabEnabled: settings.packagesTabEnabled ?? true,
+    // Trip Details Section
+    tripDetailsEnabled: settings.tripDetailsEnabled ?? true,
     // Landing Page Sections
     tripCategoriesEnabled: settings.tripCategoriesEnabled ?? true,
     popularDestinationsEnabled: settings.popularDestinationsEnabled ?? true,
@@ -257,6 +263,7 @@ export async function POST(request: NextRequest) {
       systemPrompt: body.systemPrompt ?? currentSettings.systemPrompt,
       aiUrlParsingEnabled: body.aiUrlParsingEnabled ?? currentSettings.aiUrlParsingEnabled,
       packagesTabEnabled: body.packagesTabEnabled ?? currentSettings.packagesTabEnabled,
+      tripDetailsEnabled: body.tripDetailsEnabled ?? currentSettings.tripDetailsEnabled,
       tripCategoriesEnabled: body.tripCategoriesEnabled ?? currentSettings.tripCategoriesEnabled,
       popularDestinationsEnabled: body.popularDestinationsEnabled ?? currentSettings.popularDestinationsEnabled,
     };

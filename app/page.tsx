@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Home, Calendar, MessageCircle, User, Compass } from 'lucide-react';
 import Header from '@/components/landing/Header';
 import HeroSection from '@/components/landing/HeroSection';
@@ -76,6 +76,7 @@ interface ChatMessage {
 
 export default function HomePage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tripIdFromUrl = searchParams.get('tripId');
   const [chatPrompt, setChatPrompt] = useState<string>('');
   const [mobileChat, setMobileChat] = useState(false);
@@ -337,6 +338,28 @@ export default function HomePage() {
     }
   }, []);
 
+  const handleCreateCustomTrip = useCallback(async () => {
+    try {
+      const response = await fetch('/api/trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: '',
+          visibility: 'private',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        router.push(`/trips/${data.trip.id}/collaborate`);
+      } else {
+        console.error('Failed to create trip');
+      }
+    } catch (error) {
+      console.error('Failed to create trip:', error);
+    }
+  }, [router]);
+
   const handleTriggerCommandHandled = useCallback(() => {
     setTriggerCommand(null);
   }, []);
@@ -576,7 +599,7 @@ export default function HomePage() {
               />
 
               {/* Glassmorphism CTA */}
-              <GlassCTA onGetStarted={handleGetStarted} />
+              <GlassCTA onGetStarted={handleGetStarted} onCreateCustomTrip={handleCreateCustomTrip} />
             </>
           ) : (
             /* Full Itinerary Display - Replaces hero when itinerary is generated */

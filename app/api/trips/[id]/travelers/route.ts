@@ -32,8 +32,32 @@ export async function GET(
       return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
     }
 
-    const travelers = result.rows[0].generated_content?.travelers || [];
-    return NextResponse.json({ travelers });
+    const currentContent = result.rows[0].generated_content || {};
+    const travelers = currentContent.travelers || [];
+
+    // Ensure all travelers have unique IDs (fix for AI-generated travelers)
+    let needsUpdate = false;
+    const travelersWithIds = travelers.map((t: any) => {
+      if (!t.id) {
+        needsUpdate = true;
+        return { ...t, id: crypto.randomUUID() };
+      }
+      return t;
+    });
+
+    // Persist IDs back to database if any were missing
+    if (needsUpdate) {
+      const updatedContent = {
+        ...currentContent,
+        travelers: travelersWithIds,
+      };
+      await query(
+        'UPDATE trips SET generated_content = $1, updated_at = NOW() WHERE id = $2',
+        [JSON.stringify(updatedContent), id]
+      );
+    }
+
+    return NextResponse.json({ travelers: travelersWithIds });
   } catch (error: any) {
     console.error('Failed to fetch travelers:', error);
     return NextResponse.json(
