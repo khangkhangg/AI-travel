@@ -46,6 +46,7 @@ import {
   MapPin,
   Upload,
   Compass,
+  Send,
 } from 'lucide-react';
 
 import { INTEREST_CATEGORIES } from '@/lib/types/user';
@@ -159,6 +160,12 @@ export default function AdminDashboard() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [brandingSaveStatus, setBrandingSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const logoInputRef = useRef<HTMLInputElement>(null);
+  // Telegram Notifications
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [showTelegramToken, setShowTelegramToken] = useState(false);
+  const [telegramSaveStatus, setTelegramSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [telegramTestStatus, setTelegramTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   // Featured Creators
   const [featuredCreators, setFeaturedCreators] = useState<Record<string, any[]>>({});
   const [featuredLoading, setFeaturedLoading] = useState(false);
@@ -344,6 +351,20 @@ export default function AdminDashboard() {
           }
         } catch (e) {
           console.error('Failed to fetch branding settings:', e);
+        }
+
+        // Fetch Telegram config
+        try {
+          const telegramRes = await fetch('/api/admin/site-settings?key=telegram_config');
+          if (telegramRes.ok) {
+            const telegramData = await telegramRes.json();
+            if (telegramData.value) {
+              setTelegramBotToken(telegramData.value.botToken || '');
+              setTelegramChatId(telegramData.value.chatId || '');
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch Telegram config:', e);
         }
 
         // Fetch eKYC settings
@@ -618,6 +639,59 @@ export default function AdminDashboard() {
     } catch {
       setBrandingSaveStatus('error');
       setTimeout(() => setBrandingSaveStatus('idle'), 3000);
+    }
+  };
+
+  const handleSaveTelegram = async () => {
+    setTelegramSaveStatus('saving');
+    try {
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'telegram_config',
+          value: { botToken: telegramBotToken, chatId: telegramChatId },
+        }),
+      });
+
+      if (res.ok) {
+        setTelegramSaveStatus('success');
+        setTimeout(() => setTelegramSaveStatus('idle'), 3000);
+      } else {
+        setTelegramSaveStatus('error');
+        setTimeout(() => setTelegramSaveStatus('idle'), 3000);
+      }
+    } catch {
+      setTelegramSaveStatus('error');
+      setTimeout(() => setTelegramSaveStatus('idle'), 3000);
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramBotToken || !telegramChatId) {
+      return;
+    }
+    setTelegramTestStatus('testing');
+    try {
+      const res = await fetch('/api/admin/test-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: telegramBotToken,
+          chatId: telegramChatId,
+        }),
+      });
+
+      if (res.ok) {
+        setTelegramTestStatus('success');
+        setTimeout(() => setTelegramTestStatus('idle'), 3000);
+      } else {
+        setTelegramTestStatus('error');
+        setTimeout(() => setTelegramTestStatus('idle'), 3000);
+      }
+    } catch {
+      setTelegramTestStatus('error');
+      setTimeout(() => setTelegramTestStatus('idle'), 3000);
     }
   };
 
@@ -4416,6 +4490,101 @@ export default function AdminDashboard() {
                     <Save className="w-4 h-4" />
                     {logoUploading ? 'Uploading...' : brandingSaveStatus === 'saving' ? 'Saving...' : 'Save Branding'}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Telegram Notifications */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                    <Send className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Telegram Notifications</h3>
+                    <p className="text-sm text-gray-500">Get alerts when admin logs in</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Bot Token */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bot Token</label>
+                  <div className="relative">
+                    <input
+                      type={showTelegramToken ? 'text' : 'password'}
+                      value={telegramBotToken}
+                      onChange={(e) => setTelegramBotToken(e.target.value)}
+                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTelegramToken(!showTelegramToken)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showTelegramToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">Get this from @BotFather on Telegram</p>
+                </div>
+
+                {/* Chat ID */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Chat ID</label>
+                  <input
+                    type="text"
+                    value={telegramChatId}
+                    onChange={(e) => setTelegramChatId(e.target.value)}
+                    placeholder="380772859"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">Your Telegram user ID or group chat ID</p>
+                </div>
+
+                {/* Test & Save Buttons */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleTestTelegram}
+                      disabled={telegramTestStatus === 'testing' || !telegramBotToken || !telegramChatId}
+                      className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      {telegramTestStatus === 'testing' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                      {telegramTestStatus === 'testing' ? 'Sending...' : 'Send Test'}
+                    </button>
+                    {telegramTestStatus === 'success' && (
+                      <span className="text-sm text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" /> Sent!
+                      </span>
+                    )}
+                    {telegramTestStatus === 'error' && (
+                      <span className="text-sm text-red-600">Failed to send</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {telegramSaveStatus === 'success' && (
+                      <span className="text-sm text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" /> Saved
+                      </span>
+                    )}
+                    {telegramSaveStatus === 'error' && (
+                      <span className="text-sm text-red-600">Failed to save</span>
+                    )}
+                    <button
+                      onClick={handleSaveTelegram}
+                      disabled={telegramSaveStatus === 'saving'}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium rounded-xl hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 transition-all"
+                    >
+                      <Save className="w-4 h-4" />
+                      {telegramSaveStatus === 'saving' ? 'Saving...' : 'Save Config'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

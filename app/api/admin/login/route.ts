@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import fs from 'fs';
 import path from 'path';
+import { sendAdminLoginAlert } from '@/lib/telegram';
 
 // Admin credentials file path
 const ADMIN_CREDENTIALS_PATH = path.join(process.cwd(), '.admin-credentials.json');
@@ -76,6 +77,11 @@ export async function POST(request: NextRequest) {
         sameSite: 'lax',
         maxAge: 60 * 60 * 24, // 24 hours
         path: '/',
+      });
+
+      // Send Telegram alert (non-blocking)
+      sendAdminLoginAlert(credentials.displayName).catch((err) => {
+        console.error('Failed to send Telegram login alert:', err);
       });
 
       return NextResponse.json({
