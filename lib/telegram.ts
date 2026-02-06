@@ -70,24 +70,42 @@ export async function getTelegramConfig(): Promise<TelegramConfig | null> {
   }
 }
 
+async function getAppBranding(): Promise<{ appName: string }> {
+  try {
+    const { query } = await import('@/lib/db');
+    const result = await query(
+      'SELECT value FROM site_settings WHERE key = $1',
+      ['app_branding']
+    );
+
+    if (result.rows.length > 0 && result.rows[0].value?.appName) {
+      return { appName: result.rows[0].value.appName };
+    }
+  } catch {
+    // Ignore errors, use default
+  }
+  return { appName: 'Wanderlust' };
+}
+
 export async function sendAdminLoginAlert(adminName: string): Promise<void> {
   const config = await getTelegramConfig();
   if (!config) {
     return;
   }
 
+  const branding = await getAppBranding();
   const timestamp = new Date().toLocaleString('en-US', {
     timeZone: 'America/Los_Angeles',
     dateStyle: 'medium',
     timeStyle: 'short',
   });
 
-  const message = `🔐 <b>Admin Login Alert</b>
+  const message = `🔐 <b>${branding.appName} Admin Login</b>
 
 <b>User:</b> ${adminName}
 <b>Time:</b> ${timestamp}
 
-Someone just logged into the admin dashboard.`;
+Someone just logged into the ${branding.appName} admin dashboard.`;
 
   await sendTelegramMessage(config, message);
 }
