@@ -108,7 +108,6 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [recentQueries, setRecentQueries] = useState<any[]>([]);
   const [queriesAiOnly, setQueriesAiOnly] = useState(false);
-  const [modelPerformance, setModelPerformance] = useState<any[]>([]);
   // User management state
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -267,10 +266,6 @@ export default function AdminDashboard() {
         const res = await fetch(`/api/admin/queries?limit=20${queriesAiOnly ? '&aiOnly=true' : ''}`);
         const data = await res.json();
         setRecentQueries(data.queries || []);
-      } else if (activeTab === 'analytics') {
-        const res = await fetch('/api/admin/model-performance');
-        const data = await res.json();
-        setModelPerformance(data.performance || []);
       } else if (activeTab === 'users') {
         setUsersLoading(true);
         try {
@@ -1042,19 +1037,6 @@ export default function AdminDashboard() {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('analytics')}
-              className={`px-6 py-4 font-medium transition ${
-                activeTab === 'analytics'
-                  ? 'border-b-2 border-teal-600 text-teal-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="w-4 h-4" />
-                <span>Analytics</span>
-              </div>
-            </button>
-            <button
               onClick={() => setActiveTab('users')}
               className={`px-6 py-4 font-medium transition ${
                 activeTab === 'users'
@@ -1516,52 +1498,6 @@ export default function AdminDashboard() {
                   </div>
                 ))
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Analytics Tab */}
-        {activeTab === 'analytics' && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold mb-4">Model Performance Comparison</h3>
-              <div className="space-y-4">
-                {modelPerformance.map((perf: any) => (
-                  <div key={perf.model_name} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="font-medium text-gray-900">{perf.display_name}</div>
-                        <div className="text-sm text-gray-600">{perf.provider}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {perf.usage_count} uses
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <div className="text-gray-600">Avg. Response</div>
-                        <div className="font-semibold">{perf.avg_response_time?.toFixed(0)}ms</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-600">Avg. Tokens</div>
-                        <div className="font-semibold">{perf.avg_tokens?.toFixed(0)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-600">Total Cost</div>
-                        <div className="font-semibold">${perf.total_cost?.toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <div className="text-gray-600">Avg. Rating</div>
-                        <div className="font-semibold">
-                          {perf.avg_rating ? `⭐ ${perf.avg_rating.toFixed(1)}` : 'N/A'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         )}
