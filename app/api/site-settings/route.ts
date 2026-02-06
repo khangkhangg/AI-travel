@@ -5,6 +5,7 @@ import { query } from '@/lib/db';
 const PUBLIC_SETTINGS = [
   'google_calendar_booking_enabled',
   'profile_design',
+  'app_branding',
 ];
 
 // GET - Get public site settings
@@ -29,9 +30,10 @@ export async function GET(request: NextRequest) {
 
     if (result.rows.length === 0) {
       // Return default values for known settings
-      const defaults: Record<string, string> = {
+      const defaults: Record<string, any> = {
         google_calendar_booking_enabled: 'false',
         profile_design: 'journey',
+        app_branding: { appName: 'Wanderlust', logoUrl: null },
       };
 
       return NextResponse.json({

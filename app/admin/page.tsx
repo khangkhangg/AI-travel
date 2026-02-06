@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings,
@@ -44,6 +44,8 @@ import {
   FileCheck,
   FileX,
   MapPin,
+  Upload,
+  Compass,
 } from 'lucide-react';
 
 import { INTEREST_CATEGORIES } from '@/lib/types/user';
@@ -149,6 +151,14 @@ export default function AdminDashboard() {
   // Profile Design
   const [profileDesign, setProfileDesign] = useState<'journey' | 'explorer' | 'wanderer'>('journey');
   const [profileDesignSaveStatus, setProfileDesignSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  // App Branding
+  const [appName, setAppName] = useState('Wanderlust');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [brandingSaveStatus, setBrandingSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const logoInputRef = useRef<HTMLInputElement>(null);
   // Featured Creators
   const [featuredCreators, setFeaturedCreators] = useState<Record<string, any[]>>({});
   const [featuredLoading, setFeaturedLoading] = useState(false);
@@ -320,6 +330,20 @@ export default function AdminDashboard() {
           }
         } catch (e) {
           // Default to 'journey' if not found
+        }
+
+        // Fetch app branding settings
+        try {
+          const brandingRes = await fetch('/api/admin/site-settings?key=app_branding');
+          if (brandingRes.ok) {
+            const brandingData = await brandingRes.json();
+            if (brandingData.value) {
+              setAppName(brandingData.value.appName || 'Wanderlust');
+              setLogoUrl(brandingData.value.logoUrl || null);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch branding settings:', e);
         }
 
         // Fetch eKYC settings
@@ -522,6 +546,78 @@ export default function AdminDashboard() {
     } catch {
       setProfileDesignSaveStatus('error');
       setTimeout(() => setProfileDesignSaveStatus('idle'), 3000);
+    }
+  };
+
+  // Branding handlers
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const previewUrl = URL.createObjectURL(file);
+      setLogoPreview(previewUrl);
+    }
+  };
+
+  const handleUploadLogo = async (): Promise<string | null> => {
+    if (!logoFile) return logoUrl;
+
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', logoFile);
+
+      const res = await fetch('/api/admin/branding/logo', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setLogoUrl(data.logoUrl);
+        setLogoFile(null);
+        setLogoPreview(null);
+        return data.logoUrl;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleSaveBranding = async () => {
+    setBrandingSaveStatus('saving');
+    try {
+      // Upload logo first if file selected
+      let finalLogoUrl = logoUrl;
+      if (logoFile) {
+        const uploadedUrl = await handleUploadLogo();
+        if (uploadedUrl) {
+          finalLogoUrl = uploadedUrl;
+        }
+      }
+
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'app_branding',
+          value: { appName, logoUrl: finalLogoUrl },
+        }),
+      });
+
+      if (res.ok) {
+        setBrandingSaveStatus('success');
+        setTimeout(() => setBrandingSaveStatus('idle'), 3000);
+      } else {
+        setBrandingSaveStatus('error');
+        setTimeout(() => setBrandingSaveStatus('idle'), 3000);
+      }
+    } catch {
+      setBrandingSaveStatus('error');
+      setTimeout(() => setBrandingSaveStatus('idle'), 3000);
     }
   };
 
@@ -4212,6 +4308,115 @@ export default function AdminDashboard() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+
+            {/* App Branding */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">App Branding</h3>
+                    <p className="text-sm text-gray-500">Customize your app name and logo</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* App Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">App Name</label>
+                  <input
+                    type="text"
+                    value={appName}
+                    onChange={(e) => setAppName(e.target.value)}
+                    placeholder="Wanderlust"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">Appears in header, footer, and page titles</p>
+                </div>
+
+                {/* Logo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">App Logo</label>
+                  <div className="flex items-start gap-4">
+                    {/* Preview */}
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 overflow-hidden">
+                      {logoPreview || logoUrl ? (
+                        <img src={logoPreview || logoUrl || ''} alt="Logo" className="w-full h-full object-contain" />
+                      ) : (
+                        <Compass className="w-10 h-10 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      {/* File Upload */}
+                      <div>
+                        <input
+                          ref={logoInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoFileChange}
+                          className="hidden"
+                        />
+                        <button
+                          onClick={() => logoInputRef.current?.click()}
+                          disabled={logoUploading}
+                          className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Upload className="w-4 h-4 inline mr-2" />
+                          {logoFile ? logoFile.name : 'Upload Image'}
+                        </button>
+                        <span className="ml-2 text-xs text-gray-500">PNG, JPG, SVG (max 2MB)</span>
+                      </div>
+
+                      {/* Or URL Input */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">or</span>
+                        <input
+                          type="url"
+                          value={logoUrl || ''}
+                          onChange={(e) => { setLogoUrl(e.target.value || null); setLogoFile(null); setLogoPreview(null); }}
+                          placeholder="Enter logo URL..."
+                          className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20"
+                        />
+                      </div>
+
+                      {/* Clear button */}
+                      {(logoUrl || logoFile) && (
+                        <button
+                          onClick={() => { setLogoUrl(null); setLogoFile(null); setLogoPreview(null); }}
+                          className="text-xs text-red-500 hover:text-red-600"
+                        >
+                          Remove logo (use default icon)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Button */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <div>
+                    {brandingSaveStatus === 'success' && (
+                      <p className="text-sm text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" /> Saved successfully
+                      </p>
+                    )}
+                    {brandingSaveStatus === 'error' && (
+                      <p className="text-sm text-red-600">Failed to save</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSaveBranding}
+                    disabled={brandingSaveStatus === 'saving' || logoUploading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white font-medium rounded-xl hover:from-violet-600 hover:to-purple-600 disabled:opacity-50 transition-all"
+                  >
+                    <Save className="w-4 h-4" />
+                    {logoUploading ? 'Uploading...' : brandingSaveStatus === 'saving' ? 'Saving...' : 'Save Branding'}
+                  </button>
+                </div>
               </div>
             </div>
 

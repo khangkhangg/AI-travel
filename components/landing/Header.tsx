@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Compass, Menu, X, Map, Heart, User, Sparkles, LogOut, Settings, BookMarked, FileText, ChevronDown, Activity } from 'lucide-react';
 import AuthModal from '@/components/auth/AuthModal';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
+import { useBranding } from '@/lib/hooks/useBranding';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function Header() {
@@ -23,6 +24,7 @@ export default function Header() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createBrowserSupabaseClient();
+  const { branding } = useBranding();
 
   // Check for existing session on mount
   useEffect(() => {
@@ -157,13 +159,19 @@ export default function Header() {
             className="flex items-center gap-2.5 group"
           >
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 group-hover:shadow-emerald-300 transition-shadow">
-                <Compass className="w-5 h-5 text-white" />
-              </div>
+              {branding.logoUrl ? (
+                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg">
+                  <img src={branding.logoUrl} alt={branding.appName} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-200 group-hover:shadow-emerald-300 transition-shadow">
+                  <Compass className="w-5 h-5 text-white" />
+                </div>
+              )}
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-amber-400 rounded-full border-2 border-white" />
             </div>
             <span className="text-xl font-bold text-emerald-900">
-              Wanderlust<span className="text-amber-500">.</span>
+              {branding.appName}<span className="text-amber-500">.</span>
             </span>
           </button>
 
