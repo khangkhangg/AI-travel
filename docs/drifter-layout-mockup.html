@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drifter Theme - Layout Mockup</title>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Comic Sans MS', 'Marker Felt', cursive;
+      background: #f5f0e6;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .font-handwritten {
+      font-family: 'Caveat', cursive;
+    }
+
+    /* Paper texture */
+    .paper-bg {
+      background: #f5f0e6;
+      background-image:
+        repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(0,0,0,0.02) 20px, rgba(0,0,0,0.02) 21px),
+        repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(0,0,0,0.02) 20px, rgba(0,0,0,0.02) 21px);
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 20px;
+      border-bottom: 2px dashed #d4c4a8;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-family: 'Caveat', cursive;
+      font-size: 2rem;
+      color: #5d4e37;
+    }
+
+    /* Layout toggle */
+    .layout-toggle {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+
+    .layout-toggle button {
+      padding: 12px 24px;
+      font-family: 'Caveat', cursive;
+      font-size: 1.2rem;
+      border: 2px solid #5d4e37;
+      background: white;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .layout-toggle button.active {
+      background: #5d4e37;
+      color: white;
+    }
+
+    .layout-toggle button:hover {
+      transform: rotate(-2deg);
+    }
+
+    /* Section title */
+    .section-title {
+      font-family: 'Caveat', cursive;
+      font-size: 1.8rem;
+      color: #5d4e37;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Original Layout */
+    .original-layout .bio-section {
+      margin-bottom: 40px;
+    }
+
+    .original-layout .trips-section {
+      margin-bottom: 40px;
+    }
+
+    /* New Layout - Side by side */
+    .new-layout {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 30px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) {
+      .new-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Sticky note */
+    .sticky-note {
+      background: #fff59d;
+      padding: 20px;
+      box-shadow: 2px 3px 6px rgba(0,0,0,0.15);
+      transform: rotate(2deg);
+    }
+
+    .sticky-note p {
+      font-family: 'Caveat', cursive;
+      font-size: 1.1rem;
+      color: #5d4e37;
+      line-height: 1.6;
+    }
+
+    .sticky-note .see-more {
+      font-family: 'Caveat', cursive;
+      font-size: 0.9rem;
+      color: #5d4e37;
+      text-decoration: underline;
+      cursor: pointer;
+      margin-top: 10px;
+      display: inline-block;
+    }
+
+    .sticky-note .signature {
+      font-family: 'Caveat', cursive;
+      font-size: 0.9rem;
+      color: #999;
+      margin-top: 10px;
+    }
+
+    /* Trip cards */
+    .trips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .trip-card {
+      background: white;
+      padding: 12px;
+      box-shadow: 2px 3px 6px rgba(0,0,0,0.1);
+    }
+
+    .trip-card:nth-child(1) { transform: rotate(-2deg); }
+    .trip-card:nth-child(2) { transform: rotate(1deg); }
+    .trip-card:nth-child(3) { transform: rotate(-1deg); }
+    .trip-card:nth-child(4) { transform: rotate(2deg); }
+    .trip-card:nth-child(5) { transform: rotate(-1deg); }
+    .trip-card:nth-child(6) { transform: rotate(1deg); }
+
+    .trip-card:hover {
+      transform: rotate(0deg) scale(1.02);
+      box-shadow: 4px 6px 12px rgba(0,0,0,0.15);
+    }
+
+    .trip-card img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      filter: sepia(10%) contrast(95%);
+      margin-bottom: 10px;
+    }
+
+    .trip-card .placeholder {
+      width: 100%;
+      height: 100px;
+      background: #e8e0d4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(93, 78, 55, 0.3);
+      font-size: 2rem;
+      margin-bottom: 10px;
+    }
+
+    .trip-card h3 {
+      font-family: 'Caveat', cursive;
+      font-size: 1.3rem;
+      color: #3d3d3d;
+      margin-bottom: 4px;
+    }
+
+    .trip-card .location {
+      font-size: 0.75rem;
+      color: #999;
+      margin-bottom: 6px;
+    }
+
+    .trip-card .note {
+      font-family: 'Caveat', cursive;
+      font-size: 0.9rem;
+      color: #888;
+      font-style: italic;
+    }
+
+    .trip-card .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .trip-card .date {
+      font-size: 0.7rem;
+      color: #aaa;
+    }
+
+    .trip-card .see-more {
+      font-family: 'Caveat', cursive;
+      font-size: 0.9rem;
+      color: #5d4e37;
+      text-decoration: none;
+    }
+
+    .trip-card .see-more:hover {
+      text-decoration: underline;
+    }
+
+    /* Comparison label */
+    .comparison-label {
+      background: #5d4e37;
+      color: white;
+      padding: 8px 16px;
+      font-family: 'Caveat', cursive;
+      font-size: 1.2rem;
+      display: inline-block;
+      margin-bottom: 20px;
+      transform: rotate(-1deg);
+    }
+
+    /* Layout container */
+    .layout-container {
+      display: none;
+      padding: 20px;
+      background: white;
+      border: 2px dashed #d4c4a8;
+      margin-bottom: 30px;
+    }
+
+    .layout-container.active {
+      display: block;
+    }
+
+    /* Sticky positioning for new layout */
+    .new-layout .sticky-note {
+      position: sticky;
+      top: 20px;
+    }
+
+    /* Coffee stain decoration */
+    .coffee-stain {
+      position: fixed;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(139,90,43,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .coffee-stain.top { top: 50px; right: 100px; }
+    .coffee-stain.bottom { bottom: 100px; left: 50px; }
+
+    /* Tape decoration */
+    .tape {
+      position: fixed;
+      width: 60px;
+      height: 20px;
+      background: rgba(255,235,180,0.8);
+      transform: rotate(-12deg);
+      pointer-events: none;
+    }
+
+    .tape.top-left { top: 30px; left: 40px; }
+    .tape.top-right { top: 80px; right: 60px; transform: rotate(6deg); }
+  </style>
+</head>
+<body class="paper-bg">
+  <!-- Decorations -->
+  <div class="coffee-stain top"></div>
+  <div class="coffee-stain bottom"></div>
+  <div class="tape top-left"></div>
+  <div class="tape top-right"></div>
+
+  <div class="container">
+    <div class="header">
+      <h1>🗺️ Drifter Theme Layout Mockup</h1>
+      <p style="color: #888; margin-top: 10px;">Compare original vs new layout</p>
+    </div>
+
+    <div class="layout-toggle">
+      <button class="active" onclick="showLayout('original')">📋 Original Layout</button>
+      <button onclick="showLayout('new')">✨ New Layout (Side by Side)</button>
+    </div>
+
+    <!-- Original Layout -->
+    <div id="original" class="layout-container active">
+      <div class="comparison-label">Current: Bio on top-right, Trips below</div>
+
+      <div class="original-layout">
+        <!-- Bio Section (positioned top-right like current) -->
+        <div class="bio-section" style="display: flex; justify-content: flex-end; margin-bottom: 30px;">
+          <div class="sticky-note" style="width: 280px;">
+            <p>I'm the kind of traveler who believes the best stories usually start with "this wasn't the plan." I've been living in Vietnam for years and traveling all over Asia, which means I've mastered the art of packing light, adapting fast, and pretending I totally meant to end up in the wrong neighborhood...</p>
+            <span class="see-more">see more...</span>
+            <p class="signature">- me</p>
+          </div>
+        </div>
+
+        <!-- Trips Section -->
+        <div class="trips-section">
+          <div class="section-title">📸 trip memories or something:</div>
+          <div class="trips-grid">
+            <div class="trip-card">
+              <img src="https://images.unsplash.com/photo-1528127269322-539801943592?w=400" alt="Vietnam">
+              <h3>Hanoi Street Food Tour</h3>
+              <p class="location">Hanoi, Vietnam</p>
+              <p class="note">was cool, ate a lot</p>
+              <div class="footer">
+                <span class="date">Jan 2024</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <img src="https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=400" alt="Thailand">
+              <h3>Bangkok Weekend</h3>
+              <p class="location">Bangkok, Thailand</p>
+              <p class="note">got lost, 10/10</p>
+              <div class="footer">
+                <span class="date">Dec 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400" alt="Japan">
+              <h3>Tokyo Adventure</h3>
+              <p class="location">Tokyo, Japan</p>
+              <p class="note">would go back maybe</p>
+              <div class="footer">
+                <span class="date">Nov 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <div class="placeholder">📍</div>
+              <h3>Bali Retreat</h3>
+              <p class="location">Bali, Indonesia</p>
+              <p class="note">good vibes only</p>
+              <div class="footer">
+                <span class="date">Oct 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <div class="placeholder">📍</div>
+              <h3>Singapore Stopover</h3>
+              <p class="location">Singapore</p>
+              <p class="note">found a nice cafe</p>
+              <div class="footer">
+                <span class="date">Sep 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <div class="placeholder">📍</div>
+              <h3>Da Nang Beach</h3>
+              <p class="location">Da Nang, Vietnam</p>
+              <p class="note">too hot tbh</p>
+              <div class="footer">
+                <span class="date">Aug 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Layout -->
+    <div id="new" class="layout-container">
+      <div class="comparison-label">New: Trips grid on left, Bio sticky on right</div>
+
+      <div class="new-layout">
+        <!-- Trips Section (Left) -->
+        <div class="trips-section">
+          <div class="section-title">📸 trip memories or something:</div>
+          <div class="trips-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="trip-card">
+              <img src="https://images.unsplash.com/photo-1528127269322-539801943592?w=400" alt="Vietnam">
+              <h3>Hanoi Street Food Tour</h3>
+              <p class="location">Hanoi, Vietnam</p>
+              <p class="note">was cool, ate a lot</p>
+              <div class="footer">
+                <span class="date">Jan 2024</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <img src="https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=400" alt="Thailand">
+              <h3>Bangkok Weekend</h3>
+              <p class="location">Bangkok, Thailand</p>
+              <p class="note">got lost, 10/10</p>
+              <div class="footer">
+                <span class="date">Dec 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400" alt="Japan">
+              <h3>Tokyo Adventure</h3>
+              <p class="location">Tokyo, Japan</p>
+              <p class="note">would go back maybe</p>
+              <div class="footer">
+                <span class="date">Nov 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <div class="placeholder">📍</div>
+              <h3>Bali Retreat</h3>
+              <p class="location">Bali, Indonesia</p>
+              <p class="note">good vibes only</p>
+              <div class="footer">
+                <span class="date">Oct 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <div class="placeholder">📍</div>
+              <h3>Singapore Stopover</h3>
+              <p class="location">Singapore</p>
+              <p class="note">found a nice cafe</p>
+              <div class="footer">
+                <span class="date">Sep 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+            <div class="trip-card">
+              <div class="placeholder">📍</div>
+              <h3>Da Nang Beach</h3>
+              <p class="location">Da Nang, Vietnam</p>
+              <p class="note">too hot tbh</p>
+              <div class="footer">
+                <span class="date">Aug 2023</span>
+                <a href="#" class="see-more">see more →</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bio Section (Right - Sticky) -->
+        <div class="bio-section">
+          <div class="sticky-note">
+            <p>I'm the kind of traveler who believes the best stories usually start with "this wasn't the plan." I've been living in Vietnam for years and traveling all over Asia, which means I've mastered the art of packing light, adapting fast, and pretending I totally meant to end up in the wrong neighborhood...</p>
+            <span class="see-more">see more...</span>
+            <p class="signature">- me</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div style="background: white; padding: 20px; border: 2px dashed #d4c4a8; margin-top: 20px;">
+      <h3 style="font-family: 'Caveat', cursive; font-size: 1.5rem; color: #5d4e37; margin-bottom: 15px;">📝 Layout Notes:</h3>
+      <ul style="color: #666; line-height: 1.8; padding-left: 20px;">
+        <li><strong>Original:</strong> Bio sticky note on top-right, trips grid full width below</li>
+        <li><strong>New Layout:</strong> Two-column grid with trips on the left (2 columns), bio sticky note on the right</li>
+        <li>Bio becomes <code style="background: #f0f0f0; padding: 2px 6px;">position: sticky</code> so it follows as you scroll through trips</li>
+        <li>On mobile, it stacks vertically (trips first, then bio)</li>
+        <li>Trip cards remain in 2-column grid on the left side</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function showLayout(layout) {
+      // Update buttons
+      document.querySelectorAll('.layout-toggle button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      // Update layouts
+      document.querySelectorAll('.layout-container').forEach(container => {
+        container.classList.remove('active');
+      });
+      document.getElementById(layout).classList.add('active');
+    }
+  </script>
+</body>
+</html>

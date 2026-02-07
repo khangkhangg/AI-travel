@@ -7,6 +7,7 @@ const PUBLIC_SETTINGS = [
   'profile_design',
   'app_branding',
   'google_analytics',
+  'available_profile_themes',
 ];
 
 // GET - Get public site settings
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
         profile_design: 'journey',
         app_branding: { appName: 'Wanderlust', logoUrl: null },
         google_analytics: { trackingId: '' },
+        available_profile_themes: ['journey', 'explorer', 'dreamy-passport', 'wanderlust-diary', 'cyberdeck', 'hologram', 'drifter'],
       };
 
       return NextResponse.json({

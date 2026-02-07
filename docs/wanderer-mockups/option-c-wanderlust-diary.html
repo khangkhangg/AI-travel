@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wanderer Theme - Option C: Wanderlust Diary</title>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --hot-pink: #FF1493;
+      --coral: #FF6B6B;
+      --peach: #FFDAB9;
+      --cream: #FFFEF7;
+      --plum: #4A0E4E;
+      --gold: #D4AF37;
+      --charcoal: #1A1A2E;
+    }
+
+    body {
+      font-family: 'Work Sans', sans-serif;
+      background: var(--cream);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Confetti dots overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(circle, var(--hot-pink) 1px, transparent 1px),
+        radial-gradient(circle, var(--coral) 1px, transparent 1px),
+        radial-gradient(circle, var(--gold) 1px, transparent 1px);
+      background-size: 80px 80px, 60px 60px, 100px 100px;
+      background-position: 0 0, 30px 30px, 15px 45px;
+      opacity: 0.06;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Header */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(255, 254, 247, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 2px solid var(--charcoal);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .back-btn {
+      background: none;
+      border: 2px solid var(--charcoal);
+      padding: 0.5rem 1rem;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .back-btn:hover {
+      background: var(--charcoal);
+      color: white;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-outline {
+      background: none;
+      border: 2px solid var(--charcoal);
+      padding: 0.6rem 1.5rem;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-outline:hover {
+      background: var(--charcoal);
+      color: white;
+    }
+
+    .btn-pink {
+      background: var(--hot-pink);
+      border: none;
+      padding: 0.7rem 1.8rem;
+      color: white;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 4px 4px 0 var(--charcoal);
+    }
+
+    .btn-pink:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 var(--charcoal);
+    }
+
+    /* Main content */
+    main {
+      position: relative;
+      z-index: 2;
+      padding-top: 80px;
+    }
+
+    /* Hero - Split Screen */
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: calc(100vh - 80px);
+      position: relative;
+    }
+
+    .hero-image-side {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-avatar {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Decorative stamps */
+    .stamp {
+      position: absolute;
+      font-size: 3rem;
+      animation: stampFloat 4s ease-in-out infinite;
+      z-index: 10;
+    }
+
+    .stamp-1 { top: 10%; right: -20px; animation-delay: 0s; }
+    .stamp-2 { bottom: 20%; right: 10%; animation-delay: 1s; }
+    .stamp-3 { top: 40%; left: -10px; animation-delay: 0.5s; }
+
+    @keyframes stampFloat {
+      0%, 100% { transform: translateY(0) rotate(-5deg); }
+      50% { transform: translateY(-10px) rotate(5deg); }
+    }
+
+    .hero-text-side {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 4rem;
+      background: var(--cream);
+      position: relative;
+    }
+
+    .hero-label {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 1.2rem;
+      color: var(--hot-pink);
+      margin-bottom: 1rem;
+      animation: fadeSlideIn 0.6s ease-out 0.2s both;
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .hero-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(4rem, 12vw, 8rem);
+      line-height: 0.9;
+      color: var(--charcoal);
+      letter-spacing: -0.02em;
+      overflow: hidden;
+    }
+
+    .hero-name span {
+      display: inline-block;
+      animation: letterReveal 0.5s ease-out both;
+    }
+
+    .hero-name span:nth-child(1) { animation-delay: 0.3s; }
+    .hero-name span:nth-child(2) { animation-delay: 0.35s; }
+    .hero-name span:nth-child(3) { animation-delay: 0.4s; }
+    .hero-name span:nth-child(4) { animation-delay: 0.45s; }
+    .hero-name span:nth-child(5) { animation-delay: 0.5s; }
+    .hero-name span:nth-child(6) { animation-delay: 0.6s; }
+    .hero-name span:nth-child(7) { animation-delay: 0.65s; }
+    .hero-name span:nth-child(8) { animation-delay: 0.7s; }
+    .hero-name span:nth-child(9) { animation-delay: 0.75s; }
+    .hero-name span:nth-child(10) { animation-delay: 0.8s; }
+
+    @keyframes letterReveal {
+      from { opacity: 0; transform: translateY(100%); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-meta {
+      margin-top: 2rem;
+      font-size: 1rem;
+      color: #666;
+      animation: fadeSlideIn 0.6s ease-out 1s both;
+    }
+
+    .hero-meta span {
+      margin-right: 1.5rem;
+    }
+
+    .social-links {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 2rem;
+      animation: fadeSlideIn 0.6s ease-out 1.2s both;
+    }
+
+    .social-link {
+      width: 50px;
+      height: 50px;
+      border: 2px solid var(--charcoal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .social-link:hover {
+      background: var(--hot-pink);
+      border-color: var(--hot-pink);
+      transform: rotate(-5deg);
+    }
+
+    /* Marquee Ticker */
+    .marquee-section {
+      background: var(--charcoal);
+      padding: 1rem 0;
+      overflow: hidden;
+      border-top: 3px solid var(--hot-pink);
+      border-bottom: 3px solid var(--hot-pink);
+    }
+
+    .marquee-wrapper {
+      display: flex;
+      animation: marqueeScroll 30s linear infinite;
+    }
+
+    @keyframes marqueeScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    .marquee-content {
+      display: flex;
+      flex-shrink: 0;
+      gap: 3rem;
+      padding-right: 3rem;
+    }
+
+    .marquee-item {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      color: white;
+      letter-spacing: 0.2em;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .marquee-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--hot-pink);
+      border-radius: 50%;
+    }
+
+    /* Stats - Editorial */
+    .stats-section {
+      padding: 6rem 2rem;
+      background: var(--peach);
+    }
+
+    .stats-grid {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2rem;
+    }
+
+    .stat-block {
+      text-align: center;
+      padding: 2rem;
+      position: relative;
+      animation: statSlide 0.6s ease-out both;
+    }
+
+    .stat-block:nth-child(1) { animation-delay: 0.1s; }
+    .stat-block:nth-child(2) { animation-delay: 0.2s; }
+    .stat-block:nth-child(3) { animation-delay: 0.3s; }
+    .stat-block:nth-child(4) { animation-delay: 0.4s; }
+
+    @keyframes statSlide {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .stat-block::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 60%;
+      background: var(--charcoal);
+      opacity: 0.2;
+    }
+
+    .stat-block:last-child::after {
+      display: none;
+    }
+
+    .stat-number {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 5rem;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--hot-pink), var(--coral));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-size: 1.1rem;
+      color: var(--charcoal);
+      margin-top: 0.5rem;
+    }
+
+    /* Map Section */
+    .map-section {
+      padding: 6rem 2rem;
+      background: var(--cream);
+    }
+
+    .section-header {
+      max-width: 1200px;
+      margin: 0 auto 3rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .section-line {
+      flex: 1;
+      height: 2px;
+      background: var(--charcoal);
+    }
+
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.5rem;
+      letter-spacing: 0.1em;
+      color: var(--charcoal);
+    }
+
+    .map-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      border: 3px solid var(--charcoal);
+      box-shadow: 8px 8px 0 var(--hot-pink);
+    }
+
+    .map-placeholder {
+      height: 450px;
+      background: linear-gradient(135deg, var(--peach) 0%, var(--cream) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .map-placeholder::before {
+      content: '🗺️';
+      font-size: 5rem;
+      opacity: 0.15;
+    }
+
+    .map-pin {
+      position: absolute;
+      font-size: 2rem;
+      animation: pinBounce 1s ease-out infinite;
+    }
+
+    .map-pin:nth-child(1) { top: 30%; left: 20%; animation-delay: 0s; }
+    .map-pin:nth-child(2) { top: 40%; left: 50%; animation-delay: 0.2s; }
+    .map-pin:nth-child(3) { top: 25%; right: 25%; animation-delay: 0.4s; }
+    .map-pin:nth-child(4) { top: 60%; left: 35%; animation-delay: 0.6s; }
+
+    @keyframes pinBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* Trips - Asymmetric Grid */
+    .trips-section {
+      padding: 6rem 2rem;
+      background: var(--charcoal);
+    }
+
+    .trips-section .section-header {
+      margin-bottom: 4rem;
+    }
+
+    .trips-section .section-title {
+      color: white;
+    }
+
+    .trips-section .section-line {
+      background: white;
+    }
+
+    .trips-grid {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-auto-rows: 200px;
+      gap: 1.5rem;
+    }
+
+    .trip-card {
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      border: 3px solid transparent;
+      transition: all 0.4s ease;
+    }
+
+    .trip-card:nth-child(1) { grid-column: span 5; grid-row: span 2; }
+    .trip-card:nth-child(2) { grid-column: span 4; grid-row: span 1; }
+    .trip-card:nth-child(3) { grid-column: span 3; grid-row: span 2; }
+    .trip-card:nth-child(4) { grid-column: span 4; grid-row: span 1; }
+
+    .trip-card:hover {
+      border-color: var(--hot-pink);
+      transform: rotate(-1deg) scale(1.02);
+    }
+
+    .trip-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.6s ease;
+    }
+
+    .trip-card:hover .trip-image {
+      transform: scale(1.1);
+    }
+
+    .trip-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 50%, rgba(26, 26, 46, 0.9) 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 1.5rem;
+    }
+
+    .trip-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      color: white;
+      letter-spacing: 0.05em;
+    }
+
+    .trip-location {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      color: var(--peach);
+    }
+
+    .trip-badge {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      background: var(--hot-pink);
+      color: white;
+      padding: 0.3rem 0.8rem;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* About - Pull Quote */
+    .about-section {
+      padding: 8rem 2rem;
+      background: var(--cream);
+      text-align: center;
+    }
+
+    .about-content {
+      max-width: 800px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .about-quote-mark {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 10rem;
+      color: var(--hot-pink);
+      opacity: 0.2;
+      line-height: 0;
+      position: absolute;
+      top: -2rem;
+      left: -2rem;
+    }
+
+    .about-text {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-style: italic;
+      line-height: 1.6;
+      color: var(--charcoal);
+    }
+
+    /* Support */
+    .support-section {
+      background: linear-gradient(135deg, var(--hot-pink), var(--coral));
+      padding: 6rem 2rem;
+      text-align: center;
+    }
+
+    .support-icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      animation: heartPop 0.8s ease-out infinite;
+    }
+
+    @keyframes heartPop {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+
+    .support-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      color: white;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+    }
+
+    .support-text {
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 2rem;
+      font-size: 1.1rem;
+    }
+
+    .support-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .support-btn {
+      background: white;
+      border: none;
+      padding: 1rem 2rem;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.1rem;
+      letter-spacing: 0.1em;
+      color: var(--charcoal);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 4px 4px 0 var(--charcoal);
+    }
+
+    .support-btn:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 var(--charcoal);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-image-side {
+        height: 50vh;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .stat-block:nth-child(2)::after {
+        display: none;
+      }
+
+      .trips-grid {
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .trip-card:nth-child(1) { grid-column: span 6; grid-row: span 1; }
+      .trip-card:nth-child(2) { grid-column: span 3; grid-row: span 1; }
+      .trip-card:nth-child(3) { grid-column: span 3; grid-row: span 1; }
+      .trip-card:nth-child(4) { grid-column: span 6; grid-row: span 1; }
+    }
+
+    @media (max-width: 768px) {
+      .hero-name {
+        font-size: 3.5rem;
+      }
+
+      .hero-text-side {
+        padding: 2rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stat-block::after {
+        display: none;
+      }
+
+      .stat-number {
+        font-size: 4rem;
+      }
+
+      .about-text {
+        font-size: 1.5rem;
+      }
+
+      .trips-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .trip-card {
+        grid-column: span 1 !important;
+        grid-row: span 1 !important;
+        height: 250px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <button class="back-btn">← BACK</button>
+    <div class="header-actions">
+      <button class="btn-outline">SHARE</button>
+      <button class="btn-pink">FOLLOW</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero - Split Screen -->
+    <section class="hero">
+      <div class="hero-image-side">
+        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800" alt="Sarah Chen" class="hero-avatar">
+        <span class="stamp stamp-1">✈️</span>
+        <span class="stamp stamp-2">📸</span>
+        <span class="stamp stamp-3">🌸</span>
+      </div>
+      <div class="hero-text-side">
+        <p class="hero-label">Travel Diary of</p>
+        <h1 class="hero-name">
+          <span>S</span><span>A</span><span>R</span><span>A</span><span>H</span>
+          <br>
+          <span>C</span><span>H</span><span>E</span><span>N</span>
+        </h1>
+        <div class="hero-meta">
+          <span>@sarahwanders</span>
+          <span>📍 Los Angeles, CA</span>
+          <span>💕 1,234 followers</span>
+        </div>
+        <div class="social-links">
+          <a href="#" class="social-link">📸</a>
+          <a href="#" class="social-link">🐦</a>
+          <a href="#" class="social-link">🎵</a>
+          <a href="#" class="social-link">💼</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Marquee -->
+    <section class="marquee-section">
+      <div class="marquee-wrapper">
+        <div class="marquee-content">
+          <span class="marquee-item"><span class="marquee-dot"></span> TOKYO</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> PARIS</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> BALI</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> NEW YORK</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> SANTORINI</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> LONDON</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> BARCELONA</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> SYDNEY</span>
+        </div>
+        <div class="marquee-content">
+          <span class="marquee-item"><span class="marquee-dot"></span> TOKYO</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> PARIS</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> BALI</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> NEW YORK</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> SANTORINI</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> LONDON</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> BARCELONA</span>
+          <span class="marquee-item"><span class="marquee-dot"></span> SYDNEY</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats-section">
+      <div class="stats-grid">
+        <div class="stat-block">
+          <div class="stat-number">12</div>
+          <div class="stat-label">Countries Explored</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number">24</div>
+          <div class="stat-label">Trips Created</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number">89</div>
+          <div class="stat-label">Places Visited</div>
+        </div>
+        <div class="stat-block">
+          <div class="stat-number">156</div>
+          <div class="stat-label">Itinerary Clones</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Map -->
+    <section class="map-section">
+      <div class="section-header">
+        <div class="section-line"></div>
+        <h2 class="section-title">WHERE I'VE BEEN</h2>
+        <div class="section-line"></div>
+      </div>
+      <div class="map-container">
+        <div class="map-placeholder">
+          <span class="map-pin">📍</span>
+          <span class="map-pin">📍</span>
+          <span class="map-pin">📍</span>
+          <span class="map-pin">📍</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trips -->
+    <section class="trips-section">
+      <div class="section-header">
+        <div class="section-line"></div>
+        <h2 class="section-title">MY ADVENTURES</h2>
+        <div class="section-line"></div>
+      </div>
+      <div class="trips-grid">
+        <div class="trip-card">
+          <span class="trip-badge">12 PLACES</span>
+          <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800" alt="Tokyo" class="trip-image">
+          <div class="trip-overlay">
+            <h3 class="trip-title">TOKYO DREAMS</h3>
+            <p class="trip-location">Tokyo, Japan</p>
+          </div>
+        </div>
+        <div class="trip-card">
+          <span class="trip-badge">8 PLACES</span>
+          <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600" alt="Paris" class="trip-image">
+          <div class="trip-overlay">
+            <h3 class="trip-title">PARIS IN SPRING</h3>
+            <p class="trip-location">Paris, France</p>
+          </div>
+        </div>
+        <div class="trip-card">
+          <span class="trip-badge">15 PLACES</span>
+          <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600" alt="Bali" class="trip-image">
+          <div class="trip-overlay">
+            <h3 class="trip-title">BALI VIBES</h3>
+            <p class="trip-location">Bali, Indonesia</p>
+          </div>
+        </div>
+        <div class="trip-card">
+          <span class="trip-badge">6 PLACES</span>
+          <img src="https://images.unsplash.com/photo-1534430480872-3498386e7856?w=600" alt="Santorini" class="trip-image">
+          <div class="trip-overlay">
+            <h3 class="trip-title">SANTORINI SUNSETS</h3>
+            <p class="trip-location">Santorini, Greece</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section class="about-section">
+      <div class="about-content">
+        <span class="about-quote-mark">"</span>
+        <p class="about-text">
+          Forever chasing sunsets and collecting passport stamps. Travel photographer & adventure seeker. Currently planning my next escape to somewhere magical.
+        </p>
+      </div>
+    </section>
+
+    <!-- Support -->
+    <section class="support-section">
+      <div class="support-icon">💝</div>
+      <h2 class="support-title">SUPPORT MY ADVENTURES</h2>
+      <p class="support-text">If my guides helped you plan your trip, consider buying me a coffee!</p>
+      <div class="support-buttons">
+        <button class="support-btn">☕ BUY ME A COFFEE</button>
+        <button class="support-btn">💸 PAYPAL</button>
+        <button class="support-btn">💜 KO-FI</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

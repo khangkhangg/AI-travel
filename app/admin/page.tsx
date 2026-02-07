@@ -149,8 +149,11 @@ export default function AdminDashboard() {
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [emailTestStatus, setEmailTestStatus] = useState<{ status: 'idle' | 'testing' | 'success' | 'error'; message?: string }>({ status: 'idle' });
   // Profile Design
-  const [profileDesign, setProfileDesign] = useState<'journey' | 'explorer' | 'wanderer'>('journey');
+  const [profileDesign, setProfileDesign] = useState<'journey' | 'explorer' | 'dreamy-passport' | 'wanderlust-diary' | 'cyberdeck' | 'hologram' | 'drifter'>('journey');
   const [profileDesignSaveStatus, setProfileDesignSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  // Available Profile Themes (for user selection)
+  const [availableThemes, setAvailableThemes] = useState<string[]>(['journey', 'explorer', 'dreamy-passport', 'wanderlust-diary', 'cyberdeck', 'hologram', 'drifter']);
+  const [availableThemesSaveStatus, setAvailableThemesSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   // App Branding
   const [appName, setAppName] = useState('Wanderlust');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -232,7 +235,11 @@ export default function AdminDashboard() {
   const PROFILE_DESIGNS = [
     { id: 'journey' as const, name: 'JOURNEY', description: 'Dark theme with giant typography and Zune-inspired bold stats', preview: 'bg-zinc-900' },
     { id: 'explorer' as const, name: 'EXPLORER', description: 'Two-column layout with sticky sidebar map', preview: 'bg-stone-100' },
-    { id: 'wanderer' as const, name: 'WANDERER', description: 'Full-bleed gradient hero with horizontal scrolling cards', preview: 'bg-gradient-to-br from-emerald-500 to-cyan-500' },
+    { id: 'dreamy-passport' as const, name: 'DREAMY PASSPORT', description: 'Soft scrapbook aesthetic with passport stamps and Polaroid trip cards', preview: 'bg-gradient-to-br from-purple-200 to-pink-200' },
+    { id: 'wanderlust-diary' as const, name: 'WANDERLUST DIARY', description: 'Bold editorial magazine style with hot pink accents and marquee ticker', preview: 'bg-gradient-to-br from-pink-500 to-rose-400' },
+    { id: 'cyberdeck' as const, name: 'CYBERDECK', description: 'Hacker terminal aesthetic with green-on-black and Matrix vibes', preview: 'bg-gradient-to-br from-black to-green-900' },
+    { id: 'hologram' as const, name: 'HOLOGRAM', description: 'Sci-fi interface with cyan/magenta neon and rotating HUD elements', preview: 'bg-gradient-to-br from-purple-900 to-cyan-900' },
+    { id: 'drifter' as const, name: 'DRIFTER', description: 'Casual scrapbook style with Polaroids, sticky notes, and IDGAF energy', preview: 'bg-gradient-to-br from-amber-100 to-yellow-200' },
   ];
 
   // Fetch admin info on mount
@@ -335,6 +342,19 @@ export default function AdminDashboard() {
           }
         } catch (e) {
           // Default to 'journey' if not found
+        }
+
+        // Fetch available profile themes
+        try {
+          const themesRes = await fetch('/api/admin/site-settings?key=available_profile_themes');
+          if (themesRes.ok) {
+            const themesData = await themesRes.json();
+            if (themesData.value && Array.isArray(themesData.value)) {
+              setAvailableThemes(themesData.value);
+            }
+          }
+        } catch (e) {
+          // Default to all themes available
         }
 
         // Fetch app branding settings
@@ -578,6 +598,28 @@ export default function AdminDashboard() {
     } catch {
       setProfileDesignSaveStatus('error');
       setTimeout(() => setProfileDesignSaveStatus('idle'), 3000);
+    }
+  };
+
+  const handleSaveAvailableThemes = async () => {
+    setAvailableThemesSaveStatus('saving');
+    try {
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'available_profile_themes', value: availableThemes }),
+      });
+
+      if (res.ok) {
+        setAvailableThemesSaveStatus('success');
+        setTimeout(() => setAvailableThemesSaveStatus('idle'), 3000);
+      } else {
+        setAvailableThemesSaveStatus('error');
+        setTimeout(() => setAvailableThemesSaveStatus('idle'), 3000);
+      }
+    } catch {
+      setAvailableThemesSaveStatus('error');
+      setTimeout(() => setAvailableThemesSaveStatus('idle'), 3000);
     }
   };
 
@@ -4685,6 +4727,92 @@ export default function AdminDashboard() {
                       <>
                         <Save className="w-4 h-4" />
                         Save Design
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Available Themes for Users */}
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                    <Palette className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Available User Themes</h3>
+                    <p className="text-sm text-gray-600">Select which themes users can choose for their profile</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {PROFILE_DESIGNS.map((design) => (
+                    <label
+                      key={design.id}
+                      className={`relative p-4 rounded-xl border-2 transition-all text-left cursor-pointer ${
+                        availableThemes.includes(design.id)
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={availableThemes.includes(design.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAvailableThemes([...availableThemes, design.id]);
+                          } else {
+                            setAvailableThemes(availableThemes.filter(t => t !== design.id));
+                          }
+                        }}
+                        className="sr-only"
+                      />
+                      {/* Preview swatch */}
+                      <div className={`w-full h-16 rounded-lg mb-3 ${design.preview}`} />
+                      <div className="font-semibold text-gray-900">{design.name}</div>
+                      <p className="text-xs text-gray-500 mt-1">{design.description}</p>
+                      {availableThemes.includes(design.id) && (
+                        <div className="absolute top-3 right-3">
+                          <CheckCircle className="w-5 h-5 text-purple-500" />
+                        </div>
+                      )}
+                    </label>
+                  ))}
+                </div>
+
+                {/* Save Available Themes Button */}
+                <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                  <div>
+                    {availableThemesSaveStatus === 'success' && (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm">Available themes saved!</span>
+                      </div>
+                    )}
+                    {availableThemesSaveStatus === 'error' && (
+                      <div className="flex items-center gap-2 text-red-600">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm">Failed to save</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSaveAvailableThemes}
+                    disabled={availableThemesSaveStatus === 'saving' || availableThemes.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:opacity-50 transition-colors"
+                  >
+                    {availableThemesSaveStatus === 'saving' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Available Themes
                       </>
                     )}
                   </button>

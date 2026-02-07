@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wanderer Theme - Option B: Aurora Wanderer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --pink: #FF6B9D;
+      --purple: #C44DFF;
+      --blue: #4D9FFF;
+      --mint: #00D9C0;
+      --gold: #FFD700;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background: linear-gradient(135deg, #0D0D1A 0%, #1A0D2E 50%, #0D1A2E 100%);
+      color: white;
+      position: relative;
+    }
+
+    /* Animated Aurora Background */
+    .aurora-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .aurora-layer {
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      top: -50%;
+      left: -50%;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(255, 107, 157, 0.3) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(196, 77, 255, 0.3) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(77, 159, 255, 0.25) 0%, transparent 50%),
+        radial-gradient(ellipse at 20% 80%, rgba(0, 217, 192, 0.2) 0%, transparent 50%);
+      animation: auroraMove 20s ease-in-out infinite;
+    }
+
+    @keyframes auroraMove {
+      0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+      25% { transform: translate(-5%, 3%) rotate(2deg) scale(1.05); }
+      50% { transform: translate(3%, -5%) rotate(-2deg) scale(1.02); }
+      75% { transform: translate(-3%, 5%) rotate(1deg) scale(1.08); }
+    }
+
+    /* Star field */
+    .stars {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .star {
+      position: absolute;
+      width: 3px;
+      height: 3px;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 3s ease-in-out infinite;
+    }
+
+    .star:nth-child(1) { top: 10%; left: 15%; animation-delay: 0s; }
+    .star:nth-child(2) { top: 25%; left: 45%; animation-delay: 0.5s; }
+    .star:nth-child(3) { top: 15%; right: 20%; animation-delay: 1s; }
+    .star:nth-child(4) { top: 40%; left: 10%; animation-delay: 1.5s; }
+    .star:nth-child(5) { top: 55%; right: 15%; animation-delay: 0.3s; }
+    .star:nth-child(6) { top: 70%; left: 30%; animation-delay: 0.8s; }
+    .star:nth-child(7) { top: 80%; right: 35%; animation-delay: 1.2s; }
+    .star:nth-child(8) { top: 35%; left: 75%; animation-delay: 0.6s; }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.5); }
+    }
+
+    /* Header */
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(13, 13, 26, 0.6);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .back-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 0.6rem 1rem;
+      color: white;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .back-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 2rem;
+      padding: 0.7rem 1.5rem;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-glass:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-glow {
+      background: linear-gradient(135deg, var(--pink), var(--purple));
+      border: none;
+      border-radius: 2rem;
+      padding: 0.7rem 1.5rem;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 0 30px rgba(196, 77, 255, 0.4);
+      transition: all 0.3s ease;
+    }
+
+    .btn-glow:hover {
+      box-shadow: 0 0 50px rgba(196, 77, 255, 0.6);
+      transform: translateY(-2px);
+    }
+
+    /* Main content */
+    main {
+      position: relative;
+      z-index: 2;
+      padding-top: 100px;
+    }
+
+    /* Profile Card - Glassmorphic */
+    .profile-section {
+      max-width: 900px;
+      margin: 2rem auto 4rem;
+      padding: 0 1.5rem;
+    }
+
+    .profile-card {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(30px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 32px;
+      padding: 3rem;
+      position: relative;
+      overflow: hidden;
+      animation: floatIn 1s ease-out, floatCard 6s ease-in-out infinite 1s;
+    }
+
+    @keyframes floatIn {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes floatCard {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .profile-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--pink), var(--purple), var(--blue), transparent);
+      animation: glowBorder 3s linear infinite;
+    }
+
+    @keyframes glowBorder {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+
+    .profile-header {
+      display: flex;
+      gap: 2.5rem;
+      align-items: center;
+    }
+
+    .avatar-container {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .avatar-glow {
+      position: absolute;
+      inset: -8px;
+      background: linear-gradient(135deg, var(--pink), var(--purple), var(--blue));
+      border-radius: 50%;
+      animation: glowPulse 3s ease-in-out infinite;
+      filter: blur(15px);
+      opacity: 0.6;
+    }
+
+    @keyframes glowPulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .avatar {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      position: relative;
+      z-index: 1;
+    }
+
+    .profile-info h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #FFF 0%, rgba(255, 255, 255, 0.7) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .profile-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      margin-top: 1rem;
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.7);
+      letter-spacing: 0.05em;
+    }
+
+    .social-orbs {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .social-orb {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+
+    .social-orb:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(196, 77, 255, 0.3);
+    }
+
+    /* Stats Orbs */
+    .stats-section {
+      max-width: 1000px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .stats-grid {
+      display: flex;
+      justify-content: center;
+      gap: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .stat-orb {
+      width: 140px;
+      height: 140px;
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      animation: orbFloat 4s ease-in-out infinite;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .stat-orb:nth-child(1) { animation-delay: 0s; }
+    .stat-orb:nth-child(2) { animation-delay: 0.5s; }
+    .stat-orb:nth-child(3) { animation-delay: 1s; }
+    .stat-orb:nth-child(4) { animation-delay: 1.5s; }
+
+    @keyframes orbFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .stat-orb::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--pink), var(--purple), var(--blue), var(--mint));
+      opacity: 0;
+      z-index: -1;
+      transition: opacity 0.3s ease;
+    }
+
+    .stat-orb:hover::before {
+      opacity: 0.5;
+      filter: blur(10px);
+    }
+
+    .stat-orb:hover {
+      transform: translateY(-10px) scale(1.05);
+    }
+
+    .stat-number {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--pink), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.6);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 0.25rem;
+    }
+
+    /* Map with flight paths */
+    .map-section {
+      max-width: 1100px;
+      margin: 5rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 2rem;
+      background: linear-gradient(90deg, var(--pink), var(--purple), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .map-container {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .map-placeholder {
+      height: 450px;
+      background: linear-gradient(180deg, rgba(77, 159, 255, 0.1) 0%, rgba(196, 77, 255, 0.1) 100%);
+      border-radius: 16px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .map-placeholder::before {
+      content: '🌍';
+      font-size: 5rem;
+      opacity: 0.2;
+    }
+
+    /* Flight path */
+    .flight-path {
+      position: absolute;
+      stroke: url(#pathGradient);
+      stroke-width: 2;
+      fill: none;
+      stroke-dasharray: 10 5;
+      animation: dashMove 2s linear infinite;
+    }
+
+    @keyframes dashMove {
+      0% { stroke-dashoffset: 0; }
+      100% { stroke-dashoffset: -30; }
+    }
+
+    .location-dot {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: var(--pink);
+      border-radius: 50%;
+      box-shadow: 0 0 20px var(--pink);
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+
+    .location-dot:nth-child(1) { top: 30%; left: 15%; }
+    .location-dot:nth-child(2) { top: 25%; left: 45%; animation-delay: 0.3s; }
+    .location-dot:nth-child(3) { top: 40%; right: 20%; animation-delay: 0.6s; }
+    .location-dot:nth-child(4) { top: 60%; left: 35%; animation-delay: 0.9s; }
+
+    @keyframes dotPulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 20px var(--pink); }
+      50% { transform: scale(1.3); box-shadow: 0 0 35px var(--pink); }
+    }
+
+    /* Trips - Blur reveal cards */
+    .trips-section {
+      max-width: 1200px;
+      margin: 5rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .trips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 2rem;
+    }
+
+    .trip-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: all 0.5s ease;
+      cursor: pointer;
+      animation: cardIn 0.6s ease-out both;
+    }
+
+    .trip-card:nth-child(1) { animation-delay: 0.1s; }
+    .trip-card:nth-child(2) { animation-delay: 0.2s; }
+    .trip-card:nth-child(3) { animation-delay: 0.3s; }
+    .trip-card:nth-child(4) { animation-delay: 0.4s; }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(30px) blur(10px); }
+      to { opacity: 1; transform: translateY(0) blur(0); }
+    }
+
+    .trip-card:hover {
+      transform: translateY(-10px);
+      border-color: rgba(196, 77, 255, 0.5);
+      box-shadow: 0 20px 60px rgba(196, 77, 255, 0.2);
+    }
+
+    .trip-image {
+      width: 100%;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+      transition: transform 0.5s ease;
+    }
+
+    .trip-card:hover .trip-image {
+      transform: scale(1.05);
+    }
+
+    .trip-content {
+      padding: 1.25rem;
+    }
+
+    .trip-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .trip-location {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* About */
+    .about-section {
+      max-width: 700px;
+      margin: 5rem auto;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .about-text {
+      font-size: 1.25rem;
+      line-height: 1.8;
+      color: rgba(255, 255, 255, 0.8);
+      font-weight: 300;
+    }
+
+    /* Support */
+    .support-section {
+      background: linear-gradient(180deg, transparent, rgba(196, 77, 255, 0.1));
+      padding: 5rem 1.5rem;
+      text-align: center;
+    }
+
+    .support-icon {
+      font-size: 3.5rem;
+      margin-bottom: 1.5rem;
+      animation: supportGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes supportGlow {
+      0%, 100% { filter: drop-shadow(0 0 20px rgba(255, 107, 157, 0.5)); }
+      50% { filter: drop-shadow(0 0 40px rgba(255, 107, 157, 0.8)); }
+    }
+
+    .support-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .support-text {
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 2rem;
+    }
+
+    .support-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .profile-header {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .profile-info h1 {
+        font-size: 2rem;
+      }
+
+      .profile-meta {
+        justify-content: center;
+      }
+
+      .social-orbs {
+        justify-content: center;
+      }
+
+      .stats-grid {
+        gap: 1.5rem;
+      }
+
+      .stat-orb {
+        width: 110px;
+        height: 110px;
+      }
+
+      .stat-number {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Aurora background -->
+  <div class="aurora-bg">
+    <div class="aurora-layer"></div>
+  </div>
+
+  <!-- Stars -->
+  <div class="stars">
+    <div class="star"></div>
+    <div class="star"></div>
+    <div class="star"></div>
+    <div class="star"></div>
+    <div class="star"></div>
+    <div class="star"></div>
+    <div class="star"></div>
+    <div class="star"></div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <button class="back-btn">← Back</button>
+    <div class="header-actions">
+      <button class="btn-glass">Share ✨</button>
+      <button class="btn-glow">Follow</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Profile Card -->
+    <section class="profile-section">
+      <div class="profile-card">
+        <div class="profile-header">
+          <div class="avatar-container">
+            <div class="avatar-glow"></div>
+            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400" alt="Avatar" class="avatar">
+          </div>
+          <div class="profile-info">
+            <h1>Sarah Chen</h1>
+            <div class="profile-meta">
+              <span>@sarahwanders</span>
+              <span>📍 Los Angeles, CA</span>
+              <span>✨ 1,234 followers</span>
+            </div>
+            <div class="social-orbs">
+              <a href="#" class="social-orb">📸</a>
+              <a href="#" class="social-orb">🐦</a>
+              <a href="#" class="social-orb">🎵</a>
+              <a href="#" class="social-orb">💼</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Orbs -->
+    <section class="stats-section">
+      <div class="stats-grid">
+        <div class="stat-orb">
+          <span class="stat-number">12</span>
+          <span class="stat-label">Countries</span>
+        </div>
+        <div class="stat-orb">
+          <span class="stat-number">24</span>
+          <span class="stat-label">Trips</span>
+        </div>
+        <div class="stat-orb">
+          <span class="stat-number">89</span>
+          <span class="stat-label">Places</span>
+        </div>
+        <div class="stat-orb">
+          <span class="stat-number">156</span>
+          <span class="stat-label">Clones</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Map -->
+    <section class="map-section">
+      <h2 class="section-title">✦ My Journey ✦</h2>
+      <div class="map-container">
+        <div class="map-placeholder">
+          <div class="location-dot"></div>
+          <div class="location-dot"></div>
+          <div class="location-dot"></div>
+          <div class="location-dot"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trips -->
+    <section class="trips-section">
+      <h2 class="section-title">✦ Adventures ✦</h2>
+      <div class="trips-grid">
+        <div class="trip-card">
+          <img src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400" alt="Tokyo" class="trip-image">
+          <div class="trip-content">
+            <h3 class="trip-title">Tokyo Dreams</h3>
+            <p class="trip-location">📍 Tokyo, Japan</p>
+          </div>
+        </div>
+        <div class="trip-card">
+          <img src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400" alt="Paris" class="trip-image">
+          <div class="trip-content">
+            <h3 class="trip-title">Paris in Spring</h3>
+            <p class="trip-location">📍 Paris, France</p>
+          </div>
+        </div>
+        <div class="trip-card">
+          <img src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400" alt="Bali" class="trip-image">
+          <div class="trip-content">
+            <h3 class="trip-title">Bali Vibes</h3>
+            <p class="trip-location">📍 Bali, Indonesia</p>
+          </div>
+        </div>
+        <div class="trip-card">
+          <img src="https://images.unsplash.com/photo-1534430480872-3498386e7856?w=400" alt="Santorini" class="trip-image">
+          <div class="trip-content">
+            <h3 class="trip-title">Santorini Sunsets</h3>
+            <p class="trip-location">📍 Santorini, Greece</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section class="about-section">
+      <p class="about-text">
+        Forever chasing sunsets and collecting passport stamps. Travel photographer & adventure seeker. Currently planning my next escape to somewhere magical. ✨
+      </p>
+    </section>
+
+    <!-- Support -->
+    <section class="support-section">
+      <div class="support-icon">💝</div>
+      <h2 class="support-title">Support My Adventures</h2>
+      <p class="support-text">If my guides helped you plan your trip, consider buying me a coffee!</p>
+      <div class="support-buttons">
+        <button class="btn-glow">☕ Buy Me a Coffee</button>
+        <button class="btn-glass">💸 PayPal</button>
+        <button class="btn-glass">💜 Ko-fi</button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

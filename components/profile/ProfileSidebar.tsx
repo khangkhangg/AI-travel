@@ -22,6 +22,7 @@ export type SubItemId =
   | 'badges'
   | 'links'
   | 'privacy'
+  | 'appearance'
   | 'guide-mode'
   | 'integrations';
 
@@ -105,6 +106,7 @@ export default function ProfileSidebar({
       icon: Settings,
       subItems: [
         { id: 'privacy', label: 'Privacy' },
+        { id: 'appearance', label: 'Appearance' },
         { id: 'guide-mode', label: 'Guide Mode' },
         { id: 'integrations', label: 'Integrations' },
       ],

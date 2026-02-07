@@ -149,6 +149,7 @@ export async function GET(request: NextRequest) {
         emailVerifiedAt: user.email_verified_at,
         verificationDeadline: user.verification_deadline,
         profileVisibility: user.profile_visibility || 'public',
+        profileTheme: user.profile_theme || 'journey',
         createdAt: user.created_at,
         updatedAt: user.updated_at,
       },
@@ -217,7 +218,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fullName, username, bio, location, phone, avatarUrl, profileVisibility } = body;
+    const { fullName, username, bio, location, phone, avatarUrl, profileVisibility, profileTheme } = body;
 
     // Validate username if provided
     if (username !== undefined) {
@@ -254,10 +255,11 @@ export async function PUT(request: NextRequest) {
         phone = COALESCE($6, phone),
         avatar_url = COALESCE($7, avatar_url),
         profile_visibility = COALESCE($8, profile_visibility),
+        profile_theme = COALESCE($9, profile_theme),
         updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
-      [authUser.id, fullName, username || null, bio, location, phone, avatarUrl, profileVisibility]
+      [authUser.id, fullName, username || null, bio, location, phone, avatarUrl, profileVisibility, profileTheme]
     );
 
     if (result.rows.length === 0) {

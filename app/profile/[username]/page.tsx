@@ -17,7 +17,27 @@ const ExplorerDesign = dynamic(() => import('@/components/profile/designs/Explor
   loading: () => <LoadingState />,
 });
 
-const WandererDesign = dynamic(() => import('@/components/profile/designs/WandererDesign'), {
+const DreamyPassportDesign = dynamic(() => import('@/components/profile/designs/DreamyPassportDesign'), {
+  ssr: false,
+  loading: () => <LoadingState />,
+});
+
+const WanderlustDiaryDesign = dynamic(() => import('@/components/profile/designs/WanderlustDiaryDesign'), {
+  ssr: false,
+  loading: () => <LoadingState />,
+});
+
+const CyberdeckDesign = dynamic(() => import('@/components/profile/designs/CyberdeckDesign'), {
+  ssr: false,
+  loading: () => <LoadingState />,
+});
+
+const HologramDesign = dynamic(() => import('@/components/profile/designs/HologramDesign'), {
+  ssr: false,
+  loading: () => <LoadingState />,
+});
+
+const DrifterDesign = dynamic(() => import('@/components/profile/designs/DrifterDesign'), {
   ssr: false,
   loading: () => <LoadingState />,
 });
@@ -30,7 +50,7 @@ function LoadingState() {
   );
 }
 
-type ProfileDesign = 'journey' | 'explorer' | 'wanderer';
+type ProfileDesign = 'journey' | 'explorer' | 'dreamy-passport' | 'wanderlust-diary' | 'cyberdeck' | 'hologram' | 'drifter';
 
 interface GuideDetails {
   experience_level?: 'beginner' | 'intermediate' | 'expert';
@@ -49,6 +69,7 @@ interface PublicProfileData {
     bio?: string;
     location?: string;
     profileVisibility?: string;
+    profileTheme?: string;
     createdAt: string;
     isGuide?: boolean;
     guideDetails?: GuideDetails;
@@ -76,7 +97,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
   const [activeSubItem, setActiveSubItem] = useState<SubItemId | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchProfile(), fetchDesign()]).finally(() => setLoading(false));
+    fetchProfile().finally(() => setLoading(false));
   }, [username]);
 
   const fetchProfile = async () => {
@@ -96,21 +117,13 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
         followersCount: data.followersCount || 0,
         isFollowing: data.isFollowing || false,
       });
+      // Use the user's selected theme
+      if (data.user?.profileTheme) {
+        setDesign(data.user.profileTheme as ProfileDesign);
+      }
     } catch (err) {
       console.error('Failed to fetch profile:', err);
       setError('Failed to load profile');
-    }
-  };
-
-  const fetchDesign = async () => {
-    try {
-      const response = await fetch('/api/admin/site-settings?key=profile_design');
-      if (response.ok) {
-        const data = await response.json();
-        setDesign(data.value || 'journey');
-      }
-    } catch (error) {
-      console.error('Failed to fetch design setting:', error);
     }
   };
 
@@ -242,8 +255,16 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userna
     switch (design) {
       case 'explorer':
         return <ExplorerDesign {...designProps} />;
-      case 'wanderer':
-        return <WandererDesign {...designProps} />;
+      case 'dreamy-passport':
+        return <DreamyPassportDesign {...designProps} />;
+      case 'wanderlust-diary':
+        return <WanderlustDiaryDesign {...designProps} />;
+      case 'cyberdeck':
+        return <CyberdeckDesign {...designProps} />;
+      case 'hologram':
+        return <HologramDesign {...designProps} />;
+      case 'drifter':
+        return <DrifterDesign {...designProps} />;
       case 'journey':
       default:
         return <JourneyDesign {...designProps} />;

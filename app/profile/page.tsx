@@ -18,6 +18,7 @@ import {
   BadgesPanel,
   LinksPanel,
   PrivacyPanel,
+  AppearancePanel,
   GuideModePanel,
   BookingsPanel,
   ActivityPanel,
@@ -72,6 +73,9 @@ export default function ProfilePage() {
   // Activity state
   const [pendingActivityCount, setPendingActivityCount] = useState(0);
 
+  // Profile theme state
+  const [profileTheme, setProfileTheme] = useState('journey');
+
   // Modal states
   const [showTravelModal, setShowTravelModal] = useState(false);
   const [showWishlistModal, setShowWishlistModal] = useState(false);
@@ -125,6 +129,7 @@ export default function ProfilePage() {
         const data = await response.json();
         setProfile(data);
         setBadgeLevels(data.badgeLevels || []);
+        setProfileTheme(data.user.profileTheme || 'journey');
       }
     } catch (err) {
       console.error('Failed to fetch profile:', err);
@@ -389,6 +394,18 @@ export default function ProfilePage() {
     }
   };
 
+  const handleThemeChange = async (theme: string) => {
+    const response = await fetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileTheme: theme }),
+    });
+
+    if (response.ok) {
+      setProfileTheme(theme);
+    }
+  };
+
   // Track if we've already fetched bookings to prevent duplicate fetches
   const hasFetchedBookings = useRef(false);
 
@@ -501,6 +518,13 @@ export default function ProfilePage() {
                 email={profile?.user.email || ''}
                 emailVerified={profile?.user.emailVerified || false}
                 onToggleVisibility={handleToggleVisibility}
+              />
+            );
+          case 'appearance':
+            return (
+              <AppearancePanel
+                currentTheme={profileTheme}
+                onThemeChange={handleThemeChange}
               />
             );
           case 'guide-mode':
