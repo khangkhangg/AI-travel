@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Users, Loader2, Search, Filter, ChevronDown, MapPin } from 'lucide-react';
 import Header from '@/components/landing/Header';
+import Footer from '@/components/Footer';
 import { CreatorCard, FeaturedSection } from '@/components/creators';
 import { Creator, CreatorCategory, INTEREST_CATEGORIES, InterestCategory } from '@/lib/types/user';
 
@@ -368,6 +369,8 @@ export default function CreatorsPage() {
           </>
         )}
       </div>
+
+      <Footer />
     </div>
   );
 }

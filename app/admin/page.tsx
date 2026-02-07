@@ -165,6 +165,9 @@ export default function AdminDashboard() {
   const [showTelegramToken, setShowTelegramToken] = useState(false);
   const [telegramSaveStatus, setTelegramSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [telegramTestStatus, setTelegramTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  // Google Analytics
+  const [gaTrackingId, setGaTrackingId] = useState('');
+  const [gaSaveStatus, setGaSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   // Featured Creators
   const [featuredCreators, setFeaturedCreators] = useState<Record<string, any[]>>({});
   const [featuredLoading, setFeaturedLoading] = useState(false);
@@ -360,6 +363,19 @@ export default function AdminDashboard() {
           }
         } catch (e) {
           console.error('Failed to fetch Telegram config:', e);
+        }
+
+        // Fetch Google Analytics config
+        try {
+          const gaRes = await fetch('/api/admin/site-settings?key=google_analytics');
+          if (gaRes.ok) {
+            const gaData = await gaRes.json();
+            if (gaData.value) {
+              setGaTrackingId(gaData.value.trackingId || '');
+            }
+          }
+        } catch (e) {
+          console.error('Failed to fetch Google Analytics config:', e);
         }
 
         // Fetch eKYC settings
@@ -687,6 +703,31 @@ export default function AdminDashboard() {
     } catch {
       setTelegramTestStatus('error');
       setTimeout(() => setTelegramTestStatus('idle'), 3000);
+    }
+  };
+
+  const handleSaveGoogleAnalytics = async () => {
+    setGaSaveStatus('saving');
+    try {
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: 'google_analytics',
+          value: { trackingId: gaTrackingId },
+        }),
+      });
+
+      if (res.ok) {
+        setGaSaveStatus('success');
+        setTimeout(() => setGaSaveStatus('idle'), 3000);
+      } else {
+        setGaSaveStatus('error');
+        setTimeout(() => setGaSaveStatus('idle'), 3000);
+      }
+    } catch {
+      setGaSaveStatus('error');
+      setTimeout(() => setGaSaveStatus('idle'), 3000);
     }
   };
 
@@ -4521,6 +4562,57 @@ export default function AdminDashboard() {
                       {telegramSaveStatus === 'saving' ? 'Saving...' : 'Save Config'}
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Google Analytics */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+                    <BarChart3 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Google Analytics</h3>
+                    <p className="text-sm text-gray-500">Track visitor analytics on your site</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tracking ID</label>
+                  <input
+                    type="text"
+                    value={gaTrackingId}
+                    onChange={(e) => setGaTrackingId(e.target.value)}
+                    placeholder="G-XXXXXXXXXX"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Enter your Google Analytics 4 Measurement ID (starts with G-)
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <div>
+                    {gaSaveStatus === 'success' && (
+                      <span className="text-sm text-green-600 flex items-center gap-1">
+                        <CheckCircle className="w-4 h-4" /> Saved
+                      </span>
+                    )}
+                    {gaSaveStatus === 'error' && (
+                      <span className="text-sm text-red-600">Failed to save</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleSaveGoogleAnalytics}
+                    disabled={gaSaveStatus === 'saving'}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium rounded-xl hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 transition-all"
+                  >
+                    <Save className="w-4 h-4" />
+                    {gaSaveStatus === 'saving' ? 'Saving...' : 'Save Config'}
+                  </button>
                 </div>
               </div>
             </div>

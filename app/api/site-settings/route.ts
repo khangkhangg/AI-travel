@@ -6,6 +6,7 @@ const PUBLIC_SETTINGS = [
   'google_calendar_booking_enabled',
   'profile_design',
   'app_branding',
+  'google_analytics',
 ];
 
 // GET - Get public site settings
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
         google_calendar_booking_enabled: 'false',
         profile_design: 'journey',
         app_branding: { appName: 'Wanderlust', logoUrl: null },
+        google_analytics: { trackingId: '' },
       };
 
       return NextResponse.json({

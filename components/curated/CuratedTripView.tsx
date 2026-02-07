@@ -21,6 +21,7 @@ import CreatorProfile from './CreatorProfile';
 import DayTimeline from './DayTimeline';
 import TripImageUpload from './TripImageUpload';
 import AuthModal from '@/components/auth/AuthModal';
+import Footer from '@/components/Footer';
 import { ViewModeMenu, ServiceSuggestionsGrid } from '@/components/marketplace';
 import type { ViewMode, UserMarketplaceContext, Proposal, TripSuggestion, BidFormData, SuggestionFormData } from '@/lib/types/marketplace';
 
@@ -1022,6 +1023,8 @@ export default function CuratedTripView({
         onClose={() => setShowAuthModal(false)}
         onAuthSuccess={handleAuthSuccess}
       />
+
+      <Footer />
     </div>
   );
 }

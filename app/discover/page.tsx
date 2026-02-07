@@ -24,6 +24,7 @@ import {
   PenLine,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
+import Footer from '@/components/Footer';
 import { Itinerary, UserSummary } from '@/lib/types/user';
 import { CreatorHoverCard } from '@/components/creators';
 
@@ -519,6 +520,8 @@ function DiscoverContent() {
           </>
         )}
       </main>
+
+      <Footer />
     </div>
   );
 }

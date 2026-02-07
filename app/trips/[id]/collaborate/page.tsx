@@ -7,6 +7,7 @@ import {
   Edit3, Loader2, MapPin,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
+import Footer from '@/components/Footer';
 import KanbanBoard from '@/components/collaborate/KanbanBoard';
 import DiscussionSidebar from '@/components/collaborate/DiscussionSidebar';
 import CostSummary from '@/components/collaborate/CostSummary';
@@ -984,6 +985,8 @@ export default function CollaboratePage() {
           onPlaceAdded={handlePlaceAdded}
         />
       )}
+
+      <Footer />
     </div>
   );
 }

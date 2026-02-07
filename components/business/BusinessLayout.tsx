@@ -2,6 +2,7 @@
 
 import { useState, useEffect, ReactNode } from 'react';
 import BusinessSidebar, { BusinessSectionId, BusinessSubItemId } from './BusinessSidebar';
+import Footer from '@/components/Footer';
 
 interface BusinessLayoutProps {
   user: {

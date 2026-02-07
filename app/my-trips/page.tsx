@@ -8,6 +8,7 @@ import {
   Copy, ChevronDown, Check, Loader2, AlertTriangle, Sparkles, PenLine,
 } from 'lucide-react';
 import Header from '@/components/landing/Header';
+import Footer from '@/components/Footer';
 import { createBrowserSupabaseClient } from '@/lib/auth/supabase-browser';
 import { format, isPast, parseISO } from 'date-fns';
 
@@ -1080,6 +1081,8 @@ export default function MyTripsPage() {
           )}
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }
